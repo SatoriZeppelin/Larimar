@@ -440,6 +440,30 @@
     openConfirm('是否需要重置本页面设置为默认状态？', resetPageSettings);
   }
 
+  /** 清除全部 tq_plus_* 本地数据并刷新，回到首次载入状态 */
+  function factoryResetAll() {
+    try {
+      var keys = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf('tq_plus_') === 0) keys.push(k);
+      }
+      keys.forEach(function (k) {
+        localStorage.removeItem(k);
+      });
+    } catch (e) {
+      console.warn('[天青] 全量重置失败', e);
+      toast('重置失败：无法清除本地数据');
+      return;
+    }
+    toast('正在重置…');
+    window.location.reload();
+  }
+
+  function openFactoryResetConfirm() {
+    openConfirm('确定重置为初始状态？将清除全部设置、存档、对话与世界书，且无法撤销。', factoryResetAll);
+  }
+
   function bindUiControls() {
     bindSliderPair('cfg-dlg-opacity', 'cfg-dlg-opacity-num', commitUi);
     bindSliderPair('cfg-dlg-border-alpha', 'cfg-dlg-border-alpha-num', commitUi);
@@ -476,6 +500,9 @@
 
     var resetBtn = $('btn-reset-page');
     if (resetBtn) resetBtn.addEventListener('click', openResetConfirm);
+
+    var factoryResetBtn = $('btn-debug-factory-reset');
+    if (factoryResetBtn) factoryResetBtn.addEventListener('click', openFactoryResetConfirm);
 
     var yesBtn = $('tq-confirm-yes');
     var noBtn = $('tq-confirm-no');
@@ -561,6 +588,7 @@
       svg.mount($('tab-icon-system'), svg.list);
       svg.mount($('tab-icon-debug'), svg.bug);
       svg.mount($('btn-reset-page-icon'), svg.refresh);
+      svg.mount($('btn-debug-factory-reset-icon'), svg.refresh);
       svg.mount($('tq-confirm-yes-icon'), svg.check);
       svg.mount($('tq-confirm-no-icon'), svg.cross);
     }

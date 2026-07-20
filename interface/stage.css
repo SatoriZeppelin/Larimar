@@ -3224,6 +3224,51 @@ html.title-video-off #title-screen .title-screen-video {
   transform: scale(0.99);
 }
 
+/* 调试设置：正中全量重置 */
+#settings-panel #pane-debug.no-subnav > .settings-subcontent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  min-height: 100%;
+}
+
+#settings-panel #pane-debug.no-subnav > .settings-subcontent > .settings-l3 {
+  width: auto;
+  max-width: none;
+}
+
+#settings-panel .settings-debug-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0;
+}
+
+#settings-panel .tq-reset-btn-danger {
+  border-color: #c62828;
+  background: #c62828;
+  color: #fff;
+  min-width: 132px;
+  padding: 12px 22px;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  box-shadow: 0 6px 18px rgba(198, 40, 40, 0.28);
+}
+
+#settings-panel .tq-reset-btn-danger:hover {
+  background: #b71c1c;
+  border-color: #b71c1c;
+  color: #fff;
+}
+
+#settings-panel .tq-reset-btn-danger:active {
+  background: #a31515;
+  border-color: #a31515;
+  transform: scale(0.98);
+}
+
 #settings-panel .settings-preset-actions {
   display: flex;
   flex-wrap: wrap;

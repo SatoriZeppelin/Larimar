@@ -1263,9 +1263,17 @@
 
           <div class="settings-pane" id="pane-debug" data-pane="debug">
             <nav class="settings-subnav" aria-label="调试设置二级目录"></nav>
-            <div class="settings-subcontent">
-              <section class="settings-l3">
-                <p class="tq-hint">调试相关设置将在这里配置</p>
+            <div class="settings-subcontent debug-subcontent">
+              <section class="settings-l3 settings-debug-center">
+                <button
+                  type="button"
+                  class="tq-reset-btn tq-reset-btn-danger"
+                  id="btn-debug-factory-reset"
+                  title="重置为初始状态"
+                >
+                  <span class="tq-reset-label">重置</span>
+                  <span class="tq-reset-icon" id="btn-debug-factory-reset-icon" aria-hidden="true"></span>
+                </button>
               </section>
             </div>
           </div>

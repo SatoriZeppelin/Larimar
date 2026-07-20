@@ -17,14 +17,15 @@
     };
   }
 
-  function pushLine(r, who, expr, text, cg) {
+  function pushLine(r, who, expr, text, cg, bg) {
     who = String(who || '').trim();
     expr = String(expr == null ? '' : expr).trim();
     text = String(text || '').trim();
     if (!text && !who) return;
     var isNarr = who === '旁白' || who === '旁白。' || !who;
-    /* 勿把 CG 开闭标签误解析成台词 */
+    /* 勿把 CG / 背景 开闭标签误解析成台词 */
     if (/^cg$/i.test(who) || /^\/cg$/i.test(who)) return;
+    if (who === '背景' || who === '/背景') return;
     r.modules.push({
       type: 'line',
       text: text,
@@ -32,22 +33,24 @@
       expr: !expr || expr === '-' ? '-' : expr,
       dialogue: !isNarr,
       cg: cg || null,
+      bgId: bg && bg.id ? bg.id : null,
+      bgName: bg && bg.name ? bg.name : null,
     });
   }
 
   /** 新格式：<说话人|表情|正文> 或 <说话人|正文> / <旁白|正文> */
-  function parseSummerNightTag(tagInner, r, cgScene) {
+  function parseSummerNightTag(tagInner, r, cgScene, bgScene) {
     var parts = String(tagInner || '').split('|');
     if (parts.length >= 3) {
-      pushLine(r, parts[0], parts[1], parts.slice(2).join('|'), cgScene);
+      pushLine(r, parts[0], parts[1], parts.slice(2).join('|'), cgScene, bgScene);
       return;
     }
     if (parts.length === 2) {
-      pushLine(r, parts[0], '-', parts[1], cgScene);
+      pushLine(r, parts[0], '-', parts[1], cgScene, bgScene);
       return;
     }
     if (parts.length === 1 && parts[0].trim()) {
-      pushLine(r, '旁白', '-', parts[0], cgScene);
+      pushLine(r, '旁白', '-', parts[0], cgScene, bgScene);
     }
   }
 
@@ -119,6 +122,7 @@
   /** 扫描已闭合的 <...>；忽略末尾半截标签 */
   function scanCompleteTags(zone, r) {
     var cgScene = null;
+    var bgScene = null;
     var re = /<([^<>]+)>/g;
     var m;
     while ((m = re.exec(zone))) {
@@ -137,7 +141,18 @@
         continue;
       }
 
-      parseSummerNightTag(inner, r, cgScene);
+      /* <背景|图片ID|名称> — 切换后续句的背景；名称先挂载，供后续说明 */
+      var bgOpen = inner.match(/^背景\s*\|\s*([^|]*)(?:\s*\|\s*(.*))?$/);
+      if (bgOpen || lower === '背景') {
+        var bgId = String((bgOpen && bgOpen[1]) || '').trim();
+        var bgName = String((bgOpen && bgOpen[2]) || '').trim();
+        if (bgId) {
+          bgScene = { id: bgId, name: bgName || bgId };
+        }
+        continue;
+      }
+
+      parseSummerNightTag(inner, r, cgScene, bgScene);
     }
   }
 

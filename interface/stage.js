@@ -476,7 +476,16 @@
     }
   }
 
+  function applyLineBg(mod) {
+    if (!mod || !mod.bgId) return;
+    if (window.天青_state && window.天青_state.set) {
+      window.天青_state.set({ 地点: mod.bgId });
+    }
+    paintBG();
+  }
+
   function presentLine(mod, instant) {
+    applyLineBg(mod);
     setSprite(mod.expr);
     var body = $('dlg-body');
     var textEl = $('text');

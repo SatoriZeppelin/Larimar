@@ -59,6 +59,9 @@
     el.removeAttribute('inert');
     el.setAttribute('aria-hidden', 'false');
     refreshContinueBtn();
+    if (window.天青_system && window.天青_system.applyTitleVideo) {
+      window.天青_system.applyTitleVideo();
+    }
   }
 
   function hide(done) {

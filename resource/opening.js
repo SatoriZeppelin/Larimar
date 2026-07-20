@@ -1,11 +1,12 @@
 /**
  * 开局演示剧情（summernight 格式）
- * CG 区间：<CG|名字> … </CG>（标记不进文本，展示界面另留）
+ * 背景：<背景|图片ID|名称>
+ * CG 区间：<CG|名字> … </CG>（标记不进文本）
  * 对外：window.天青_opening
  */
 window.天青_opening = String.raw`<summernight>
     <summernight_maintext>
-		<CG|璀璨笑容>
+        <背景|校园|校门口>
         <旁白|三月末的风还带着凉意，校门口的银杏树刚冒出嫩黄的新叶。>
         <旁白|你靠在离校门十几米远的路灯柱上，手机显示下午四点十七分——距离她说的放学时间，过去了整整十二分钟。>
         <旁白|三三两两的学生从校门里走出来，有人骑车，有人边走边拆便利店的面包。你换了个姿势，手边还提着两杯热可可。>
@@ -33,7 +34,7 @@ window.天青_opening = String.raw`<summernight>
         <同学|那是天青你逼我们点的……>
 
         <天青|不满|我没有逼！我只是说，你们不点赞的话我会伤心而已！>
-
+        <CG|璀璨笑容>
         <旁白|她说完也不等回应，转身小跑过来，裙摆随着动作扬起又落下，黑色连裤袜在阳光下泛着柔和的雾面光泽。>
         <旁白|她在离你还有两步远的地方停住，仰起脸，刘海被风吹得有点乱，露出一小截干净的额头。>
 
@@ -98,6 +99,7 @@ window.天青_opening = String.raw`<summernight>
 
     <UpdateVariable>
         <summernight_variables>
+    		变量更新内容
         </summernight_variables>
     </UpdateVariable>
 </summernight>`;

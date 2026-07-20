@@ -18,6 +18,7 @@
     textProducerColor: '#f2f5f8',
     textOtherColor: '#f2f5f8',
     autoEnterCg: true,
+    disableTitleVideo: false,
   };
 
   function $(id) {
@@ -259,6 +260,7 @@
 
   function readUiFromDom() {
     var autoCg = $('cfg-auto-enter-cg');
+    var disableTitleVideo = $('cfg-disable-title-video');
     return {
       dlgOpacity: clampInt(($('cfg-dlg-opacity') || {}).value, 0, 100),
       dlgBorderColor: ($('cfg-dlg-border-color') || {}).value || UI_DEFAULTS.dlgBorderColor,
@@ -272,6 +274,9 @@
       textProducerColor: ($('cfg-text-producer-color') || {}).value || UI_DEFAULTS.textProducerColor,
       textOtherColor: ($('cfg-text-other-color') || {}).value || UI_DEFAULTS.textOtherColor,
       autoEnterCg: autoCg ? !!autoCg.checked : UI_DEFAULTS.autoEnterCg,
+      disableTitleVideo: disableTitleVideo
+        ? !!disableTitleVideo.checked
+        : UI_DEFAULTS.disableTitleVideo,
     };
   }
 
@@ -299,12 +304,14 @@
     var tp = $('cfg-text-producer-color');
     var to = $('cfg-text-other-color');
     var autoCg = $('cfg-auto-enter-cg');
+    var disableTitleVideo = $('cfg-disable-title-video');
     if (bc) bc.value = ui.dlgBorderColor || UI_DEFAULTS.dlgBorderColor;
     if (bg) bg.value = ui.dlgBgColor || UI_DEFAULTS.dlgBgColor;
     if (tq) tq.value = ui.textTqColor || UI_DEFAULTS.textTqColor;
     if (tp) tp.value = ui.textProducerColor || UI_DEFAULTS.textProducerColor;
     if (to) to.value = ui.textOtherColor || UI_DEFAULTS.textOtherColor;
     if (autoCg) autoCg.checked = ui.autoEnterCg !== false;
+    if (disableTitleVideo) disableTitleVideo.checked = !!ui.disableTitleVideo;
   }
 
   function syncKeyLabels() {
@@ -338,8 +345,12 @@
     root.setProperty('--dlg-text-tq', ui.textTqColor || UI_DEFAULTS.textTqColor);
     root.setProperty('--dlg-text-producer', ui.textProducerColor || UI_DEFAULTS.textProducerColor);
     root.setProperty('--dlg-text-other', ui.textOtherColor || UI_DEFAULTS.textOtherColor);
+    document.documentElement.classList.toggle('title-video-off', !!ui.disableTitleVideo);
     fillUiDom(ui);
     syncKeyLabels();
+    if (window.天青_system && window.天青_system.applyTitleVideo) {
+      window.天青_system.applyTitleVideo();
+    }
   }
 
   function commitUi() {
@@ -456,6 +467,11 @@
           window.天青_stage.onAutoCgSettingChange();
         }
       });
+    }
+
+    var disableTitleVideo = $('cfg-disable-title-video');
+    if (disableTitleVideo) {
+      disableTitleVideo.addEventListener('change', commitUi);
     }
 
     var resetBtn = $('btn-reset-page');
@@ -622,6 +638,10 @@
       isAutoEnterCg: function () {
         var ui = loadUi();
         return ui.autoEnterCg !== false;
+      },
+      isTitleVideoDisabled: function () {
+        var ui = loadUi();
+        return !!ui.disableTitleVideo;
       },
     };
   }

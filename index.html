@@ -15,6 +15,15 @@
   <body>
     <div id="title-screen" class="open" aria-hidden="false">
       <div class="title-screen-bg" aria-hidden="true"></div>
+      <video
+        class="title-screen-video"
+        id="title-screen-video"
+        aria-hidden="true"
+        muted
+        loop
+        playsinline
+        preload="auto"
+      ></video>
       <div class="title-screen-frame" aria-hidden="true"></div>
       <div class="title-screen-rail">
         <div class="title-screen-brand">
@@ -270,6 +279,9 @@
         <div class="settings-body">
           <div class="settings-pane active" id="pane-general" data-pane="general">
             <nav class="settings-subnav" aria-label="通用设置二级目录">
+              <button type="button" class="settings-subtab" data-sub="menu">
+                <span class="sub-label">主菜单</span>
+              </button>
               <button type="button" class="settings-subtab active" data-sub="gal">
                 <span class="sub-label">GAL</span>
               </button>
@@ -278,6 +290,18 @@
               </button>
             </nav>
             <div class="settings-subcontent">
+              <div class="settings-subpane" data-subpane="menu">
+                <section class="settings-l3">
+                  <h3 class="settings-l3-title">主菜单</h3>
+                  <div class="settings-l4">
+                    <label class="tq-check-row" for="cfg-disable-title-video">
+                      <input type="checkbox" id="cfg-disable-title-video" />
+                      <span class="tq-check-box" aria-hidden="true"></span>
+                      <span class="tq-check-label">禁用背景视频</span>
+                    </label>
+                  </div>
+                </section>
+              </div>
               <div class="settings-subpane active" data-subpane="gal">
                 <div class="gal-settings-split">
                   <section class="settings-l3 gal-settings-col">

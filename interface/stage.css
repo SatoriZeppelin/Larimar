@@ -70,11 +70,28 @@ body {
 #title-screen .title-screen-bg {
   position: absolute;
   inset: 0;
+  z-index: 0;
   background-color: #000;
   background-image: var(--title-screen-bg-image, none);
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
+}
+
+#title-screen .title-screen-video {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  background: transparent;
+}
+
+html.title-video-off #title-screen .title-screen-video {
+  display: none;
 }
 
 /* 天青色装饰框：外圈主色宽度 = 与边界的留白 */

@@ -6,7 +6,7 @@
 (function () {
   var KEY = 'tq_plus_system_prompts';
   var SEED_KEY = 'tq_plus_prompt_wb_seed';
-  var SEED_VER = 'prompt-default-wb-v1';
+  var SEED_VER = 'prompt-default-wb-v2';
   var STAT_DATA_UID = 'tq_locked_stat_data';
   var store = { entries: [] };
   var expandedId = null;
@@ -161,28 +161,36 @@
   }
 
   /**
-   * 首次载入：写入内嵌基础提示词（仅播种一次；已有非「变量列表」条目则跳过）
+   * 首次 / 仅有「变量列表」时：写入内嵌基础提示词
+   * 已有其它条目则跳过；仅有锁定词条时会补种（修复旧缓存/旧 seed）
    */
   function ensureDefaultPrompts() {
     var seeded = '';
     try {
       seeded = localStorage.getItem(SEED_KEY) || '';
     } catch (e) {}
-    if (seeded === SEED_VER) return false;
 
     var list = entries();
     var custom = list.filter(function (e) {
       return e && e.uid !== STAT_DATA_UID;
     });
     if (custom.length) {
-      try {
-        localStorage.setItem(SEED_KEY, SEED_VER);
-      } catch (e) {}
+      if (seeded !== SEED_VER) {
+        try {
+          localStorage.setItem(SEED_KEY, SEED_VER);
+        } catch (e) {}
+      }
       return false;
     }
 
+    /* 无自定义条目：即使旧版 seed 已写，仍补种一次（v2） */
+    if (seeded === SEED_VER) return false;
+
     var defaults = loadDefaultPromptEntries();
-    if (!defaults.length) return false;
+    if (!defaults.length) {
+      console.warn('[天青 提示词] 默认基础提示词未加载（检查 default-prompt-worldbook.js）');
+      return false;
+    }
     store.entries = defaults;
     saveStore();
     try {

@@ -2775,6 +2775,71 @@ html.title-video-off #title-screen .title-screen-video {
   box-sizing: border-box;
 }
 
+/* 调试设置：整页正中（覆盖上方两栏布局） */
+#settings-panel #pane-debug.active {
+  display: flex;
+  flex-direction: column;
+}
+
+#settings-panel #pane-debug > .debug-subcontent,
+#settings-panel #pane-debug.no-subnav > .debug-subcontent,
+#settings-panel #pane-debug.no-subnav > .settings-subcontent {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex !important;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0;
+  border-left: none;
+  box-sizing: border-box;
+}
+
+#settings-panel #pane-debug.no-subnav > .settings-subcontent > .settings-l3,
+#settings-panel #pane-debug > .debug-subcontent > .settings-l3 {
+  width: auto !important;
+  max-width: none !important;
+  margin: 0;
+}
+
+#settings-panel .settings-debug-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
+#settings-panel #btn-debug-factory-reset,
+#settings-panel .tq-reset-btn-danger {
+  border-color: #c62828;
+  background: #c62828;
+  color: #fff;
+  min-width: 132px;
+  padding: 12px 22px;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  box-shadow: 0 6px 18px rgba(198, 40, 40, 0.28);
+}
+
+#settings-panel #btn-debug-factory-reset:hover,
+#settings-panel .tq-reset-btn-danger:hover {
+  background: #b71c1c;
+  border-color: #b71c1c;
+  color: #fff;
+}
+
+#settings-panel #btn-debug-factory-reset:active,
+#settings-panel .tq-reset-btn-danger:active {
+  background: #a31515;
+  border-color: #a31515;
+  transform: scale(0.98);
+}
+
 #settings-panel .settings-subpane {
   display: none;
   min-height: 100%;
@@ -3222,51 +3287,6 @@ html.title-video-off #title-screen .title-screen-video {
 
 #settings-panel .tq-reset-btn:active {
   transform: scale(0.99);
-}
-
-/* 调试设置：正中全量重置 */
-#settings-panel #pane-debug.no-subnav > .settings-subcontent {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: nowrap;
-  min-height: 100%;
-}
-
-#settings-panel #pane-debug.no-subnav > .settings-subcontent > .settings-l3 {
-  width: auto;
-  max-width: none;
-}
-
-#settings-panel .settings-debug-center {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  margin: 0;
-}
-
-#settings-panel .tq-reset-btn-danger {
-  border-color: #c62828;
-  background: #c62828;
-  color: #fff;
-  min-width: 132px;
-  padding: 12px 22px;
-  font-size: 16px;
-  letter-spacing: 0.06em;
-  box-shadow: 0 6px 18px rgba(198, 40, 40, 0.28);
-}
-
-#settings-panel .tq-reset-btn-danger:hover {
-  background: #b71c1c;
-  border-color: #b71c1c;
-  color: #fff;
-}
-
-#settings-panel .tq-reset-btn-danger:active {
-  background: #a31515;
-  border-color: #a31515;
-  transform: scale(0.98);
 }
 
 #settings-panel .settings-preset-actions {

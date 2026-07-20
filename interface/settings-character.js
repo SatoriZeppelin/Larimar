@@ -4,6 +4,8 @@
  */
 (function () {
   var KEY = 'tq_plus_character_tabs';
+  var SEED_KEY = 'tq_plus_tianqing_wb_seed';
+  var SEED_VER = 'tianqing-default-wb-v1';
   var DEFAULT_COLOR = '#2a6f9e';
   var LONG_MS = 500;
   var MOVE_PX = 10;
@@ -33,6 +35,21 @@
     return 'char_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
   }
 
+  /** 内嵌默认世界书 → 规范条目列表 */
+  function loadDefaultTianqingEntries() {
+    var raw = window.天青_default_worldbook_tianqing;
+    if (!raw) return [];
+    var api = window.天青_preset;
+    if (api && typeof api.importWorldbook === 'function') {
+      try {
+        return api.importWorldbook(raw) || [];
+      } catch (e) {
+        console.warn('[天青 角色] 默认世界书解析失败', e);
+      }
+    }
+    return [];
+  }
+
   function defaultStore() {
     return {
       activeId: 'tianqing',
@@ -43,10 +60,53 @@
           color: DEFAULT_COLOR,
           locked: true,
           enabled: true,
-          entries: [],
+          entries: loadDefaultTianqingEntries(),
         },
       ],
     };
+  }
+
+  /**
+   * 首次载入：给「天青」写入内嵌世界书（仅播种一次，不覆盖已有条目）
+   */
+  function ensureTianqingDefaultWorldbook() {
+    var seeded = '';
+    try {
+      seeded = localStorage.getItem(SEED_KEY) || '';
+    } catch (e) {}
+    if (seeded === SEED_VER) return false;
+
+    if (!store || !Array.isArray(store.tabs)) return false;
+    var tab = findTab('tianqing');
+    if (!tab) {
+      tab = store.tabs.find(function (t) {
+        return t && t.locked;
+      });
+    }
+    if (!tab) {
+      try {
+        localStorage.setItem(SEED_KEY, SEED_VER);
+      } catch (e) {}
+      return false;
+    }
+
+    var filled = false;
+    if (!Array.isArray(tab.entries) || !tab.entries.length) {
+      var entries = loadDefaultTianqingEntries();
+      if (!entries.length) return false;
+      tab.entries = entries;
+      if (!tab.name) tab.name = '天青';
+      filled = true;
+    }
+
+    saveStore();
+    try {
+      localStorage.setItem(SEED_KEY, SEED_VER);
+    } catch (e) {}
+    if (filled) {
+      console.info('[天青 角色] 已载入默认世界书「天青」', tab.entries.length + ' 条');
+    }
+    return filled;
   }
 
   function loadStore() {
@@ -1378,6 +1438,48 @@
     reader.readAsText(file, 'utf-8');
   }
 
+  function safeFileName(name) {
+    var s = String(name || '世界书')
+      .trim()
+      .replace(/[\\/:*?"<>|]+/g, '_')
+      .replace(/\s+/g, ' ');
+    return s || '世界书';
+  }
+
+  function exportActiveWorldbook() {
+    var tab = activeTab();
+    if (!tab) {
+      toast('没有可导出的二级目录');
+      return;
+    }
+    var api = window.天青_preset;
+    if (!api || typeof api.exportWorldbook !== 'function') {
+      toast('世界书导出模块未加载');
+      return;
+    }
+    var name = String(tab.name || '').trim() || '世界书';
+    var entries = tabEntries(tab);
+    if (!entries.length) {
+      toast('当前目录没有可导出的条目');
+      return;
+    }
+    var payload = api.exportWorldbook(entries, name);
+    var blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json;charset=utf-8',
+    });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = safeFileName(name) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+    toast('已导出世界书「' + name + '」（' + entries.length + ' 条）');
+  }
+
   function clearDragStyles(btn) {
     if (!btn) return;
     btn.classList.remove('is-dragging');
@@ -1601,9 +1703,11 @@
 
   function bind() {
     store = loadStore();
+    ensureTianqingDefaultWorldbook();
     var svg = window.天青_svg;
     if (svg) {
       if (svg.importIcon) svg.mount($('btn-char-import-wb-icon'), svg.importIcon);
+      if (svg.exportIcon) svg.mount($('btn-char-export-wb-icon'), svg.exportIcon);
       if (svg.palette) svg.mount($('char-color-icon'), svg.palette);
       if (svg.pencil) svg.mount($('btn-char-rename-icon'), svg.pencil);
       if (svg.trash) svg.mount($('btn-char-delete-icon'), svg.trash);
@@ -1638,6 +1742,7 @@
     }
 
     var importBtn = $('btn-char-import-wb');
+    var exportBtn = $('btn-char-export-wb');
     var importFile = $('cfg-char-wb-file');
     if (importBtn && importFile) {
       importBtn.addEventListener('click', function () {
@@ -1649,6 +1754,9 @@
         if (file) parseWorldbookFile(file);
         importFile.value = '';
       });
+    }
+    if (exportBtn) {
+      exportBtn.addEventListener('click', exportActiveWorldbook);
     }
 
     var overwriteModal = $('char-wb-overwrite-modal');

@@ -6,8 +6,9 @@
 
 1. 用浏览器打开 `index.html`（若 `file://` 受限，可用 `npx serve .`）
 2. 打开 **设置**，填写 API URL / 密钥 / 模型
-3. （推荐）导入 SillyTavern 预设、世界书或角色卡
-4. 从标题界面开始新游戏，或继续已有进度
+3. 角色设置里「天青」目录在首次载入时会自动写入内嵌默认世界书（`resource/default-worldbook-tianqing.js`）
+4. （可选）再导入 SillyTavern 预设、其它世界书或角色卡
+5. 从标题界面开始新游戏，或继续已有进度
 
 ## 目录概览
 

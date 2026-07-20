@@ -332,6 +332,51 @@
       });
   }
 
+  /**
+   * 导出为 SillyTavern 兼容世界书 JSON
+   * @param {object[]} entries
+   * @param {string} name 世界书名称（通常为二级目录名）
+   */
+  function exportWorldbook(entries, name) {
+    var list = Array.isArray(entries) ? entries : [];
+    var mapped = {};
+    list.forEach(function (e, i) {
+      var n = normEntry(e, i) || e;
+      if (!n) return;
+      var uid = n.uid != null ? n.uid : i;
+      mapped[String(i)] = {
+        uid: uid,
+        key: Array.isArray(n.key) ? n.key : [],
+        keysecondary: Array.isArray(n.keysecondary) ? n.keysecondary : [],
+        comment: n.comment || '',
+        content: n.content || '',
+        constant: !!n.constant,
+        order: n.order != null ? n.order : i,
+        position: n.position != null ? n.position : 0,
+        depth: n.depth != null ? n.depth : 4,
+        role: n.role != null ? n.role : 0,
+        probability: n.probability != null ? n.probability : 100,
+        selectiveLogic: n.selectiveLogic != null ? n.selectiveLogic : 0,
+        scanDepth: n.scanDepth == null ? null : n.scanDepth,
+        caseSensitive: n.caseSensitive == null ? null : n.caseSensitive,
+        matchWholeWords: n.matchWholeWords == null ? null : n.matchWholeWords,
+        useGroupScoring: !!n.useGroupScoring,
+        automationId: n.automationId != null ? String(n.automationId) : '',
+        excludeRecursion: !!n.excludeRecursion,
+        preventRecursion: !!n.preventRecursion,
+        delayUntilRecursion: !!n.delayUntilRecursion,
+        ignoreBudget: !!n.ignoreBudget,
+        enabled: n.enabled !== false,
+        disable: n.enabled === false,
+      };
+    });
+    return {
+      name: String(name || '世界书').trim() || '世界书',
+      description: '',
+      entries: mapped,
+    };
+  }
+
   function isStChatPreset(data) {
     if (!data || typeof data !== 'object') return false;
     if (Array.isArray(data.prompts) || Array.isArray(data.prompt_order)) return true;
@@ -826,6 +871,7 @@
     addPreset: addPreset,
     deletePreset: deletePreset,
     importWorldbook: importWorldbook,
+    exportWorldbook: exportWorldbook,
     importChatPreset: importChatPreset,
     importCharacterCard: importCharacterCard,
     importAuto: importAuto,

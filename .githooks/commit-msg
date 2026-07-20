@@ -1,0 +1,9 @@
+#!/bin/sh
+# 禁止将下列名称写入 Co-authored-by（避免 GitHub 共同开发者列表污染）
+FORBIDDEN='cursoragent|SatoriZeppelin|SatoriZeppelincursoragent'
+if grep -Eiq "Co-authored-by:.*($FORBIDDEN)" "$1"; then
+  echo "commit-msg: 已拒绝含 cursoragent / SatoriZeppelin 的 Co-authored-by 行。" >&2
+  echo "请移除共同作者行后重新提交。" >&2
+  exit 1
+fi
+exit 0

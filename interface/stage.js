@@ -800,6 +800,8 @@
     if (settings && settings.classList.contains('open')) return true;
     var saves = $('saves-panel');
     if (saves && saves.classList.contains('open')) return true;
+    var phone = $('tq-phone');
+    if (phone && phone.classList.contains('is-open')) return true;
     return false;
   }
 
@@ -811,6 +813,8 @@
       target.closest('#btn-cg-swap') ||
       target.closest('#gal-toolbar-dock') ||
       target.closest('#gal-log-panel') ||
+      target.closest('#gal-phone-fab') ||
+      target.closest('#tq-phone') ||
       target.closest('.nav') ||
       target.closest('#choices button') ||
       target.closest('#toast') ||
@@ -1138,6 +1142,7 @@
     };
     paintBG({ instant: true });
     syncCgToggle();
+    if (window.天青_phone_fab && window.天青_phone_fab.bind) window.天青_phone_fab.bind();
   }
 
   window.天青_stage = {

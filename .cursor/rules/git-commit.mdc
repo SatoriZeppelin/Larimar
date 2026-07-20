@@ -1,0 +1,13 @@
+---
+description: Larimar 仓库 git 提交规范
+alwaysApply: true
+---
+
+# Git 提交规范
+
+- **禁止**在 commit message 中加入 `Co-authored-by` 行，尤其不得出现：
+  - `cursoragent`
+  - `SatoriZeppelin`
+  - `SatoriZeppelincursoragent`
+- 不要把上述名称写入 README、界面 credits 或「共同开发成员」列表。
+- 本仓库推送目标：`origin` → Larimar（`src/天青` 独立仓库）。

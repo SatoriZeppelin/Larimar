@@ -18,6 +18,17 @@
     textProducerColor: '#f2f5f8',
     textOtherColor: '#f2f5f8',
     autoEnterCg: true,
+    cgHideToolbar: true,
+    cgHideFab: true,
+    phoneTimeMode: 'real',
+    phoneLayout: 'center',
+    phoneSeniority: 'old',
+    phoneAppScale: 100,
+    phoneFabSize: 50,
+    phoneFabColor: '#ffffff',
+    phoneFabOpacity: 38,
+    phoneFabBlur: 20,
+    phoneFabPositionMode: 'free',
     disableTitleVideo: false,
   };
 
@@ -56,6 +67,35 @@
     var rgb = hexToRgb(hex);
     var a = clampInt(alphaPct, 0, 100) / 100;
     return 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + a + ')';
+  }
+
+  function fabIconColor(hex) {
+    var rgb = hexToRgb(hex);
+    var lum = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+    return lum > 0.62 ? 'rgba(28, 28, 30, 0.9)' : 'rgba(255, 255, 255, 0.92)';
+  }
+
+  function applyPhoneFabUi(ui) {
+    var root = document.documentElement.style;
+    var size = clampInt(ui.phoneFabSize, 36, 72);
+    var opacity = clampInt(ui.phoneFabOpacity, 0, 100);
+    var blur = clampInt(ui.phoneFabBlur, 0, 40);
+    var color = ui.phoneFabColor || UI_DEFAULTS.phoneFabColor;
+    root.setProperty('--phone-fab-size', size + 'px');
+    root.setProperty('--phone-fab-icon-size', Math.round(size * 0.6) + 'px');
+    root.setProperty('--phone-fab-glass-bg', rgbaFrom(color, opacity));
+    root.setProperty('--phone-fab-glass-bg-hover', rgbaFrom(color, Math.min(100, opacity + 10)));
+    root.setProperty('--phone-fab-glass-bg-active', rgbaFrom(color, Math.max(0, opacity - 6)));
+    root.setProperty('--phone-fab-glass-border', rgbaFrom(color, Math.min(100, opacity + 7)));
+    root.setProperty('--phone-fab-glass-border-hover', rgbaFrom(color, Math.min(100, opacity + 17)));
+    root.setProperty('--phone-fab-glass-border-active', rgbaFrom(color, Math.max(0, opacity)));
+    root.setProperty('--phone-fab-glass-blur', blur + 'px');
+    root.setProperty('--phone-fab-icon-color', fabIconColor(color));
+  }
+
+  function applyPhoneAppScale(ui) {
+    var pct = clampInt(ui.phoneAppScale, 70, 130);
+    document.documentElement.style.setProperty('--phone-app-scale', String(pct / 100));
   }
 
   function setRangePct(rangeEl) {
@@ -258,8 +298,38 @@
     } catch (e) {}
   }
 
+  function readPhoneTimeModeFromDom() {
+    var system = $('cfg-phone-time-system');
+    if (system && system.checked) return 'system';
+    return 'real';
+  }
+
+  function readPhoneLayoutFromDom() {
+    var stacked = $('cfg-phone-layout-topleft-stacked');
+    var compact = $('cfg-phone-layout-topleft-compact');
+    if (stacked && stacked.checked) return 'topleft-stacked';
+    if (compact && compact.checked) return 'topleft-compact';
+    return 'center';
+  }
+
+  function readPhoneSeniorityFromDom() {
+    var young = $('cfg-phone-seniority-young');
+    if (young && young.checked) return 'young';
+    return 'old';
+  }
+
+  function readPhoneFabPositionModeFromDom() {
+    var fixed = $('cfg-phone-fab-pos-fixed');
+    var snap = $('cfg-phone-fab-pos-snap');
+    if (fixed && fixed.checked) return 'fixed';
+    if (snap && snap.checked) return 'snap';
+    return 'free';
+  }
+
   function readUiFromDom() {
     var autoCg = $('cfg-auto-enter-cg');
+    var cgHideToolbar = $('cfg-cg-hide-toolbar');
+    var cgHideFab = $('cfg-cg-hide-fab');
     var disableTitleVideo = $('cfg-disable-title-video');
     return {
       dlgOpacity: clampInt(($('cfg-dlg-opacity') || {}).value, 0, 100),
@@ -274,6 +344,17 @@
       textProducerColor: ($('cfg-text-producer-color') || {}).value || UI_DEFAULTS.textProducerColor,
       textOtherColor: ($('cfg-text-other-color') || {}).value || UI_DEFAULTS.textOtherColor,
       autoEnterCg: autoCg ? !!autoCg.checked : UI_DEFAULTS.autoEnterCg,
+      cgHideToolbar: cgHideToolbar ? !!cgHideToolbar.checked : UI_DEFAULTS.cgHideToolbar,
+      cgHideFab: cgHideFab ? !!cgHideFab.checked : UI_DEFAULTS.cgHideFab,
+      phoneTimeMode: readPhoneTimeModeFromDom(),
+      phoneLayout: readPhoneLayoutFromDom(),
+      phoneSeniority: readPhoneSeniorityFromDom(),
+      phoneAppScale: clampInt(($('cfg-phone-app-scale') || {}).value, 70, 130),
+      phoneFabSize: clampInt(($('cfg-phone-fab-size') || {}).value, 36, 72),
+      phoneFabColor: ($('cfg-phone-fab-color') || {}).value || UI_DEFAULTS.phoneFabColor,
+      phoneFabOpacity: clampInt(($('cfg-phone-fab-opacity') || {}).value, 0, 100),
+      phoneFabBlur: clampInt(($('cfg-phone-fab-blur') || {}).value, 0, 40),
+      phoneFabPositionMode: readPhoneFabPositionModeFromDom(),
       disableTitleVideo: disableTitleVideo
         ? !!disableTitleVideo.checked
         : UI_DEFAULTS.disableTitleVideo,
@@ -288,6 +369,10 @@
       ['cfg-dlg-blur', 'cfg-dlg-blur-num', ui.dlgBlur],
       ['cfg-text-size', 'cfg-text-size-num', ui.textSize],
       ['cfg-text-shadow', 'cfg-text-shadow-num', ui.textShadow],
+      ['cfg-phone-fab-size', 'cfg-phone-fab-size-num', ui.phoneFabSize],
+      ['cfg-phone-fab-opacity', 'cfg-phone-fab-opacity-num', ui.phoneFabOpacity],
+      ['cfg-phone-fab-blur', 'cfg-phone-fab-blur-num', ui.phoneFabBlur],
+      ['cfg-phone-app-scale', 'cfg-phone-app-scale-num', ui.phoneAppScale],
     ];
     map.forEach(function (row) {
       var r = $(row[0]);
@@ -304,6 +389,8 @@
     var tp = $('cfg-text-producer-color');
     var to = $('cfg-text-other-color');
     var autoCg = $('cfg-auto-enter-cg');
+    var cgHideToolbar = $('cfg-cg-hide-toolbar');
+    var cgHideFab = $('cfg-cg-hide-fab');
     var disableTitleVideo = $('cfg-disable-title-video');
     if (bc) bc.value = ui.dlgBorderColor || UI_DEFAULTS.dlgBorderColor;
     if (bg) bg.value = ui.dlgBgColor || UI_DEFAULTS.dlgBgColor;
@@ -311,6 +398,39 @@
     if (tp) tp.value = ui.textProducerColor || UI_DEFAULTS.textProducerColor;
     if (to) to.value = ui.textOtherColor || UI_DEFAULTS.textOtherColor;
     if (autoCg) autoCg.checked = ui.autoEnterCg !== false;
+    if (cgHideToolbar) cgHideToolbar.checked = ui.cgHideToolbar !== false;
+    if (cgHideFab) cgHideFab.checked = ui.cgHideFab !== false;
+    var phoneReal = $('cfg-phone-time-real');
+    var phoneSystem = $('cfg-phone-time-system');
+    var phoneMode = ui.phoneTimeMode === 'system' ? 'system' : 'real';
+    if (phoneReal) phoneReal.checked = phoneMode === 'real';
+    if (phoneSystem) phoneSystem.checked = phoneMode === 'system';
+    var layoutCenter = $('cfg-phone-layout-center');
+    var layoutStacked = $('cfg-phone-layout-topleft-stacked');
+    var layoutCompact = $('cfg-phone-layout-topleft-compact');
+    var phoneLayout =
+      ui.phoneLayout === 'topleft-stacked'
+        ? 'topleft-stacked'
+        : ui.phoneLayout === 'topleft-compact'
+          ? 'topleft-compact'
+          : 'center';
+    if (layoutCenter) layoutCenter.checked = phoneLayout === 'center';
+    if (layoutStacked) layoutStacked.checked = phoneLayout === 'topleft-stacked';
+    if (layoutCompact) layoutCompact.checked = phoneLayout === 'topleft-compact';
+    var seniorityYoung = $('cfg-phone-seniority-young');
+    var seniorityOld = $('cfg-phone-seniority-old');
+    var phoneSeniority = ui.phoneSeniority === 'young' ? 'young' : 'old';
+    if (seniorityYoung) seniorityYoung.checked = phoneSeniority === 'young';
+    if (seniorityOld) seniorityOld.checked = phoneSeniority === 'old';
+    var fabFixed = $('cfg-phone-fab-pos-fixed');
+    var fabSnap = $('cfg-phone-fab-pos-snap');
+    var fabFree = $('cfg-phone-fab-pos-free');
+    var fabPosMode = ui.phoneFabPositionMode === 'fixed' ? 'fixed' : ui.phoneFabPositionMode === 'snap' ? 'snap' : 'free';
+    if (fabFixed) fabFixed.checked = fabPosMode === 'fixed';
+    if (fabSnap) fabSnap.checked = fabPosMode === 'snap';
+    if (fabFree) fabFree.checked = fabPosMode === 'free';
+    var phoneFabColor = $('cfg-phone-fab-color');
+    if (phoneFabColor) phoneFabColor.value = ui.phoneFabColor || UI_DEFAULTS.phoneFabColor;
     if (disableTitleVideo) disableTitleVideo.checked = !!ui.disableTitleVideo;
   }
 
@@ -346,6 +466,10 @@
     root.setProperty('--dlg-text-producer', ui.textProducerColor || UI_DEFAULTS.textProducerColor);
     root.setProperty('--dlg-text-other', ui.textOtherColor || UI_DEFAULTS.textOtherColor);
     document.documentElement.classList.toggle('title-video-off', !!ui.disableTitleVideo);
+    document.documentElement.classList.toggle('tq-cg-hide-toolbar', ui.cgHideToolbar !== false);
+    document.documentElement.classList.toggle('tq-cg-hide-fab', ui.cgHideFab !== false);
+    applyPhoneFabUi(ui);
+    applyPhoneAppScale(ui);
     fillUiDom(ui);
     syncKeyLabels();
     if (window.天青_system && window.天青_system.applyTitleVideo) {
@@ -587,6 +711,10 @@
     bindSliderPair('cfg-dlg-blur', 'cfg-dlg-blur-num', commitUi);
     bindSliderPair('cfg-text-size', 'cfg-text-size-num', commitUi);
     bindSliderPair('cfg-text-shadow', 'cfg-text-shadow-num', commitUi);
+    bindSliderPair('cfg-phone-fab-size', 'cfg-phone-fab-size-num', commitUi);
+    bindSliderPair('cfg-phone-fab-opacity', 'cfg-phone-fab-opacity-num', commitUi);
+    bindSliderPair('cfg-phone-fab-blur', 'cfg-phone-fab-blur-num', commitUi);
+    bindSliderPair('cfg-phone-app-scale', 'cfg-phone-app-scale-num', commitUi);
 
     [
       'cfg-dlg-border-color',
@@ -594,6 +722,7 @@
       'cfg-text-tq-color',
       'cfg-text-producer-color',
       'cfg-text-other-color',
+      'cfg-phone-fab-color',
     ].forEach(function (id) {
       var el = $(id);
       if (el) el.addEventListener('input', commitUi);
@@ -609,10 +738,68 @@
       });
     }
 
+    ['cfg-cg-hide-toolbar', 'cfg-cg-hide-fab'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.addEventListener('change', commitUi);
+    });
+
     var disableTitleVideo = $('cfg-disable-title-video');
     if (disableTitleVideo) {
       disableTitleVideo.addEventListener('change', commitUi);
     }
+
+    ['cfg-phone-time-real', 'cfg-phone-time-system'].forEach(function (id) {
+      var el = $(id);
+      if (el) {
+        el.addEventListener('change', function () {
+          commitUi();
+          if (window.天青_phone && window.天青_phone.refreshClock) {
+            window.天青_phone.refreshClock();
+          }
+        });
+      }
+    });
+
+    ['cfg-phone-layout-center', 'cfg-phone-layout-topleft-stacked', 'cfg-phone-layout-topleft-compact'].forEach(
+      function (id) {
+        var el = $(id);
+        if (el) {
+          el.addEventListener('change', function () {
+            commitUi();
+            if (window.天青_phone && window.天青_phone.applyLayout) {
+              window.天青_phone.applyLayout();
+            }
+          });
+        }
+      },
+    );
+
+    ['cfg-phone-seniority-young', 'cfg-phone-seniority-old'].forEach(function (id) {
+      var el = $(id);
+      if (el) {
+        el.addEventListener('change', function () {
+          commitUi();
+          if (window.天青_phone_layout_preview && window.天青_phone_layout_preview.mount) {
+            window.天青_phone_layout_preview.mount();
+          }
+          if (window.天青_phone && window.天青_phone.isOpen && window.天青_phone.isOpen()) {
+            window.天青_phone.open();
+          }
+        });
+      }
+    });
+
+    ['cfg-phone-fab-pos-fixed', 'cfg-phone-fab-pos-snap', 'cfg-phone-fab-pos-free'].forEach(function (id) {
+      var el = $(id);
+      if (el) {
+        el.addEventListener('change', function () {
+          commitUi();
+          if (window.天青_phone_fab && window.天青_phone_fab.applyPositionMode) {
+            window.天青_phone_fab.applyPositionMode(true);
+          }
+        });
+      }
+    });
 
     var resetBtn = $('btn-reset-page');
     if (resetBtn) resetBtn.addEventListener('click', openResetConfirm);
@@ -680,6 +867,9 @@
       sizeTabs();
       syncSubnavVisibility();
       document.querySelectorAll('#settings-panel .tq-range').forEach(setRangePct);
+      if (window.天青_phone_layout_preview && window.天青_phone_layout_preview.mount) {
+        window.天青_phone_layout_preview.mount();
+      }
     });
   }
 
@@ -707,6 +897,7 @@
       svg.mount($('tab-icon-system'), svg.list);
       svg.mount($('tab-icon-debug'), svg.bug);
       svg.mount($('btn-reset-page-icon'), svg.refresh);
+      svg.mount($('phone-fab-preview-icon'), svg.phone);
       svg.mount($('btn-debug-export-seed-icon'), svg.exportIcon);
       svg.mount($('btn-debug-factory-reset-icon'), svg.refresh);
       svg.mount($('tq-confirm-yes-icon'), svg.check);
@@ -716,6 +907,9 @@
     applyUi(loadUi());
     bindUiControls();
     syncSubnavVisibility();
+    if (window.天青_phone_layout_preview && window.天青_phone_layout_preview.mount) {
+      window.天青_phone_layout_preview.mount();
+    }
     if (window.天青_settings_api) window.天青_settings_api.bind();
     if (window.天青_settings_preset) window.天青_settings_preset.bind();
     if (window.天青_settings_regex) window.天青_settings_regex.bind();
@@ -786,6 +980,38 @@
       isAutoEnterCg: function () {
         var ui = loadUi();
         return ui.autoEnterCg !== false;
+      },
+      isCgHideToolbar: function () {
+        var ui = loadUi();
+        return ui.cgHideToolbar !== false;
+      },
+      isCgHideFab: function () {
+        var ui = loadUi();
+        return ui.cgHideFab !== false;
+      },
+      getPhoneTimeMode: function () {
+        var ui = loadUi();
+        return ui.phoneTimeMode === 'system' ? 'system' : 'real';
+      },
+      getPhoneLayout: function () {
+        var ui = loadUi();
+        if (ui.phoneLayout === 'topleft-stacked') return 'topleft-stacked';
+        if (ui.phoneLayout === 'topleft-compact') return 'topleft-compact';
+        return 'center';
+      },
+      getPhoneSeniority: function () {
+        var ui = loadUi();
+        return ui.phoneSeniority === 'young' ? 'young' : 'old';
+      },
+      getPhoneAppScale: function () {
+        var ui = loadUi();
+        return clampInt(ui.phoneAppScale, 70, 130) / 100;
+      },
+      getPhoneFabPositionMode: function () {
+        var ui = loadUi();
+        if (ui.phoneFabPositionMode === 'fixed') return 'fixed';
+        if (ui.phoneFabPositionMode === 'snap') return 'snap';
+        return 'free';
       },
       isTitleVideoDisabled: function () {
         var ui = loadUi();

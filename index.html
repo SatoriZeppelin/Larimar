@@ -10,7 +10,8 @@
       href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Noto+Serif+SC:wght@500;600;700&family=ZCOOL+QingKe+HuangYou&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="interface/stage.css?v=20260720g" />
+    <link rel="stylesheet" href="interface/stage.css?v=20260720k" />
+    <link rel="stylesheet" href="interface/phone.css?v=20260720h" />
   </head>
   <body>
     <div id="title-screen" class="open" aria-hidden="false">
@@ -242,6 +243,17 @@
         </div>
       </div>
       <div id="choices"></div>
+      <button
+        type="button"
+        id="gal-phone-fab"
+        class="gal-phone-fab"
+        title="手机"
+        aria-label="手机"
+      >
+        <span class="gal-phone-fab__glass">
+          <span class="gal-phone-fab__icon" id="gal-phone-fab-icon" aria-hidden="true"></span>
+        </span>
+      </button>
       <button type="button" class="nav l" id="navL" title="上一句">‹</button>
       <button type="button" class="nav r" id="navR" title="下一句">›</button>
     </div>
@@ -279,18 +291,21 @@
         <div class="settings-body">
           <div class="settings-pane active" id="pane-general" data-pane="general">
             <nav class="settings-subnav" aria-label="通用设置二级目录">
-              <button type="button" class="settings-subtab" data-sub="menu">
-                <span class="sub-label">主菜单</span>
+              <button type="button" class="settings-subtab" data-sub="menu-cg">
+                <span class="sub-label">主菜单和CG</span>
               </button>
               <button type="button" class="settings-subtab active" data-sub="gal">
                 <span class="sub-label">GAL</span>
+              </button>
+              <button type="button" class="settings-subtab" data-sub="phone">
+                <span class="sub-label">手机</span>
               </button>
               <button type="button" class="settings-subtab" data-sub="user">
                 <span class="sub-label">用户设定</span>
               </button>
             </nav>
             <div class="settings-subcontent">
-              <div class="settings-subpane" data-subpane="menu">
+              <div class="settings-subpane" data-subpane="menu-cg">
                 <section class="settings-l3">
                   <h3 class="settings-l3-title">主菜单</h3>
                   <div class="settings-l4">
@@ -298,6 +313,30 @@
                       <input type="checkbox" id="cfg-disable-title-video" />
                       <span class="tq-check-box" aria-hidden="true"></span>
                       <span class="tq-check-label">禁用背景视频</span>
+                    </label>
+                  </div>
+                </section>
+
+                <section class="settings-l3 settings-cg">
+                  <h3 class="settings-l3-title">CG</h3>
+                  <div class="settings-l4">
+                    <label class="tq-check-row" for="cfg-auto-enter-cg">
+                      <input type="checkbox" id="cfg-auto-enter-cg" checked />
+                      <span class="tq-check-box" aria-hidden="true"></span>
+                      <span class="tq-check-label">自动进入CG模式</span>
+                    </label>
+                    <p class="tq-hint">
+                      当预设时，触发CG图无需手动选择，而会自动进入和退出CG界面
+                    </p>
+                    <label class="tq-check-row" for="cfg-cg-hide-toolbar">
+                      <input type="checkbox" id="cfg-cg-hide-toolbar" checked />
+                      <span class="tq-check-box" aria-hidden="true"></span>
+                      <span class="tq-check-label">CG模式自动隐藏工具栏</span>
+                    </label>
+                    <label class="tq-check-row" for="cfg-cg-hide-fab">
+                      <input type="checkbox" id="cfg-cg-hide-fab" checked />
+                      <span class="tq-check-box" aria-hidden="true"></span>
+                      <span class="tq-check-label">CG模式自动隐藏悬浮窗</span>
                     </label>
                   </div>
                 </section>
@@ -406,11 +445,6 @@
                         <span class="tq-reset-icon" id="btn-reset-page-icon"></span>
                         <span class="tq-reset-label">重置本页面设置</span>
                       </button>
-                      <label class="tq-check-row gal-auto-cg-check" for="cfg-auto-enter-cg">
-                        <input type="checkbox" id="cfg-auto-enter-cg" checked />
-                        <span class="tq-check-box" aria-hidden="true"></span>
-                        <span class="tq-check-label">自动进入CG模式</span>
-                      </label>
                     </div>
                   </section>
 
@@ -511,6 +545,233 @@
                       </div>
                     </div>
                   </section>
+                </div>
+              </div>
+
+              <div class="settings-subpane" data-subpane="phone">
+                <div class="settings-phone-split">
+                <section class="settings-l3 settings-phone">
+                  <h3 class="settings-l3-title">手机</h3>
+                  <div class="settings-l4">
+                    <h4 class="settings-l4-title">手机时间</h4>
+                    <div class="tq-radio-group" role="radiogroup" aria-label="手机时间">
+                      <label class="tq-radio-opt" for="cfg-phone-time-real">
+                        <input type="radio" name="cfg-phone-time" id="cfg-phone-time-real" value="real" checked />
+                        <span>现实时间</span>
+                      </label>
+                      <label class="tq-radio-opt" for="cfg-phone-time-system">
+                        <input type="radio" name="cfg-phone-time" id="cfg-phone-time-system" value="system" />
+                        <span>跟随系统</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="settings-l4">
+                    <h4 class="settings-l4-title">资历</h4>
+                    <div class="tq-radio-group" role="radiogroup" aria-label="资历">
+                      <label class="tq-radio-opt" for="cfg-phone-seniority-young">
+                        <input type="radio" name="cfg-phone-seniority" id="cfg-phone-seniority-young" value="young" />
+                        <span>我是小资历</span>
+                      </label>
+                      <label class="tq-radio-opt" for="cfg-phone-seniority-old">
+                        <input
+                          type="radio"
+                          name="cfg-phone-seniority"
+                          id="cfg-phone-seniority-old"
+                          value="old"
+                          checked
+                        />
+                        <span>我去老资历</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="settings-l4">
+                    <h4 class="settings-l4-title">应用缩放比例</h4>
+                    <div class="tq-slider" data-slider="phone-app-scale">
+                      <div class="tq-range-wrap">
+                        <input
+                          type="range"
+                          class="tq-range"
+                          id="cfg-phone-app-scale"
+                          min="70"
+                          max="130"
+                          step="5"
+                          value="100"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        class="tq-slider-num"
+                        id="cfg-phone-app-scale-num"
+                        inputmode="numeric"
+                        value="100"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="settings-l4">
+                    <h4 class="settings-l4-title">主屏布局</h4>
+                    <div class="phone-layout-options" role="radiogroup" aria-label="主屏布局">
+                      <label class="phone-layout-opt" for="cfg-phone-layout-center">
+                        <span class="phone-layout-opt__head">
+                          <input
+                            type="radio"
+                            name="cfg-phone-layout"
+                            id="cfg-phone-layout-center"
+                            value="center"
+                            checked
+                          />
+                          <span class="phone-layout-opt__label">齐柏林式</span>
+                        </span>
+                        <span class="phone-layout-preview" data-layout="center" aria-hidden="true"></span>
+                      </label>
+
+                      <label class="phone-layout-opt" for="cfg-phone-layout-topleft-stacked">
+                        <span class="phone-layout-opt__head">
+                          <input
+                            type="radio"
+                            name="cfg-phone-layout"
+                            id="cfg-phone-layout-topleft-stacked"
+                            value="topleft-stacked"
+                          />
+                          <span class="phone-layout-opt__label">大烧腊式</span>
+                        </span>
+                        <span class="phone-layout-preview" data-layout="topleft-stacked" aria-hidden="true"></span>
+                      </label>
+
+                      <label class="phone-layout-opt" for="cfg-phone-layout-topleft-compact">
+                        <span class="phone-layout-opt__head">
+                          <input
+                            type="radio"
+                            name="cfg-phone-layout"
+                            id="cfg-phone-layout-topleft-compact"
+                            value="topleft-compact"
+                          />
+                          <span class="phone-layout-opt__label">夏夜式</span>
+                        </span>
+                        <span class="phone-layout-preview" data-layout="topleft-compact" aria-hidden="true"></span>
+                      </label>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="settings-l3 settings-phone-fab">
+                  <h3 class="settings-l3-title">悬浮窗</h3>
+
+                  <div class="settings-l4">
+                    <h4 class="settings-l4-title">位置</h4>
+                    <div class="tq-radio-group" role="radiogroup" aria-label="悬浮窗位置">
+                      <label class="tq-radio-opt" for="cfg-phone-fab-pos-fixed">
+                        <input type="radio" name="cfg-phone-fab-pos" id="cfg-phone-fab-pos-fixed" value="fixed" />
+                        <span>固定</span>
+                      </label>
+                      <label class="tq-radio-opt" for="cfg-phone-fab-pos-snap">
+                        <input type="radio" name="cfg-phone-fab-pos" id="cfg-phone-fab-pos-snap" value="snap" />
+                        <span>吸附边框</span>
+                      </label>
+                      <label class="tq-radio-opt" for="cfg-phone-fab-pos-free">
+                        <input
+                          type="radio"
+                          name="cfg-phone-fab-pos"
+                          id="cfg-phone-fab-pos-free"
+                          value="free"
+                          checked
+                        />
+                        <span>自由移动</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="settings-l4">
+                    <h4 class="settings-l4-title">大小及颜色</h4>
+                    <div class="tq-slider" data-slider="phone-fab-size">
+                      <div class="tq-range-wrap">
+                        <input
+                          type="range"
+                          class="tq-range"
+                          id="cfg-phone-fab-size"
+                          min="36"
+                          max="72"
+                          step="1"
+                          value="50"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        class="tq-slider-num"
+                        id="cfg-phone-fab-size-num"
+                        inputmode="numeric"
+                        value="50"
+                      />
+                    </div>
+                    <div class="tq-slider tq-color-slider">
+                      <label class="settings-rgb">
+                        <span class="settings-rgb-label">颜色</span>
+                        <input type="color" id="cfg-phone-fab-color" value="#ffffff" title="悬浮窗颜色" />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="settings-l4">
+                    <h4 class="settings-l4-title">透明度</h4>
+                    <div class="tq-slider" data-slider="phone-fab-opacity">
+                      <div class="tq-range-wrap">
+                        <input
+                          type="range"
+                          class="tq-range"
+                          id="cfg-phone-fab-opacity"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value="38"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        class="tq-slider-num"
+                        id="cfg-phone-fab-opacity-num"
+                        inputmode="numeric"
+                        value="38"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="settings-l4">
+                    <h4 class="settings-l4-title">磨砂强度</h4>
+                    <div class="tq-slider" data-slider="phone-fab-blur">
+                      <div class="tq-range-wrap">
+                        <input
+                          type="range"
+                          class="tq-range"
+                          id="cfg-phone-fab-blur"
+                          min="0"
+                          max="40"
+                          step="1"
+                          value="20"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        class="tq-slider-num"
+                        id="cfg-phone-fab-blur-num"
+                        inputmode="numeric"
+                        value="20"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="settings-l4">
+                    <h4 class="settings-l4-title">悬浮窗示例</h4>
+                    <div class="phone-fab-preview-stage">
+                      <button type="button" class="gal-phone-fab phone-fab-preview" tabindex="-1" aria-hidden="true">
+                        <span class="gal-phone-fab__glass">
+                          <span class="gal-phone-fab__icon" id="phone-fab-preview-icon" aria-hidden="true"></span>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </section>
                 </div>
               </div>
 
@@ -1467,6 +1728,10 @@
     <script src="backend/chat.js"></script>
 
     <script src="interface/stage.js"></script>
+    <script src="interface/phone-apps.js"></script>
+    <script src="interface/phone-layout-preview.js"></script>
+    <script src="interface/phone.js"></script>
+    <script src="interface/phone-fab.js"></script>
     <script src="interface/toolbar.js"></script>
     <script src="interface/title.js"></script>
     <script src="interface/settings-api.js"></script>

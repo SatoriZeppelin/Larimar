@@ -256,6 +256,13 @@
     '<path d="M16 16h5v5"/>' +
     '</svg>';
 
+  /** 手机悬浮钮（SF Symbols · iphone 线稿） */
+  var PHONE =
+    '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="6.75" y="2.75" width="10.5" height="18.5" rx="2.75"/>' +
+    '<line x1="10.25" y1="18.25" x2="13.75" y2="18.25"/>' +
+    '</svg>';
+
   function mount(el, html) {
     if (!el || !html) return;
     el.innerHTML = html;
@@ -294,6 +301,7 @@
     autoFwd: AUTO_FWD,
     scriptPage: SCRIPT_PAGE,
     swap: SWAP,
+    phone: PHONE,
     mount: mount,
   };
 })();

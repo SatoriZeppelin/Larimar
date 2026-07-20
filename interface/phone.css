@@ -1,0 +1,568 @@
+/* SummerNight Plus · iPhone 风格手机界面 */
+.tq-phone {
+  --phone-w: 393px;
+  --phone-h: 852px;
+  --phone-radius: 55px;
+  --phone-rim: 7px;
+  --phone-screen-radius: 47px;
+  --phone-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'PingFang SC',
+    'Helvetica Neue', 'Microsoft YaHei', system-ui, sans-serif;
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.28s ease,
+    visibility 0.28s ease;
+}
+
+.tq-phone.is-open {
+  pointer-events: auto;
+  opacity: 1;
+  visibility: visible;
+}
+
+.tq-phone__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  opacity: 0;
+  transition: opacity 0.28s ease;
+}
+
+.tq-phone.is-open .tq-phone__backdrop {
+  opacity: 1;
+}
+
+.tq-phone__frame {
+  position: relative;
+  z-index: 1;
+  width: min(var(--phone-w), 100%);
+  max-height: min(var(--phone-h), 100%);
+  aspect-ratio: 393 / 852;
+  transform: translateY(18px) scale(0.94);
+  opacity: 0;
+  transition:
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.28s ease;
+}
+
+.tq-phone.is-open .tq-phone__frame {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* 外边缘包边（机身外圈） */
+.tq-phone__rim {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--phone-radius);
+  padding: var(--phone-rim);
+  background: linear-gradient(
+    155deg,
+    #8e8e93 0%,
+    #636366 18%,
+    #3a3a3c 42%,
+    #1c1c1e 68%,
+    #48484a 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.22),
+    0 0 0 2px rgba(0, 0, 0, 0.55),
+    0 0 0 3px rgba(255, 255, 255, 0.06),
+    0 28px 80px rgba(0, 0, 0, 0.55),
+    0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.tq-phone__rim::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: calc(var(--phone-radius) - 2px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tq-phone__device {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(var(--phone-radius) - var(--phone-rim));
+  padding: 2px;
+  background: linear-gradient(145deg, #4a4a4e 0%, #2c2c2e 50%, #1a1a1c 100%);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+
+.tq-phone__device::before,
+.tq-phone__device::after {
+  content: '';
+  position: absolute;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #5a5a5e, #2a2a2c);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.tq-phone__device::before {
+  left: calc(-1 * var(--phone-rim) - 2px);
+  top: 118px;
+  width: 3px;
+  height: 34px;
+  box-shadow: 0 46px 0 #2a2a2c;
+}
+
+.tq-phone__device::after {
+  right: calc(-1 * var(--phone-rim) - 2px);
+  top: 154px;
+  width: 3px;
+  height: 64px;
+}
+
+.tq-phone__screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(var(--phone-screen-radius) - var(--phone-rim) - 2px);
+  overflow: hidden;
+  background: #000;
+  font-family: var(--phone-font);
+  color: #fff;
+  isolation: isolate;
+}
+
+.tq-phone__island {
+  position: absolute;
+  top: 11px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: 126px;
+  height: 37px;
+  border-radius: 20px;
+  background: #000;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.tq-phone__status {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 25;
+  height: 54px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 28px 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.tq-phone__status-time {
+  min-width: 54px;
+}
+
+.tq-phone__status-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tq-phone__status-icons svg {
+  display: block;
+}
+
+.tq-phone__layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tq-phone__home {
+  z-index: 10;
+  /* 保持 .tq-phone__layer 的 absolute + inset:0，勿改为 relative */
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0%, transparent 18%, transparent 58%, rgba(0, 0, 0, 0.42) 100%),
+    var(--phone-wallpaper, #1a2a3a) center / cover no-repeat;
+}
+
+.tq-phone__clock {
+  position: absolute;
+  top: 54px;
+  left: 0;
+  right: 0;
+  height: calc(66% - 54px);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.tq-phone__clock-time {
+  font-weight: 200;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.tq-phone__clock-date {
+  font-weight: 500;
+  opacity: 0.92;
+}
+
+.tq-phone__clock-stack {
+  display: none;
+  flex-direction: column;
+  line-height: 0.88;
+}
+
+.tq-phone__clock-hour,
+.tq-phone__clock-minute {
+  font-weight: 300;
+  letter-spacing: -0.04em;
+}
+
+/* 布局一：居中时钟 */
+.tq-phone__home--layout-center .tq-phone__clock {
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  text-align: center;
+}
+
+.tq-phone__home--layout-center .tq-phone__clock-time {
+  order: 1;
+  font-size: clamp(72px, 22vw, 96px);
+}
+
+.tq-phone__home--layout-center .tq-phone__clock-date {
+  order: 2;
+  margin-top: 10px;
+  font-size: clamp(18px, 5vw, 22px);
+}
+
+/* 布局二：左上堆叠时钟（日期在上，时分堆叠） */
+.tq-phone__home--layout-topleft-stacked .tq-phone__clock {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 16px 24px 0;
+  text-align: left;
+}
+
+.tq-phone__home--layout-topleft-stacked .tq-phone__clock-time {
+  display: none;
+}
+
+.tq-phone__home--layout-topleft-stacked .tq-phone__clock-date {
+  order: 1;
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  opacity: 0.92;
+}
+
+.tq-phone__home--layout-topleft-stacked .tq-phone__clock-stack {
+  order: 2;
+  display: flex;
+}
+
+.tq-phone__home--layout-topleft-stacked .tq-phone__clock-hour {
+  font-size: clamp(64px, 18vw, 88px);
+  line-height: 0.92;
+  color: #ff453a;
+}
+
+.tq-phone__home--layout-topleft-stacked .tq-phone__clock-minute {
+  font-size: clamp(64px, 18vw, 88px);
+  line-height: 0.92;
+  color: #fff;
+}
+
+/* 布局三：左上紧凑时钟（时分在上，日期在下） */
+.tq-phone__home--layout-topleft-compact .tq-phone__clock {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 16px 24px 0;
+  text-align: left;
+}
+
+.tq-phone__home--layout-topleft-compact .tq-phone__clock-stack {
+  display: none;
+}
+
+.tq-phone__home--layout-topleft-compact .tq-phone__clock-time {
+  order: 1;
+  font-size: clamp(52px, 14vw, 68px);
+}
+
+.tq-phone__home--layout-topleft-compact .tq-phone__clock-date {
+  order: 2;
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 500;
+  opacity: 0.88;
+}
+
+/* App Dock · 统一位于屏幕高度 66% 处 */
+.tq-phone__dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 66%;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px 8px;
+  align-items: start;
+  padding: 0 18px;
+  box-sizing: border-box;
+}
+
+.tq-phone-app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transform: scale(var(--phone-app-scale, 1));
+  transform-origin: center center;
+  transition:
+    transform 0.14s ease,
+    opacity 0.14s ease;
+}
+
+.tq-phone-app:active {
+  transform: scale(calc(var(--phone-app-scale, 1) * 0.92));
+  opacity: 0.88;
+}
+
+.tq-phone-app:active .tq-phone-app-icon {
+  transform: none;
+  opacity: 1;
+}
+
+.tq-phone-app-icon {
+  --app-icon-size: 52px;
+  width: var(--app-icon-size);
+  height: var(--app-icon-size);
+  border-radius: 22.37%;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.28),
+    0 4px 12px rgba(0, 0, 0, 0.18),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  transition:
+    transform 0.14s ease,
+    opacity 0.14s ease;
+}
+
+.tq-phone-app-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.tq-phone-app-label {
+  max-width: 72px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tq-phone__home.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* App 内页 */
+.tq-phone__sheet {
+  z-index: 15;
+  background: #f2f2f7;
+  color: #000;
+  transform: translateY(100%);
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.tq-phone__sheet.is-open {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.tq-phone__sheet-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  height: 52px;
+  padding: 0 16px;
+  background: rgba(242, 242, 247, 0.92);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border-bottom: 0.5px solid rgba(60, 60, 67, 0.18);
+}
+
+.tq-phone__sheet-back {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #007aff;
+  font-size: 28px;
+  line-height: 1;
+  padding: 0 0 2px 2px;
+  cursor: pointer;
+}
+
+.tq-phone__sheet-title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.tq-phone__sheet-body {
+  flex: 1;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tq-phone__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 48px 28px 96px;
+  text-align: center;
+}
+
+.tq-phone__placeholder-icon {
+  --app-icon-size: 72px;
+  margin-bottom: 18px;
+}
+
+.tq-phone__placeholder h4 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.tq-phone__placeholder p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: rgba(60, 60, 67, 0.78);
+}
+
+.tq-phone__home-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: 134px;
+  height: 5px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 0 0 12px transparent;
+}
+
+.tq-phone__home-bar:focus-visible {
+  outline: 2px solid rgba(0, 122, 255, 0.55);
+  outline-offset: 4px;
+}
+
+@media (max-height: 760px) {
+  .tq-phone__frame {
+    aspect-ratio: auto;
+    height: min(var(--phone-h), 100%);
+  }
+
+  .tq-phone__clock-time {
+    font-size: 68px;
+  }
+}
+
+@media (max-width: 420px) {
+  .tq-phone {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .tq-phone__frame {
+    width: 100%;
+    max-height: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    transform: translateY(100%);
+    border-radius: 0;
+  }
+
+  .tq-phone.is-open .tq-phone__frame {
+    transform: translateY(0);
+  }
+
+  .tq-phone__rim {
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+    background: #1c1c1e;
+  }
+
+  .tq-phone__rim::before {
+    display: none;
+  }
+
+  .tq-phone__device {
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .tq-phone__device::before,
+  .tq-phone__device::after {
+    display: none;
+  }
+
+  .tq-phone__screen {
+    border-radius: 0;
+  }
+}

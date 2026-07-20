@@ -247,6 +247,7 @@
   function boot() {
     window.天青_stage.init();
     window.天青_settings_boot();
+    if (window.天青_phone && window.天青_phone.bind) window.天青_phone.bind();
     if (window.天青_toolbar && window.天青_toolbar.bind) window.天青_toolbar.bind();
     if (window.天青_title && window.天青_title.bind) window.天青_title.bind();
 

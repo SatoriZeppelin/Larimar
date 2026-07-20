@@ -8,6 +8,8 @@
 (function () {
   var KEY = 'tq_plus_variables';
   var VIEW_KEY = 'tq_plus_variables_view';
+  var SEED_KEY = 'tq_plus_variables_seed';
+  var SEED_VER = 'variables-default-v1';
   var data = {};
   var meta = {}; /* pathKey -> { varName, comment } */
   var view = 'json';
@@ -190,6 +192,51 @@
   function load() {
     applyLoaded(loadLocal());
     hydrated = true;
+  }
+
+  /** 内嵌默认基础变量 */
+  function loadDefaultVariables() {
+    var raw = window.天青_default_variables;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    try {
+      return JSON.parse(JSON.stringify(raw));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function isDataEmpty() {
+    return !isPlainObject(data) || !Object.keys(data).length;
+  }
+
+  /**
+   * 首次载入：写入内嵌基础变量（仅播种一次，不覆盖已有内容）
+   */
+  function ensureDefaultVariables() {
+    var seeded = '';
+    try {
+      seeded = localStorage.getItem(SEED_KEY) || '';
+    } catch (e) {}
+    if (seeded === SEED_VER) return false;
+
+    if (!isDataEmpty()) {
+      try {
+        localStorage.setItem(SEED_KEY, SEED_VER);
+      } catch (e) {}
+      return false;
+    }
+
+    var defaults = loadDefaultVariables();
+    if (!defaults) return false;
+    data = defaults;
+    meta = {};
+    syncAllRegisteredKeys();
+    saveLocal();
+    try {
+      localStorage.setItem(SEED_KEY, SEED_VER);
+    } catch (e) {}
+    console.info('[天青 变量] 已载入默认基础变量');
+    return true;
   }
 
   /** 同步文本区 + 本地持久化 */
@@ -1263,6 +1310,7 @@
     view = loadView();
     applyViewUi();
     reload();
+    if (ensureDefaultVariables()) refreshUi();
 
     document.querySelectorAll('.var-view-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {

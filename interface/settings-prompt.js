@@ -5,6 +5,8 @@
  */
 (function () {
   var KEY = 'tq_plus_system_prompts';
+  var SEED_KEY = 'tq_plus_prompt_wb_seed';
+  var SEED_VER = 'prompt-default-wb-v1';
   var STAT_DATA_UID = 'tq_locked_stat_data';
   var store = { entries: [] };
   var expandedId = null;
@@ -139,6 +141,55 @@
     try {
       localStorage.setItem(KEY, JSON.stringify(store));
     } catch (err) {}
+  }
+
+  /** 内嵌默认提示词世界书 → 规范条目 */
+  function loadDefaultPromptEntries() {
+    var raw = window.天青_default_prompt_worldbook;
+    if (!raw) return [];
+    var api = window.天青_preset;
+    if (api && typeof api.importWorldbook === 'function') {
+      try {
+        return (api.importWorldbook(raw) || []).map(function (e, i) {
+          return ensureEntryShape(e, i);
+        });
+      } catch (e) {
+        console.warn('[天青 提示词] 默认提示词解析失败', e);
+      }
+    }
+    return [];
+  }
+
+  /**
+   * 首次载入：写入内嵌基础提示词（仅播种一次；已有非「变量列表」条目则跳过）
+   */
+  function ensureDefaultPrompts() {
+    var seeded = '';
+    try {
+      seeded = localStorage.getItem(SEED_KEY) || '';
+    } catch (e) {}
+    if (seeded === SEED_VER) return false;
+
+    var list = entries();
+    var custom = list.filter(function (e) {
+      return e && e.uid !== STAT_DATA_UID;
+    });
+    if (custom.length) {
+      try {
+        localStorage.setItem(SEED_KEY, SEED_VER);
+      } catch (e) {}
+      return false;
+    }
+
+    var defaults = loadDefaultPromptEntries();
+    if (!defaults.length) return false;
+    store.entries = defaults;
+    saveStore();
+    try {
+      localStorage.setItem(SEED_KEY, SEED_VER);
+    } catch (e) {}
+    console.info('[天青 提示词] 已载入默认基础提示词', defaults.length + ' 条');
+    return true;
   }
 
   function isStatDataEntry(entry) {
@@ -834,6 +885,43 @@
     reader.readAsText(file, 'utf-8');
   }
 
+  function safeFileName(name) {
+    var s = String(name || '提示词')
+      .trim()
+      .replace(/[\\/:*?"<>|]+/g, '_')
+      .replace(/\s+/g, ' ');
+    return s || '提示词';
+  }
+
+  function exportWorldbook() {
+    var api = window.天青_preset;
+    if (!api || typeof api.exportWorldbook !== 'function') {
+      toast('世界书导出模块未加载');
+      return;
+    }
+    var list = entries();
+    if (!list.length) {
+      toast('没有可导出的条目');
+      return;
+    }
+    var name = '提示词';
+    var payload = api.exportWorldbook(list, name);
+    var blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json;charset=utf-8',
+    });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = safeFileName(name) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+    toast('已导出世界书「' + name + '」（' + list.length + ' 条）');
+  }
+
   function moveEntry(id, dir) {
     var list = entries();
     var i = findIndex(id);
@@ -1167,8 +1255,10 @@
 
   function bind() {
     store = loadStore();
+    ensureDefaultPrompts();
     var svg = window.天青_svg;
     if (svg && svg.importIcon) svg.mount($('btn-prompt-import-icon'), svg.importIcon);
+    if (svg && svg.exportIcon) svg.mount($('btn-prompt-export-icon'), svg.exportIcon);
     if (svg && svg.exit) svg.mount($('btn-prompt-overwrite-exit-icon'), svg.exit);
 
     syncStatDataPrompt({ silent: true });
@@ -1176,6 +1266,7 @@
 
     var addBtn = $('btn-prompt-add');
     var importBtn = $('btn-prompt-import');
+    var exportBtn = $('btn-prompt-export');
     var importFile = $('cfg-prompt-file');
     var list = $('prompt-list');
     if (addBtn) addBtn.addEventListener('click', addEntry);
@@ -1189,6 +1280,9 @@
         if (file) parseImportFile(file);
         importFile.value = '';
       });
+    }
+    if (exportBtn) {
+      exportBtn.addEventListener('click', exportWorldbook);
     }
     if (list) {
       list.addEventListener('click', onListClick);

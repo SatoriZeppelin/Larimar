@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Noto+Serif+SC:wght@500;600;700&family=ZCOOL+QingKe+HuangYou&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="interface/stage.css?v=20260720b" />
+    <link rel="stylesheet" href="interface/stage.css?v=20260720g" />
   </head>
   <body>
     <div id="title-screen" class="open" aria-hidden="false">
@@ -1265,15 +1265,26 @@
             <nav class="settings-subnav" aria-label="调试设置二级目录"></nav>
             <div class="settings-subcontent debug-subcontent">
               <section class="settings-l3 settings-debug-center">
-                <button
-                  type="button"
-                  class="tq-reset-btn tq-reset-btn-danger"
-                  id="btn-debug-factory-reset"
-                  title="重置为初始状态"
-                >
-                  <span class="tq-reset-label">重置</span>
-                  <span class="tq-reset-icon" id="btn-debug-factory-reset-icon" aria-hidden="true"></span>
-                </button>
+                <div class="settings-debug-actions">
+                  <button
+                    type="button"
+                    class="tq-reset-btn tq-debug-export-btn"
+                    id="btn-debug-export-seed"
+                    title="导出 seed（角色世界书、提示词、变量库、基础变量）"
+                  >
+                    <span class="tq-reset-label">导出设置</span>
+                    <span class="tq-reset-icon" id="btn-debug-export-seed-icon" aria-hidden="true"></span>
+                  </button>
+                  <button
+                    type="button"
+                    class="tq-reset-btn tq-reset-btn-danger"
+                    id="btn-debug-factory-reset"
+                    title="重置为初始状态"
+                  >
+                    <span class="tq-reset-label">重置</span>
+                    <span class="tq-reset-icon" id="btn-debug-factory-reset-icon" aria-hidden="true"></span>
+                  </button>
+                </div>
               </section>
             </div>
           </div>
@@ -1423,7 +1434,6 @@
             id="char-wb-editor-ta"
             spellcheck="false"
             autocomplete="off"
-            wrap="off"
           ></textarea>
         </div>
         <p class="char-wb-editor-hint">Tab 缩进（宽度 4）· Esc 退出并保存</p>
@@ -1450,6 +1460,7 @@
     <script src="backend/persona.js"></script>
     <script src="backend/api.js"></script>
     <script src="backend/preset.js"></script>
+    <script src="backend/stat-data.js"></script>
     <script src="backend/prompt-builder.js"></script>
     <script src="backend/regex.js"></script>
     <script src="backend/save.js"></script>

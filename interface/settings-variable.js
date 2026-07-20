@@ -9,7 +9,7 @@
   var KEY = 'tq_plus_variables';
   var VIEW_KEY = 'tq_plus_variables_view';
   var SEED_KEY = 'tq_plus_variables_seed';
-  var SEED_VER = 'variables-default-v2';
+  var SEED_VER = 'variables-default-v3';
   var data = {};
   var meta = {}; /* pathKey -> { varName, comment } */
   var view = 'json';
@@ -65,21 +65,16 @@
 
   function walkValueNodes(node, path, fn) {
     if (node == null) return;
+    /* 数组整段当作一个叶子，不拆成下标子节点 */
     if (Array.isArray(node)) {
       fn(path, node);
-      for (var i = 0; i < node.length; i++) {
-        var item = node[i];
-        var p = path.concat([i]);
-        if (isPlainObject(item) || Array.isArray(item)) walkValueNodes(item, p, fn);
-        else fn(p, item);
-      }
       return;
     }
     if (isPlainObject(node)) {
       Object.keys(node).forEach(function (key) {
         var p = path.concat([key]);
         var v = node[key];
-        if (isPlainObject(v) || Array.isArray(v)) walkValueNodes(v, p, fn);
+        if (isPlainObject(v)) walkValueNodes(v, p, fn);
         else fn(p, v);
       });
     }
@@ -95,11 +90,11 @@
       Object.keys(data).forEach(function (key) {
         var v = data[key];
         var p = [key];
-        if (isPlainObject(v) || Array.isArray(v)) walkValueNodes(v, p, mark);
+        if (isPlainObject(v)) walkValueNodes(v, p, mark);
         else mark(p);
       });
     } else if (Array.isArray(data)) {
-      walkValueNodes(data, [], mark);
+      mark([]);
     }
     Object.keys(meta).forEach(function (k) {
       if (!alive[k]) {
@@ -318,7 +313,8 @@
   }
 
   function isBranch(v) {
-    return Array.isArray(v) || isPlainObject(v);
+    /* 仅对象可展开；数组整段编辑，不展开子行 */
+    return isPlainObject(v);
   }
 
   function pathEqual(a, b) {
@@ -457,15 +453,11 @@
   }
 
   function expandAllBranches(node, path) {
-    if (!isBranch(node)) return;
+    if (!isPlainObject(node)) return;
     expanded[pathKey(path)] = true;
-    if (Array.isArray(node)) {
-      for (var i = 0; i < node.length; i++) expandAllBranches(node[i], path.concat([i]));
-    } else {
-      Object.keys(node).forEach(function (k) {
-        expandAllBranches(node[k], path.concat([k]));
-      });
-    }
+    Object.keys(node).forEach(function (k) {
+      expandAllBranches(node[k], path.concat([k]));
+    });
   }
 
   function commitTextarea() {
@@ -1119,36 +1111,8 @@
     if (branch) {
       var meta = document.createElement('span');
       meta.className = 'var-tree-meta';
-      if (Array.isArray(value)) meta.textContent = '[' + value.length + ']';
-      else meta.textContent = '{' + Object.keys(value).length + '}';
+      meta.textContent = '{' + Object.keys(value).length + '}';
       row.appendChild(meta);
-
-      if (Array.isArray(value)) {
-        var arrInput = document.createElement('input');
-        arrInput.type = 'text';
-        arrInput.className = 'var-tree-value tq-input';
-        arrInput.value = formatValueInput(value);
-        arrInput.spellcheck = false;
-        arrInput.placeholder = '[1, 2]';
-        arrInput.addEventListener('click', function (e) {
-          e.stopPropagation();
-        });
-        arrInput.addEventListener('change', function () {
-          var next = classifyValueInput(arrInput.value);
-          setAt(data, path, next);
-          if (Array.isArray(next)) expanded[pathKey(path)] = true;
-          persist();
-          renderTree();
-        });
-        arrInput.addEventListener('keydown', function (e) {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            arrInput.blur();
-          }
-        });
-        row.appendChild(arrInput);
-        appendMetaFields(row, path);
-      }
     } else if (typeof value === 'boolean') {
       var boolSel = document.createElement('select');
       boolSel.className = 'var-tree-value var-tree-value-select';
@@ -1173,6 +1137,12 @@
       row.appendChild(boolSel);
       appendMetaFields(row, path);
     } else {
+      if (Array.isArray(value)) {
+        var arrMeta = document.createElement('span');
+        arrMeta.className = 'var-tree-meta';
+        arrMeta.textContent = '[' + value.length + ']';
+        row.appendChild(arrMeta);
+      }
       var valInput = document.createElement('input');
       valInput.type = 'text';
       valInput.className = 'var-tree-value tq-input';
@@ -1185,7 +1155,6 @@
       valInput.addEventListener('change', function () {
         var next = classifyValueInput(valInput.value);
         setAt(data, path, next);
-        if (Array.isArray(next)) expanded[pathKey(path)] = true;
         persist();
         renderTree();
       });
@@ -1405,7 +1374,7 @@
       Object.keys(data).forEach(function (key) {
         var v = data[key];
         var p = [key];
-        if (isPlainObject(v) || Array.isArray(v)) {
+        if (isPlainObject(v)) {
           walkValueNodes(v, p, pushLeaf);
         } else {
           pushLeaf(p, v);

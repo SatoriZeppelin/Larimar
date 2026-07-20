@@ -1,7 +1,7 @@
 /**
  * 默认系统提示词（世界书）——首次载入写入「系统设置·提示词」
- * 来源：提示词.json（写死内嵌）
- * 对外：window.天青_default_prompt_worldbook
+ * 由 scripts/seed-to-defaults.js 从 seed.json 生成，请勿手改
+ * 对外：天青_default_prompt_worldbook
  */
 window.天青_default_prompt_worldbook = {
   "name": "提示词",
@@ -12,7 +12,7 @@ window.天青_default_prompt_worldbook = {
       "key": [],
       "keysecondary": [],
       "comment": "变量列表",
-      "content": "时间.天数：{{stat_data::时间.天数}} #整数\n时间.时段：{{stat_data::时间.时段}} # - 严格按 清晨→上午→午后→傍晚→夜晚→深夜 顺序前进，不可回退或跳档         - 仅当本轮有明显时间流逝时才前进一档；短暂对话可停留在当前时段\n地点：{{stat_data::地点}} #参照标准地点，如无则自建地点\n名气.阶段：{{stat_data::名气.阶段}} #分为'地下偶像期' | '正式出道期' | 'MV突破期' | '专辑稳定期'，仅在达成条件的情况下允许变动",
+      "content": "时间.天数：{{stat_data::时间.天数}} #整数\n时间.具体时间：{{stat_data::时间.具体时间}} #以[小时,分钟]的形式显示\n地点：{{stat_data::地点}} #参照标准地点，如无则自建地点\n名气.阶段：{{stat_data::名气.阶段}} #分为'地下偶像期' | '正式出道期' | 'MV突破期' | '专辑稳定期'，仅在达成条件的情况下允许变动",
       "constant": true,
       "order": -1000,
       "position": 0,
@@ -36,7 +36,7 @@ window.天青_default_prompt_worldbook = {
       "uid": 7,
       "key": [],
       "keysecondary": [],
-      "comment": "[mvu_update]变量更新规则",
+      "comment": "变量更新规则",
       "content": "## 变量更新格式（UpdateVariable）\n\n```\n<UpdateVariable>\n        - calculate time passed: ${分析经过的时间}\n        - decide whether dramatic updates are allowed as it's in a special case or the time passed is more than usual: yes or no\n        - ${分析每个变量是否需要更新}\n        - ${检查变量变化条件是否满足}\n        ...\n        <summernight_variables>\n        更新变量\n        </summernight_variables>\n</UpdateVariable>\n```\n\n### 可用命令\n\n| 命令    | 参数           | 说明          | 示例                                            |\n| ------- | -------------- | ------------- | ----------------------------------------------- |\n| `_.set` | `'路径', 新值` | 设置变量值    | `_.set('stat_data.名气.阶段', '地下偶像期')` |\n| `_.add` | `'路径', 增量` | 数值增加/减少 | `_.add('stat_data.时间.天数', 1)`      |",
       "constant": true,
       "order": 200,

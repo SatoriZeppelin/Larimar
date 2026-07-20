@@ -1,7 +1,7 @@
-﻿/**
+/**
  * 默认世界书「天青」——首次载入游戏时写入角色设置·天青目录
- * 来源：天青.json（写死内嵌，勿依赖本机 Downloads）
- * 对外：window.天青_default_worldbook_tianqing
+ * 由 scripts/seed-to-defaults.js 从 seed.json 生成，请勿手改
+ * 对外：天青_default_worldbook_tianqing
  */
 window.天青_default_worldbook_tianqing = {
   "name": "天青",
@@ -159,4 +159,3 @@ window.天青_default_worldbook_tianqing = {
     }
   }
 };
-

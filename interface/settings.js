@@ -464,6 +464,114 @@
     openConfirm('确定重置为初始状态？将清除全部设置、存档、对话与世界书，且无法撤销。', factoryResetAll);
   }
 
+  function readJsonStorage(key, fallback) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return fallback;
+      return JSON.parse(raw);
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  function cloneJson(value) {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (e) {
+      return value;
+    }
+  }
+
+  function downloadJsonFile(name, payload) {
+    var blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json;charset=utf-8',
+    });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
+  /** 调试：导出 seed（角色世界书、提示词、变量库、基础变量） */
+  function exportSeedSettings() {
+    var presetApi = window.天青_preset;
+    if (!presetApi || typeof presetApi.exportWorldbook !== 'function') {
+      toast('世界书导出模块未加载');
+      return;
+    }
+
+    if (window.天青_settings_prompt && window.天青_settings_prompt.syncStatDataPrompt) {
+      try {
+        window.天青_settings_prompt.syncStatDataPrompt({ silent: true });
+      } catch (e) {}
+    }
+
+    var charStore =
+      window.天青_settings_character && typeof window.天青_settings_character.getStore === 'function'
+        ? window.天青_settings_character.getStore()
+        : readJsonStorage('tq_plus_character_tabs', null);
+    var promptStore =
+      window.天青_settings_prompt && typeof window.天青_settings_prompt.getStore === 'function'
+        ? window.天青_settings_prompt.getStore()
+        : readJsonStorage('tq_plus_system_prompts', null);
+
+    var characterWorldbooks = [];
+    var tabs = charStore && Array.isArray(charStore.tabs) ? charStore.tabs : [];
+    tabs.forEach(function (tab) {
+      if (!tab) return;
+      var entries = Array.isArray(tab.entries) ? tab.entries : [];
+      var name = String(tab.name || '世界书').trim() || '世界书';
+      characterWorldbooks.push({
+        tab: {
+          id: String(tab.id || ''),
+          name: name,
+          color: tab.color || '',
+          locked: !!tab.locked,
+          enabled: tab.enabled !== false,
+        },
+        worldbook: presetApi.exportWorldbook(entries, name),
+      });
+    });
+
+    var promptEntries =
+      promptStore && Array.isArray(promptStore.entries) ? promptStore.entries : [];
+    var promptWorldbook = presetApi.exportWorldbook(promptEntries, '提示词');
+
+    var variablesPack = readJsonStorage('tq_plus_variables', null);
+    if (!variablesPack || typeof variablesPack !== 'object') {
+      variablesPack = { __tq: 1, data: {}, meta: {} };
+    }
+    var defaultVariables =
+      variablesPack.data && typeof variablesPack.data === 'object' && !Array.isArray(variablesPack.data)
+        ? cloneJson(variablesPack.data)
+        : {};
+
+    var payload = {
+      format: 'tq_plus_seed',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      characterWorldbooks: characterWorldbooks,
+      promptWorldbook: promptWorldbook,
+      variables: variablesPack,
+      defaultVariables: defaultVariables,
+    };
+
+    downloadJsonFile('seed.json', payload);
+    toast(
+      '已导出 seed.json（角色 ' +
+        characterWorldbooks.length +
+        ' · 提示词 ' +
+        promptEntries.length +
+        ' 条）',
+    );
+  }
+
   function bindUiControls() {
     bindSliderPair('cfg-dlg-opacity', 'cfg-dlg-opacity-num', commitUi);
     bindSliderPair('cfg-dlg-border-alpha', 'cfg-dlg-border-alpha-num', commitUi);
@@ -503,6 +611,9 @@
 
     var factoryResetBtn = $('btn-debug-factory-reset');
     if (factoryResetBtn) factoryResetBtn.addEventListener('click', openFactoryResetConfirm);
+
+    var exportSeedBtn = $('btn-debug-export-seed');
+    if (exportSeedBtn) exportSeedBtn.addEventListener('click', exportSeedSettings);
 
     var yesBtn = $('tq-confirm-yes');
     var noBtn = $('tq-confirm-no');
@@ -588,6 +699,7 @@
       svg.mount($('tab-icon-system'), svg.list);
       svg.mount($('tab-icon-debug'), svg.bug);
       svg.mount($('btn-reset-page-icon'), svg.refresh);
+      svg.mount($('btn-debug-export-seed-icon'), svg.exportIcon);
       svg.mount($('btn-debug-factory-reset-icon'), svg.refresh);
       svg.mount($('tq-confirm-yes-icon'), svg.check);
       svg.mount($('tq-confirm-no-icon'), svg.cross);

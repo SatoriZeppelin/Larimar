@@ -5,7 +5,7 @@
 (function () {
   var KEY = 'tq_plus_character_tabs';
   var SEED_KEY = 'tq_plus_tianqing_wb_seed';
-  var SEED_VER = 'tianqing-default-wb-v1';
+  var SEED_VER = 'tianqing-default-wb-v2';
   var DEFAULT_COLOR = '#2a6f9e';
   var LONG_MS = 500;
   var MOVE_PX = 10;

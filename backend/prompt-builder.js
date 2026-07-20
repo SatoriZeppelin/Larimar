@@ -817,8 +817,17 @@
       console.groupEnd();
     } catch (e) {}
 
+    var substitute =
+      window.天青_stat_data && typeof window.天青_stat_data.substituteStatDataMacros === 'function'
+        ? window.天青_stat_data.substituteStatDataMacros
+        : null;
+
     return messages.map(function (m) {
-      return { role: m.role, content: m.content };
+      var content = m.content;
+      if (substitute && content != null && content !== '') {
+        content = substitute(content);
+      }
+      return { role: m.role, content: content };
     });
   }
 

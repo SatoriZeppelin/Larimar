@@ -6,7 +6,7 @@
 (function () {
   var KEY = 'tq_plus_system_prompts';
   var SEED_KEY = 'tq_plus_prompt_wb_seed';
-  var SEED_VER = 'prompt-default-wb-v2';
+  var SEED_VER = 'prompt-default-wb-v3';
   var STAT_DATA_UID = 'tq_locked_stat_data';
   var store = { entries: [] };
   var expandedId = null;
@@ -201,7 +201,13 @@
   }
 
   function isStatDataEntry(entry) {
-    return !!(entry && (entry.uid === STAT_DATA_UID || entry.locked === true && entry.uid === STAT_DATA_UID));
+    return !!(entry && (entry.uid === STAT_DATA_UID || (entry.locked === true && entry.uid === STAT_DATA_UID)));
+  }
+
+  /** 变量列表：默认 AUTO；statAuto===false 为 CLOSE 手动 */
+  function isStatAuto(entry) {
+    if (!isStatDataEntry(entry)) return true;
+    return entry.statAuto !== false;
   }
 
   function buildStatDataContent() {
@@ -223,6 +229,7 @@
       {
         uid: STAT_DATA_UID,
         locked: true,
+        statAuto: true,
         comment: '变量列表',
         content: buildStatDataContent(),
         enabled: true,
@@ -246,7 +253,7 @@
     );
   }
 
-  /** 确保存在不可删除的「变量列表」词条，并刷新内容（保留用户排序位置） */
+  /** 确保存在不可删除的「变量列表」词条；AUTO 时刷新捕获内容 */
   function syncStatDataPrompt(opt) {
     opt = opt || {};
     var list = entries();
@@ -270,7 +277,8 @@
     entry.uid = STAT_DATA_UID;
     entry.comment = '变量列表';
     entry.constant = true;
-    entry.content = content;
+    if (entry.statAuto == null) entry.statAuto = true;
+    if (isStatAuto(entry)) entry.content = content;
     if (entry.order == null) entry.order = -1000;
     if (keptIdx < 0) {
       others.unshift(entry);
@@ -282,7 +290,6 @@
     saveStore();
     if (!opt.silent) renderList();
     else {
-      /* 静默更新：若列表已渲染则刷新该卡片预览/内容 */
       var card = document.querySelector('.prompt-card[data-id="' + STAT_DATA_UID + '"]');
       if (card) {
         var preview = card.querySelector('.regex-card-preview');
@@ -293,9 +300,9 @@
           preview.hidden = !pv;
           preview.title = pv;
         }
-        if (ta) ta.value = content;
+        if (ta && isStatAuto(entry)) ta.value = entry.content || '';
         var metaEl = card.querySelector('.char-wb-meta');
-        if (metaEl) metaEl.textContent = '(词符: ' + approxTokens(content) + ') (UID: ' + STAT_DATA_UID + ')';
+        if (metaEl) metaEl.textContent = '(词符: ' + approxTokens(entry.content) + ') (UID: ' + STAT_DATA_UID + ')';
       }
     }
   }
@@ -365,6 +372,8 @@
     if (!entry) return false;
     ensureEntryShape(entry, 0);
     var locked = isStatDataEntry(entry);
+    var auto = isStatAuto(entry);
+    var contentLocked = locked && auto;
     var changed = false;
 
     function setStr(field, next) {
@@ -414,7 +423,7 @@
       }
     }
     el = card.querySelector('[data-field="content"]');
-    if (el && !locked) setStr('content', String(el.value || ''));
+    if (el && !contentLocked) setStr('content', String(el.value || ''));
     el = card.querySelector('[data-field="position"]');
     if (el) {
       var prevPos = positionSelectValue(entry);
@@ -494,6 +503,8 @@
       return body.querySelector('[data-field="' + field + '"]');
     }
     var locked = isStatDataEntry(entry);
+    var auto = isStatAuto(entry);
+    var contentLocked = locked && auto;
     var el;
     el = q('comment');
     if (el) {
@@ -514,7 +525,7 @@
     el = q('content');
     if (el) {
       el.value = entry.content || '';
-      el.readOnly = locked;
+      el.readOnly = contentLocked;
     }
     el = q('position');
     if (el) el.value = positionSelectValue(entry);
@@ -557,7 +568,7 @@
     var dup = body.querySelector('[data-act="duplicate"]');
     if (dup) dup.hidden = locked;
     var expandContent = body.querySelector('[data-act="expand-content"]');
-    if (expandContent) expandContent.hidden = locked;
+    if (expandContent) expandContent.hidden = contentLocked;
   }
 
   function renderList() {
@@ -587,6 +598,7 @@
       top.className = 'regex-card-top';
 
       var locked = isStatDataEntry(entry);
+      var auto = isStatAuto(entry);
 
       var handle = document.createElement('button');
       handle.type = 'button';
@@ -686,10 +698,20 @@
 
       side.appendChild(sw);
       if (locked) {
-        var delSlot = document.createElement('span');
-        delSlot.className = 'char-wb-delete-btn is-slot';
-        delSlot.setAttribute('aria-hidden', 'true');
-        side.appendChild(delSlot);
+        li.classList.toggle('is-stat-manual', !auto);
+        var modeBtn = document.createElement('button');
+        modeBtn.type = 'button';
+        modeBtn.className =
+          'preset-icon-btn char-wb-delete-btn prompt-stat-mode-btn' + (auto ? ' is-auto' : ' is-close');
+        modeBtn.setAttribute('data-act', 'stat-mode');
+        modeBtn.setAttribute('aria-pressed', auto ? 'true' : 'false');
+        modeBtn.title = auto ? 'AUTO：随变量自动更新内容' : 'CLOSE：手动编辑内容';
+        modeBtn.setAttribute('aria-label', auto ? 'AUTO' : 'CLOSE');
+        var modeLabel = document.createElement('span');
+        modeLabel.className = 'prompt-stat-mode-label';
+        modeLabel.textContent = auto ? 'AUTO' : 'CLOSE';
+        modeBtn.appendChild(modeLabel);
+        side.appendChild(modeBtn);
       } else {
         side.appendChild(delBtn);
       }
@@ -1195,8 +1217,8 @@
     if (act === 'expand-content') {
       e.preventDefault();
       e.stopPropagation();
-      if (isStatDataEntry(entry)) {
-        toast('变量列表词条由变量树自动生成，不可编辑');
+      if (isStatDataEntry(entry) && isStatAuto(entry)) {
+        toast('AUTO 模式下内容由变量树自动生成');
         return;
       }
       var api = window.天青_settings_character;
@@ -1205,6 +1227,19 @@
           syncFromBody(row);
         });
       }
+      return;
+    }
+    if (act === 'stat-mode') {
+      if (!isStatDataEntry(entry)) return;
+      entry.statAuto = !isStatAuto(entry);
+      if (isStatAuto(entry)) {
+        entry.content = buildStatDataContent();
+        toast('已切换为 AUTO');
+      } else {
+        toast('已切换为 CLOSE（可手动编辑）');
+      }
+      saveStore();
+      renderList();
       return;
     }
     if (act === 'toggle') {

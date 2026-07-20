@@ -233,7 +233,20 @@
   }
 
   function currentCgName() {
-    return moduleCgName((data.modules || [])[idx]);
+    var mods = data.modules || [];
+    if (idx >= 0 && idx < mods.length) return moduleCgName(mods[idx]);
+    /* 选项阶段：沿用本轮最后一张 CG，便于在 CG 界面出选项 */
+    if (cgViewMode) return lastCgNameInRound();
+    return null;
+  }
+
+  function lastCgNameInRound() {
+    var mods = data.modules || [];
+    for (var i = mods.length - 1; i >= 0; i--) {
+      var n = moduleCgName(mods[i]);
+      if (n) return n;
+    }
+    return null;
   }
 
   function paintCgImage(name) {
@@ -526,6 +539,7 @@
       refreshNav();
       return;
     }
+    setPlayHint();
     var mod = data.modules[idx];
     if (mod.type === 'cg') {
       dlgToken++;
@@ -559,19 +573,17 @@
 
   function render() {
     if (idx >= data.modules.length) {
-      if (cgViewMode) {
-        cgViewMode = false;
-        hideCG();
-      }
       if (streaming) {
         streamAwaiting = true;
         hideChoices(false);
-        $('hint').textContent = '…生成中';
+        setPlayHint();
         syncCgToggle();
         refreshNav();
         return;
       }
       streamAwaiting = false;
+      /* CG / GAL 均可出选项：不再强制退出 CG */
+      if (idx > data.modules.length) idx = data.modules.length;
       showChoices();
       syncCgToggle();
       refreshNav();
@@ -585,6 +597,7 @@
     }
 
     syncCgToggle();
+    setPlayHint();
 
     if (cgViewMode) {
       updateCgUi();
@@ -615,7 +628,32 @@
 
   function advance() {
     if (cgViewMode) {
-      if (!cgStep(1)) updateCgUi();
+      if (idx >= data.modules.length) return;
+      if (cgStep(1)) return;
+      /* CG 区块末尾：若后面还有非本段内容则退回 GAL，否则进入选项 */
+      var block = getCgBlock();
+      var nextIdx = (block ? block.end : idx) + 1;
+      if (nextIdx < data.modules.length) {
+        var nextName = moduleCgName(data.modules[nextIdx]);
+        if (nextName) {
+          idx = nextIdx;
+          var nextBlock = getCgBlock(nextIdx);
+          if (nextBlock && nextBlock.indices.length) idx = nextBlock.indices[0];
+          lastExpr = null;
+          updateCgUi();
+          syncCgToggle();
+          refreshNav();
+          return;
+        }
+        cgViewMode = false;
+        hideCG({ waitFade: true });
+        idx = nextIdx;
+        lastExpr = null;
+        render();
+        return;
+      }
+      idx = data.modules.length;
+      render();
       return;
     }
     if (typing) {
@@ -638,7 +676,8 @@
       render();
       return;
     }
-    if (streaming && idx >= data.modules.length) return;
+    /* 已在选项（或流式等待新句）：禁止继续前进叠 idx */
+    if (idx >= data.modules.length) return;
     idx++;
     render();
   }
@@ -650,6 +689,23 @@
         clearInterval(typer);
         typing = false;
       }
+      if (idx >= data.modules.length) {
+        hideChoices(true);
+        var mods = data.modules || [];
+        idx = Math.max(0, mods.length - 1);
+        for (var i = mods.length - 1; i >= 0; i--) {
+          if (moduleCgName(mods[i])) {
+            idx = i;
+            break;
+          }
+        }
+        lastExpr = null;
+        updateCgUi({ instant: true });
+        syncCgToggle();
+        setPlayHint();
+        refreshNav();
+        return;
+      }
       if (!cgStep(-1)) updateCgUi();
       return;
     }
@@ -659,6 +715,14 @@
       if (body) body.classList.remove('is-fading');
       clearInterval(typer);
       typing = false;
+    }
+    /* 从选项一次回到最后一句，避免曾叠加的 idx 要连退多次 */
+    if (idx >= data.modules.length) {
+      hideChoices(true);
+      idx = Math.max(0, data.modules.length - 1);
+      lastExpr = null;
+      render();
+      return;
     }
     if (idx <= 0) {
       render();
@@ -711,6 +775,66 @@
     render();
   }
 
+  function isOnChoicesScreen() {
+    return idx >= (data.modules || []).length && !!(data.choices && data.choices.length);
+  }
+
+  function setPlayHint() {
+    var el = $('hint');
+    if (!el) return;
+    if (streaming && idx >= (data.modules || []).length) {
+      el.textContent = '…生成中';
+      return;
+    }
+    if (isOnChoicesScreen()) {
+      el.textContent = '▼ 选择一项继续';
+      return;
+    }
+    el.textContent = '▼ 点击继续';
+  }
+
+  function isBlockingOverlayOpen() {
+    var title = $('title-screen');
+    if (title && title.classList.contains('open')) return true;
+    var settings = $('settings-panel');
+    if (settings && settings.classList.contains('open')) return true;
+    var saves = $('saves-panel');
+    if (saves && saves.classList.contains('open')) return true;
+    return false;
+  }
+
+  /** 点到工具栏 / 按钮等控件时不触发前进后退 */
+  function isTapChrome(target) {
+    if (!target || !target.closest) return true;
+    return !!(
+      target.closest('#btn-gear') ||
+      target.closest('#btn-cg-swap') ||
+      target.closest('#gal-toolbar-dock') ||
+      target.closest('#gal-log-panel') ||
+      target.closest('.nav') ||
+      target.closest('#choices button') ||
+      target.closest('#toast') ||
+      target.closest('#tq-confirm') ||
+      target.closest('#tq-api-error')
+    );
+  }
+
+  /**
+   * GAL / CG：画面左侧 1/3 后退，右侧 2/3 前进
+   */
+  function handleTapNav(e) {
+    if (isBlockingOverlayOpen()) return;
+    if (isTapChrome(e.target)) return;
+    var stage = $('stage');
+    if (!stage) return;
+    var rect = stage.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    var ratio = (e.clientX - rect.left) / rect.width;
+    if (autoPlay) stopAuto();
+    if (ratio < 1 / 3) prev();
+    else advance();
+  }
+
   function hideChoices(animated) {
     var box = $('choices');
     if (!box) return;
@@ -742,6 +866,7 @@
       hideChoices(false);
       return;
     }
+    if (cgViewMode) clearCgCopy();
     box.innerHTML = '';
     var q = document.createElement('div');
     q.className = 'q';
@@ -761,7 +886,7 @@
     box.classList.remove('show');
     void box.offsetWidth;
     box.classList.add('show');
-    $('hint').textContent = '▼ 选择一项继续';
+    setPlayHint();
   }
 
   function refreshNav() {
@@ -769,6 +894,11 @@
     var R = $('navR');
     if (!L || !R) return;
     if (cgViewMode) {
+      if (idx >= data.modules.length) {
+        L.classList.toggle('off', !(data.modules && data.modules.length));
+        R.classList.toggle('off', true);
+        return;
+      }
       var block = getCgBlock();
       var pos = block ? block.indices.indexOf(idx) : -1;
       L.classList.toggle('off', !block || pos <= 0);
@@ -970,32 +1100,32 @@
         toggleCgView();
       });
     }
-    var cgEl = $('cg');
-    if (cgEl) {
-      cgEl.addEventListener('click', function (e) {
-        if (!cgViewMode) return;
-        if (e.target.closest('#btn-cg-swap')) return;
-        advance();
-      });
+    var stageEl = $('stage');
+    if (stageEl) {
+      stageEl.addEventListener('click', handleTapNav);
     }
     document.addEventListener('keydown', function (e) {
-      if (!cgViewMode) return;
+      if (isBlockingOverlayOpen()) return;
       var tag = (e.target && e.target.tagName) || '';
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) {
         return;
       }
+      /* GAL / CG 共用方向键 */
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         prev();
       } else if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
+        if (isOnChoicesScreen() && e.key === ' ') return;
         advance();
       }
     });
-    $('dialogue').addEventListener('click', function () {
-      if (autoPlay) stopAuto();
-      advance();
-    });
+    var gear = $('btn-gear');
+    if (gear) {
+      gear.addEventListener('click', function (e) {
+        e.stopPropagation();
+      });
+    }
     $('navL').onclick = function (e) {
       e.stopPropagation();
       prev();
@@ -1003,6 +1133,7 @@
     $('navR').onclick = function (e) {
       e.stopPropagation();
       if (autoPlay) stopAuto();
+      if (isOnChoicesScreen()) return;
       advance();
     };
     paintBG({ instant: true });

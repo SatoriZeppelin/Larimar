@@ -543,14 +543,21 @@
       promptStore && Array.isArray(promptStore.entries) ? promptStore.entries : [];
     var promptWorldbook = presetApi.exportWorldbook(promptEntries, '提示词');
 
-    var variablesPack = readJsonStorage('tq_plus_variables', null);
+    var variablesPack;
+    if (window.天青_settings_variable && typeof window.天青_settings_variable.getPackage === 'function') {
+      variablesPack = window.天青_settings_variable.getPackage();
+    } else {
+      variablesPack = readJsonStorage('tq_plus_variables', null);
+    }
     if (!variablesPack || typeof variablesPack !== 'object') {
       variablesPack = { __tq: 1, data: {}, meta: {} };
     }
+    if (!variablesPack.meta || typeof variablesPack.meta !== 'object') variablesPack.meta = {};
     var defaultVariables =
       variablesPack.data && typeof variablesPack.data === 'object' && !Array.isArray(variablesPack.data)
         ? cloneJson(variablesPack.data)
         : {};
+    var defaultVariablesMeta = cloneJson(variablesPack.meta);
 
     var payload = {
       format: 'tq_plus_seed',
@@ -560,6 +567,7 @@
       promptWorldbook: promptWorldbook,
       variables: variablesPack,
       defaultVariables: defaultVariables,
+      defaultVariablesMeta: defaultVariablesMeta,
     };
 
     downloadJsonFile('seed.json', payload);

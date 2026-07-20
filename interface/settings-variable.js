@@ -9,7 +9,7 @@
   var KEY = 'tq_plus_variables';
   var VIEW_KEY = 'tq_plus_variables_view';
   var SEED_KEY = 'tq_plus_variables_seed';
-  var SEED_VER = 'variables-default-v3';
+  var SEED_VER = 'variables-default-v4';
   var data = {};
   var meta = {}; /* pathKey -> { varName, comment } */
   var view = 'json';
@@ -189,15 +189,45 @@
     hydrated = true;
   }
 
-  /** 内嵌默认基础变量 */
-  function loadDefaultVariables() {
+  /** 内嵌默认变量包（支持 plain data 或 { data, meta }） */
+  function loadDefaultVariablesPackage() {
     var raw = window.天青_default_variables;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     try {
-      return JSON.parse(JSON.stringify(raw));
+      if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) {
+        return {
+          data: clone(raw.data),
+          meta: raw.meta && typeof raw.meta === 'object' && !Array.isArray(raw.meta) ? clone(raw.meta) : {},
+        };
+      }
+      return { data: clone(raw), meta: {} };
     } catch (e) {
       return null;
     }
+  }
+
+  function loadDefaultVariables() {
+    var pack = loadDefaultVariablesPackage();
+    return pack ? pack.data : null;
+  }
+
+  function applyDefaultMetaIfEmpty() {
+    var pack = loadDefaultVariablesPackage();
+    if (!pack || !pack.meta) return false;
+    var hasMeta = false;
+    Object.keys(meta).some(function (k) {
+      var m = meta[k];
+      if (m && (m.varName || m.comment)) {
+        hasMeta = true;
+        return true;
+      }
+      return false;
+    });
+    if (hasMeta) return false;
+    meta = clone(pack.meta);
+    syncAllRegisteredKeys();
+    saveLocal();
+    return true;
   }
 
   function isDataEmpty() {
@@ -221,10 +251,10 @@
       return false;
     }
 
-    var defaults = loadDefaultVariables();
-    if (!defaults) return false;
-    data = defaults;
-    meta = {};
+    var defaults = loadDefaultVariablesPackage();
+    if (!defaults || !defaults.data) return false;
+    data = defaults.data;
+    meta = defaults.meta && typeof defaults.meta === 'object' ? clone(defaults.meta) : {};
     syncAllRegisteredKeys();
     saveLocal();
     try {
@@ -502,6 +532,7 @@
 
   function reload() {
     load();
+    applyDefaultMetaIfEmpty();
     textDirty = false;
     expandAllBranches(data, []);
     refreshUi();
@@ -845,6 +876,32 @@
   function decodePathAttr(raw) {
     if (raw == null || raw === '') return [];
     return String(raw).split('\0');
+  }
+
+  function flushMetaFromDom() {
+    var root = $('var-tree');
+    if (!root) return;
+    root.querySelectorAll('.var-tree-row[data-path]').forEach(function (row) {
+      var path = decodePathAttr(row.getAttribute('data-path'));
+      if (!path || !path.length) return;
+      var varInput = row.querySelector('.var-tree-varname');
+      var commentInput = row.querySelector('.var-tree-comment');
+      if (!varInput && !commentInput) return;
+      var k = pathKey(path);
+      var varName = varInput ? String(varInput.value || '').trim() : '';
+      var comment = commentInput ? String(commentInput.value || '').trim() : '';
+      if (isLegacyMacroVarName(varName)) varName = '';
+      if (!varName && !comment) delete meta[k];
+      else meta[k] = { varName: varName, comment: comment };
+    });
+    syncAllRegisteredKeys();
+  }
+
+  function getPackage() {
+    if (!hydrated) load();
+    flushMetaFromDom();
+    syncAllRegisteredKeys();
+    return packageLocal();
   }
 
   function clearDropMarks() {
@@ -1382,5 +1439,8 @@
       });
       return out;
     },
+    /** 完整变量包（含 meta）；导出前会从界面刷入未失焦的输入 */
+    getPackage: getPackage,
+    flushMetaFromDom: flushMetaFromDom,
   };
 })();

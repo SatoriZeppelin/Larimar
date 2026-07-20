@@ -60,8 +60,15 @@ function main() {
 
   writeJs(
     '天青_default_variables',
-    ' * 默认基础变量——首次载入写入「系统设置·变量」',
-    seed.defaultVariables,
+    ' * 默认基础变量——首次载入写入「系统设置·变量」（含 data + meta：变量名/注释）',
+    {
+      __tq: 1,
+      data: seed.defaultVariables,
+      meta:
+        (seed.variables && seed.variables.meta) ||
+        seed.defaultVariablesMeta ||
+        {},
+    },
     path.join(resourceDir, 'default-variables.js'),
   );
 

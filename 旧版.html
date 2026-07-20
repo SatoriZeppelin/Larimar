@@ -1,0 +1,980 @@
+```
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>天青 · gal 界面引擎 v2</title>
+<style>
+/* ===== 外观层 · 晴日花田玻璃拟态。iframe 里渲染，故用 body 级 + id，无需防冲突 ===== */
+:root{
+  --main:#8dd4e0;                                    /* 主色调（#FF8DD4E0 → ARGB 读作青色） */
+  --ink:#20384a;--ink-soft:#5c7486;--accent:#46b6cf;--accent-deep:#2d93ad;
+  --sky-1:#d4eef6;--sky-2:#eaf7dd;
+  --glass:rgba(255,255,255,.5);--glass-line:rgba(255,255,255,.6);
+  --dlg-tint:rgba(15,20,28,.48);                     /* 深色叠加层：blur 之上再叠 ~48% 深色，把区域亮度拉到可控范围（90% galgame 方案）*/
+  --dlg-blur:16px;
+  --dm-w:50%;              /* 弹幕框宽度。原来 91% 横贯整屏挡住天青 → 改成二分之一。想再窄/再宽就改这一个数 */                                   /* 毛玻璃模糊量；「无磨砂/全透」档会设成 0px */
+  --gold:#e6a94a;--shadow:0 12px 36px rgba(40,90,110,.25);--r:16px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;color:var(--ink);
+  background:transparent;display:flex;justify-content:center;padding:6px}
+
+#stage{position:relative;width:min(880px,100%);aspect-ratio:16/10;border-radius:20px;overflow:hidden;
+  box-shadow:0 18px 54px rgba(0,0,0,.35);background:linear-gradient(160deg,var(--sky-1),var(--sky-2));user-select:none}
+
+/* 背景（读 MVU 的 地点+时段 决定） */
+#bg{position:absolute;inset:0;transition:opacity .5s;background-size:cover;background-position:center}
+
+/* 立绘：双层交叉淡入 */
+#sprites{position:absolute;left:0;right:0;bottom:0;height:90%;z-index:3;filter:drop-shadow(0 8px 22px rgba(40,95,115,.35));pointer-events:none}
+.layer{position:absolute;bottom:0;left:50%;transform:translateX(-50%);height:100%;opacity:0;transition:opacity .4s ease;will-change:opacity}
+.layer.show{opacity:1}
+.layer img{height:100%;width:auto;display:block;transform-origin:bottom center}
+
+/* 入场特效池（12，随机不重复；AI 不写动画名） */
+@keyframes fx-soft{from{transform:translateY(7px)}to{transform:none}}
+@keyframes fx-pop{0%{transform:scale(.95)}60%{transform:scale(1.02)}100%{transform:scale(1)}}
+@keyframes fx-bounce{0%{transform:translateY(0)}30%{transform:translateY(-14px)}52%{transform:translateY(0)}72%{transform:translateY(-6px)}100%{transform:translateY(0)}}
+@keyframes fx-sway{0%{transform:rotate(0)}26%{transform:rotate(-3.2deg)}56%{transform:rotate(3.2deg)}80%{transform:rotate(-1.8deg)}100%{transform:rotate(0)}}
+@keyframes fx-slideL{0%{transform:translateX(-34px)}100%{transform:translateX(0)}}
+@keyframes fx-slideR{0%{transform:translateX(34px)}100%{transform:translateX(0)}}
+@keyframes fx-drop{0%{transform:translateY(-26px)}70%{transform:translateY(4px)}100%{transform:translateY(0)}}
+@keyframes fx-zoomIn{0%{transform:scale(1.14)}100%{transform:scale(1)}}
+@keyframes fx-zoomOut{0%{transform:scale(.86)}100%{transform:scale(1)}}
+@keyframes fx-tilt{0%{transform:rotate(-5deg) scale(.97)}100%{transform:rotate(0) scale(1)}}
+@keyframes fx-shake{0%{transform:translateX(0)}18%{transform:translateX(-6px)}36%{transform:translateX(5px)}54%{transform:translateX(-4px)}72%{transform:translateX(3px)}100%{transform:translateX(0)}}
+@keyframes fx-glow{0%{filter:brightness(1.55) saturate(1.1);transform:scale(1.03)}100%{filter:brightness(1);transform:scale(1)}}
+.fx-soft img{animation:fx-soft .45s ease both}
+.fx-pop img{animation:fx-pop .5s cubic-bezier(.34,1.56,.64,1) both}
+.fx-bounce img{animation:fx-bounce .7s ease both}
+.fx-sway img{animation:fx-sway .8s ease both}
+.fx-slideL img{animation:fx-slideL .5s cubic-bezier(.22,1,.36,1) both}
+.fx-slideR img{animation:fx-slideR .5s cubic-bezier(.22,1,.36,1) both}
+.fx-drop img{animation:fx-drop .6s cubic-bezier(.34,1.4,.64,1) both}
+.fx-zoomIn img{animation:fx-zoomIn .5s cubic-bezier(.22,1,.36,1) both}
+.fx-zoomOut img{animation:fx-zoomOut .5s cubic-bezier(.22,1,.36,1) both}
+.fx-tilt img{animation:fx-tilt .55s cubic-bezier(.34,1.3,.64,1) both}
+.fx-shake img{animation:fx-shake .5s ease both}
+.fx-glow img{animation:fx-glow .6s ease both}
+@media(prefers-reduced-motion:reduce){.layer img{animation:none!important}}
+
+/* CG + 文生图按钮 */
+#cg{position:absolute;inset:0;z-index:2;opacity:0}
+#cgbg{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat}
+#cgmain{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat}
+#cg.show{opacity:1;animation:cg-in .8s ease both}
+@keyframes cg-in{0%{opacity:0;transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
+#cgPh{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:#fff;font-size:14px;background:linear-gradient(135deg,#7ec98f,#4fa36b)}
+/* 文生图的按钮/面板已搬去小手机（相册 → ✨生成）。gal 只留「接图」通道，见文件末尾的 storage 监听。 */
+
+/* 状态栏：环境在上、内心 OS 压底 */
+#status{position:absolute;top:14px;right:14px;z-index:7;width:min(46%,270px);background:var(--dlg-tint);border:1px solid rgba(255,255,255,.16);border-radius:var(--r);box-shadow:0 12px 34px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.14);backdrop-filter:blur(var(--dlg-blur)) saturate(1.4);-webkit-backdrop-filter:blur(var(--dlg-blur)) saturate(1.4);padding:11px 13px;font-size:13px}
+#status .env{color:rgba(240,244,248,.95);line-height:1.6;display:flex;gap:6px}
+#status .inner{margin-top:9px;padding-top:9px;border-top:1px dashed rgba(255,255,255,.25);color:rgba(220,228,235,.82);font-style:italic;line-height:1.6;display:flex;gap:6px}
+#status .i{opacity:.85}
+#status .inner .i{font-style:normal}
+/* 状态框折叠按钮：展开时是右上角小「–」；收起后整框缩成一个 💭 小圆，点它再展开 */
+#status .stog{position:absolute;top:6px;right:7px;z-index:2;width:22px;height:22px;padding:0;border:none;border-radius:6px;background:rgba(255,255,255,.14);color:#eef2f6;font-size:15px;line-height:1;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#status .stog:hover{background:rgba(255,255,255,.26)}
+#status.collapsed{width:auto;min-width:0;padding:0;background:transparent;border:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+#status.collapsed .loc,#status.collapsed .env,#status.collapsed .inner{display:none}
+#status.collapsed .stog{position:static;width:40px;height:40px;border-radius:12px;font-size:18px;background:var(--dlg-tint);border:1px solid rgba(255,255,255,.2);box-shadow:0 6px 18px rgba(0,0,0,.4);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+
+/* 对话框 + 左上 时间·地点 */
+#dialogue{position:absolute;left:18px;right:18px;bottom:18px;z-index:8;background:var(--dlg-tint);border:1px solid rgba(255,255,255,.16);border-radius:var(--r);box-shadow:0 12px 34px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.14);backdrop-filter:blur(var(--dlg-blur)) saturate(1.4);-webkit-backdrop-filter:blur(var(--dlg-blur)) saturate(1.4);padding:22px 20px 18px;min-height:108px;cursor:pointer}
+#status .loc{display:flex;flex-wrap:wrap;gap:4px 12px;color:rgba(240,244,248,.95);font-weight:600;padding-bottom:9px;margin-bottom:9px;border-bottom:1px dashed rgba(255,255,255,.25);letter-spacing:.02em}
+#status .loc .p{color:var(--main)}
+#speaker{display:inline-block;font-weight:700;font-size:15px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-deep));padding:3px 15px;border-radius:999px;margin-bottom:8px;letter-spacing:.05em;box-shadow:0 3px 10px rgba(45,147,173,.45);min-height:26px}
+#speaker.narrator{background:transparent;color:rgba(255,255,255,.72);box-shadow:none;padding-left:2px;font-weight:600;font-size:13px;letter-spacing:.1em}
+#text{font-size:16px;line-height:1.85;color:#f2f5f8;min-height:34px;text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 5px rgba(0,0,0,.6)}
+#text.tianqing{color:var(--main);text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 5px rgba(0,0,0,.6)}
+#hint{position:absolute;right:16px;bottom:10px;font-size:11.5px;color:rgba(255,255,255,.6);opacity:.85;animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.25}}
+
+/* 选项 */
+#choices{position:absolute;inset:0;z-index:10;display:none;flex-direction:column;align-items:center;justify-content:center;gap:11px;background:rgba(18,42,52,.42);backdrop-filter:blur(3px);padding:22px}
+#choices .q{color:#fff;font-size:15px;margin-bottom:6px;text-shadow:0 2px 8px rgba(0,0,0,.4)}
+#choices button{width:min(440px,92%);padding:13px 18px;border:1px solid var(--glass-line);border-radius:11px;background:var(--glass);color:var(--ink);font-size:14.5px;font-weight:600;cursor:pointer;box-shadow:var(--shadow);transition:.2s}
+#choices button:hover{background:#fff;transform:translateY(-2px);color:var(--accent)}
+
+/* ===== CG 手动切换模式 =====
+   进入后：#stage 加 .cgmode → 藏对话框+状态框、露出压图文字层 #cgText 和底部回看条 #cgNav。
+   文字直接描边压在 CG 上，后一句盖前一句(淡入)；底部 ‹ 第N句/共M句 › 左右回看。 */
+#cgText{position:absolute;left:6%;right:6%;bottom:13%;z-index:9;display:none;flex-direction:column;align-items:center;text-align:center;pointer-events:none}
+#stage.cgmode #cgText,#stage.cgauto #cgText{display:flex}
+#cgSpk{display:none;font-weight:700;font-size:14px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-deep));padding:3px 15px;border-radius:999px;margin-bottom:9px;letter-spacing:.05em;box-shadow:0 3px 12px rgba(0,0,0,.5)}
+#cgSpk.on{display:inline-block}
+#cgLine{font-size:18px;line-height:1.7;color:#fff;font-weight:600;max-width:640px;animation:cgtxt .32s ease both;text-shadow:0 0 3px #000,0 0 3px #000,0 2px 6px rgba(0,0,0,.9),0 0 14px rgba(0,0,0,.7)}
+#cgLine.tq{color:var(--main)}
+#cgLine.narr{font-style:italic;font-weight:500;color:rgba(255,255,255,.94)}
+@keyframes cgtxt{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+#cgNav{position:absolute;left:0;right:0;bottom:4.5%;z-index:9;display:none;align-items:center;justify-content:center;gap:16px}
+#stage.cgmode #cgNav{display:flex}
+#cgNav button{width:38px;height:38px;border:1px solid rgba(255,255,255,.3);border-radius:50%;background:rgba(18,24,32,.6);color:#fff;font-size:18px;line-height:1;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;font-family:inherit}
+#cgNav button:disabled{opacity:.3;cursor:default}
+#cgNav .cnt{color:#fff;font-size:13px;font-weight:600;min-width:64px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.9);letter-spacing:.05em}
+#cgNav .cnt b{color:var(--main);font-size:15px}
+#stage.cgmode #dialogue,#stage.cgmode #status,#stage.cgauto #dialogue,#stage.cgauto #status{display:none!important}
+
+/* ==================== 直播模式 ====================
+   AI 吐 <live> → #stage 加 .live。布局：左上直播条 / 中间立绘 / 天青字幕 / 弹幕玻璃框 / 底部发弹幕栏。
+   隐藏：对话框、CG 切换按钮、左右箭头、CG 层。右上状态框【只留内心 OS】那一行。 */
+#stage.live #dialogue,#stage.live #choices,#stage.live .nav,#stage.live #cgNav,#stage.live #cgText,#stage.live #cg,#stage.live #cgTog{display:none!important}
+/* 直播模式：状态框【整个】藏掉。原来只藏了 .loc/.env/.stog 三个子元素，容器还在 →
+   屏幕右上角剩一个空玻璃壳；要是之前折叠过它，.collapsed 连 .inner 也藏了 → 一个纯空盒子。
+   时间/地点已经在直播条里了，直播时不需要这个面板。 */
+#stage.live #status{display:none!important}
+#stage.live #sprites{height:78%;bottom:auto;top:6%}                                                    /* 立绘上移，给弹幕框腾地方 */
+
+#liveBar,#liveTitle,#liveSub,#liveDm,#liveInput,#liveReplay{display:none}
+#stage.live #liveBar,#stage.live #liveTitle,#stage.live #liveSub,#stage.live #liveDm,#stage.live #liveInput{display:flex}
+#stage.live.replay #liveReplay{display:flex}
+#stage.live.replay #liveInput{display:none}                                                            /* 回放里不能发弹幕 */
+
+/* 左上：🔴LIVE · 时间 · 人数 · 热度 */
+#liveBar{position:absolute;top:12px;left:12px;z-index:14;align-items:center;gap:8px;padding:7px 13px;border-radius:10px;cursor:pointer;
+  background:rgba(12,16,22,.62);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+  color:#eef3f7;font-size:12.5px;font-weight:600;letter-spacing:.02em;box-shadow:0 6px 20px rgba(0,0,0,.42);white-space:nowrap}
+#liveBar b{color:#ff5f6b;letter-spacing:.09em;font-size:11.5px}
+#liveBar .dot{width:7px;height:7px;border-radius:50%;background:#ff4d5a;box-shadow:0 0 8px #ff4d5a;animation:lvpulse 1.4s infinite}
+#liveBar .sep{width:1px;height:11px;background:rgba(255,255,255,.2)}
+@keyframes lvpulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* 标题条（形式 + 背景） */
+/* 收起态：直播条缩成一个 🔴LIVE 小胶囊，标题一起收掉。点它展开/收起，状态记到 localStorage 跨消息保留 */
+#stage.live.barmin #liveBar{gap:6px;padding:6px 10px}
+#stage.live.barmin #liveBar .sep,#stage.live.barmin #liveClock,#stage.live.barmin #liveViewers,#stage.live.barmin #liveHeat{display:none}
+#stage.live.barmin #liveTitle{display:none}
+#liveTitle{position:absolute;top:52px;left:12px;z-index:14;padding:4px 11px;border-radius:8px;background:rgba(12,16,22,.5);
+  border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  color:rgba(255,255,255,.9);font-size:11.5px;font-weight:500;white-space:nowrap}
+
+/* 天青字幕：压在立绘下方，后一句盖前一句（复用 CG 模式的淡入手法） */
+#liveSub{position:absolute;left:8%;right:8%;bottom:calc(30% + 78px);z-index:13;justify-content:center;text-align:center;pointer-events:none;
+  font-size:17px;line-height:1.65;font-weight:600;color:var(--main);animation:cgtxt .3s ease both;
+  text-shadow:0 0 3px #000,0 0 3px #000,0 2px 7px rgba(0,0,0,.92),0 0 15px rgba(0,0,0,.65)}
+#liveSub.narr{color:rgba(255,255,255,.9);font-style:italic;font-weight:500;font-size:15px}
+
+/* 弹幕框：半透明黑玻璃，新弹幕从下面冒出来、自动滚到底 */
+#liveDm{position:absolute;left:4.5%;width:var(--dm-w);right:auto;bottom:66px;height:30%;z-index:13;flex-direction:column;gap:5px;padding:10px 12px;overflow-y:auto;
+  border-radius:13px;background:rgba(8,11,16,.5);border:1px solid rgba(255,255,255,.1);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 10px 30px rgba(0,0,0,.4);scroll-behavior:smooth}
+#liveDm::-webkit-scrollbar{width:4px}#liveDm::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:2px}
+/* 弹幕框的隐藏钮。位置：【弹幕框右边的空白区】，和框底对齐。
+   —— 不能放框的正上方：那儿是字幕（#liveSub 在 bottom:30%+78px），会压住。
+   —— 也不能塞进 #liveDm 里：那个 div 的内容是每条弹幕重绘的，按钮会被冲掉。
+   弹幕框只占一半宽（--dm-w），右边正好是空的。收起后按钮留在原地当「叫回来」的入口。 */
+#dmTog{position:absolute;left:calc(4.5% + var(--dm-w) + 8px);bottom:66px;z-index:15;display:none;
+  width:30px;height:30px;align-items:center;justify-content:center;font-size:14px;cursor:pointer;
+  background:rgba(12,16,22,.66);border:1px solid rgba(255,255,255,.16);border-radius:9px;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 3px 12px rgba(0,0,0,.3);
+  transition:opacity .18s,transform .12s}
+#stage.live #dmTog{display:flex}
+#dmTog:active{transform:scale(.88)}
+#stage.live.dmoff #liveDm{display:none}                    /* 收起：弹幕框藏掉 */
+#stage.live.dmoff #dmTog{left:4.5%;opacity:.8}             /* 按钮挪到左下角（框原来的起点），当入口 */
+#stage.live.replay #dmTog{display:none}                    /* 回放里不用收弹幕（本来也发不了） */
+#liveDm .dm{font-size:12.5px;line-height:1.5;color:#e8eef3;animation:dmin .3s ease both;word-break:break-word;flex-shrink:0}
+#liveDm .dm .n{color:#8fa8bb;margin-right:7px;font-weight:500}                                          /* 观众 ID */
+#liveDm .dm.me .n{color:var(--main);font-weight:700}                                                    /* {{user}} 自己发的 */
+#liveDm .dm.sys{color:#7f93a3;font-size:11.5px;font-style:italic;text-align:center}
+@keyframes dmin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* SC 卡片：左侧色条 + 金额徽章，颜色按金额落档（B站真实档位配色，见 JS 的 SC_TIERS） */
+#liveDm .sc{flex-shrink:0;border-radius:8px;overflow:hidden;animation:scin .42s cubic-bezier(.34,1.4,.64,1) both;box-shadow:0 3px 12px rgba(0,0,0,.35)}
+#liveDm .sc .top{display:flex;align-items:center;gap:7px;padding:5px 9px;font-size:12px;font-weight:700;color:#fff}
+#liveDm .sc .top .y{background:rgba(255,255,255,.22);padding:1px 7px;border-radius:5px;font-size:11px;letter-spacing:.02em}
+#liveDm .sc .bd{padding:6px 9px;font-size:12.5px;line-height:1.5;color:#f2f6f9;background:rgba(0,0,0,.34)}
+@keyframes scin{from{opacity:0;transform:translateX(-14px) scale(.96)}to{opacity:1;transform:none}}
+
+/* 底部：发弹幕 / 发 SC */
+#liveInput{position:absolute;left:4.5%;right:4.5%;bottom:14px;z-index:14;align-items:center;gap:7px}
+#liveNick{flex-shrink:0;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 9px;height:34px;line-height:34px;
+  border-radius:9px;background:rgba(12,16,22,.62);border:1px solid rgba(255,255,255,.14);color:var(--main);font-size:11.5px;font-weight:600;cursor:pointer;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#liveText{flex:1;min-width:0;height:34px;padding:0 12px;border-radius:9px;border:1px solid rgba(255,255,255,.14);background:rgba(12,16,22,.62);
+  color:#eef3f7;font-size:13px;font-family:inherit;outline:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#liveText::placeholder{color:rgba(230,240,246,.4)}
+#liveText:focus{border-color:var(--main)}
+#liveSc{flex-shrink:0;height:34px;padding:0 6px;border-radius:9px;border:1px solid rgba(255,255,255,.14);background:rgba(12,16,22,.72);
+  color:#eef3f7;font-size:12px;font-family:inherit;cursor:pointer;outline:none}
+#liveSc option{background:#141a22;color:#eef3f7}
+#liveSend{flex-shrink:0;height:34px;padding:0 15px;border-radius:9px;border:none;background:var(--main);color:#0d2730;font-size:13px;font-weight:700;
+  font-family:inherit;cursor:pointer;box-shadow:0 4px 14px rgba(141,212,224,.35)}
+#liveSend:active{transform:translateY(1px)}
+#liveSend.ok{background:#7ddc9a}
+
+/* 回放条（从小手机点进来的历史直播） */
+#liveReplay{position:absolute;bottom:14px;left:4.5%;right:4.5%;z-index:15;align-items:center;gap:10px;padding:0 13px;height:36px;border-radius:10px;
+  background:rgba(12,16,22,.72);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+  color:#dfe8ef;font-size:12.5px;font-weight:600}
+#liveReplay b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--main);font-weight:600}
+#liveBack{flex-shrink:0;height:25px;padding:0 11px;border-radius:7px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.1);
+  color:#fff;font-size:11.5px;font-family:inherit;cursor:pointer}
+
+/* 手机竖版：缩一档 */
+@media(max-aspect-ratio:1/1){
+  #liveBar{font-size:11px;padding:5px 9px;gap:6px}
+  #liveTitle{top:44px;font-size:10.5px}
+  #liveSub{font-size:14px;bottom:calc(32% + 62px)}
+  #liveSub.narr{font-size:12.5px}
+  #liveDm{height:32%;bottom:56px;padding:8px 9px}
+  #liveDm .dm,#liveDm .sc .bd{font-size:11.5px}
+  #liveInput{gap:5px;bottom:11px}
+  #liveNick{max-width:62px;font-size:10px;padding:0 6px;height:31px;line-height:31px}
+  #liveText,#liveSc,#liveSend{height:31px}
+  #liveText{font-size:12px;padding:0 9px}#liveSend{padding:0 11px;font-size:12px}
+}
+
+/* ===== 左右透明箭头（上一句 / 下一句）===== */
+.nav{position:absolute;top:50%;transform:translateY(-50%);z-index:12;width:44px;height:64px;display:flex;align-items:center;justify-content:center;
+  background:rgba(10,16,22,.18);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.55);font-size:26px;line-height:1;cursor:pointer;
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:.35;transition:opacity .18s,background .18s;user-select:none;font-family:inherit}
+.nav:hover{opacity:1;background:rgba(10,16,22,.42);color:#fff}
+.nav.l{left:0;border-radius:0 10px 10px 0;border-left:none}
+.nav.r{right:0;border-radius:10px 0 0 10px;border-right:none}
+.nav.off{opacity:.1;cursor:default}
+@media(max-width:600px){ .nav{width:34px;height:52px;font-size:21px;opacity:.28} }
+
+/* ===== 手机端 · 竖屏构图 =====
+   立绘：固定原始比例，按【高度铺满】舞台，左右宽出来的部分（胳膊/头发）超出舞台被裁掉
+   —— object-fit:cover + 顶部对齐，保住头和脸；不会再被缩成细长条，也绝不变形。
+   舞台竖屏 2:3（已拉长，更适配竖版 CG）；想更长/更方改 aspect-ratio 的 2/3（9/16 更长；3/4、4/5 更方）。
+   想让脸再往下一点，把 object-position 的 center top 改成 center 8% 之类。桌面端(>600px)不受影响。 */
+@media(max-width:600px){
+  body{padding:4px}
+  #stage{width:100%;aspect-ratio:2/3;border-radius:16px}
+  #sprites{height:100%}
+  .layer{left:0;right:0;transform:none}
+  .layer img{width:100%;height:100%;object-fit:cover;object-position:center top}
+  /* CG：完整显示整张画（contain 不裁），空出来的地方用同一张图的模糊放大版填满，无黑边 */
+  #cgmain{background-size:contain}
+  #cgbg{filter:blur(22px) brightness(.62);transform:scale(1.12)}
+  #status{width:min(56%,206px);top:9px;right:9px;padding:9px 10px;font-size:11.5px}
+  #status .loc,#status .env,#status .inner{line-height:1.5}
+  #status .stog{top:5px;right:6px;width:20px;height:20px;font-size:13px}
+  #status.collapsed .stog{width:36px;height:36px;font-size:17px}
+  #dialogue{left:9px;right:9px;bottom:9px;padding:15px 14px 14px;min-height:92px}
+  #speaker{font-size:14px;padding:2px 13px}
+  #text{font-size:15px;line-height:1.72}
+  #hint{font-size:10.5px}
+  #choices{padding:16px}
+  #choices .q{font-size:14px}
+  #choices button{width:94%;font-size:14px;padding:12px 15px}
+  /* CG 模式：手机端文字/导航缩小一档 */
+  #cgText{left:5%;right:5%;bottom:12%}
+  #cgLine{font-size:15.5px;line-height:1.62}
+  #cgSpk{font-size:13px;margin-bottom:7px}
+  #cgNav{gap:13px}
+  #cgNav button{width:34px;height:34px;font-size:16px}
+  #cgNav .cnt{font-size:12px;min-width:56px}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg"></div>
+  <div id="cg"><div id="cgbg"></div><div id="cgmain"></div><div id="cgPh"></div></div>
+  <!-- 文生图的 UI 已经搬进【小手机 → 相册 → ✨生成】。gal 这边只负责「接图」：
+       小手机生成好 → 写 localStorage['tq_gal_cg'] → 下面的 storage 监听接住 → 当成一张 CG 铺上 -->
+  <div id="sprites"><div class="layer" id="layA"><img alt="立绘"></div><div class="layer" id="layB"><img alt="立绘"></div></div>
+  <div id="status">
+    <button class="stog" title="收起/展开">–</button>
+    <div class="loc"><span class="t">🕐 —</span><span class="p">📍 —</span></div>
+    <div class="env"><span class="i">🌸</span><span class="v"></span></div>
+    <div class="inner"><span class="i">💭</span><span class="v"></span></div>
+  </div>
+  <div id="dialogue">
+    <div id="speaker">天青</div>
+    <div id="text"></div>
+    <div id="hint">▼ 点击继续</div>
+  </div>
+  <div id="choices"></div>
+  <!-- CG 模式：压在 CG 上的文字层 + 底部回看导航（平时 display:none，进 CG 模式才露出） -->
+  <div id="cgText"><span id="cgSpk"></span><div id="cgLine"></div></div>
+  <div class="nav l" id="navL" title="上一句">‹</div>
+  <div class="nav r" id="navR" title="下一句">›</div>
+  <div id="cgNav"><button id="cgPrev" title="上一句">‹</button><span class="cnt"><b id="cgNavCur">1</b> / <span id="cgNavTot">1</span></span><button id="cgNext" title="下一句">›</button></div>
+
+  <!-- ===== 直播模式（AI 吐 <live> 时才露出；平时 display:none）=====
+       左上直播条 / 中间立绘(复用 #sprites) / 天青字幕 / 弹幕玻璃框 / 底部发弹幕栏 -->
+  <div id="liveBar">
+    <span class="dot"></span><b>LIVE</b>
+    <span class="sep"></span><span id="liveClock">--:--</span>
+    <span class="sep"></span><span id="liveViewers">👤 —</span>
+    <span class="sep"></span><span id="liveHeat">🔥 —</span>
+  </div>
+  <div id="liveTitle"></div>
+  <div id="liveSub"></div>
+  <div id="liveDm"></div>
+  <!-- 弹幕框的隐藏/展开钮。独立挂在 #stage 下，不能塞进 #liveDm —— 那里面的内容是 JS 重绘的，按钮会被冲掉 -->
+  <div id="dmTog" title="收起弹幕">💬</div>
+  <div id="liveInput">
+    <span id="liveNick" title="点击改马甲 ID">匿名的听众</span>
+    <input id="liveText" type="text" maxlength="40" placeholder="发条弹幕…">
+    <select id="liveSc" title="醒目留言 SC">
+      <option value="0">弹幕</option>
+      <option value="30">¥30</option><option value="50">¥50</option><option value="100">¥100</option>
+      <option value="500">¥500</option><option value="1000">¥1000</option><option value="2000">¥2000</option>
+    </select>
+    <button id="liveSend">发送</button>
+  </div>
+  <div id="liveReplay"><span>📼 直播回放</span><b id="liveReplayT"></b><button id="liveBack">返回本轮</button></div>
+</div>
+
+<script>
+/* ★★ 剧情数据 ★★  浏览器预览＝下面的示例；正则版＝把下面反引号里的内容换成捕获组占位 */
+var __GAL_SRC = `$1`;   /* ← 预览用示例剧情。装回卡时换成 `$1` */
+
+(function(){
+var $ = function(id){return document.getElementById(id);};
+
+/* ===== ① 数据区 —— 加料只动这三张表（详见《清单与格式》）===== */
+var expressionMap = {
+  "暧昧地打量":"https://files.catbox.moe/5fue3f.png",
+  "比较高兴":"https://files.catbox.moe/pjx5ey.png",
+  "比心":"https://files.catbox.moe/s7bc1l.png",
+  "比耶":"https://files.catbox.moe/lq53oh.png",
+  "不满":"https://files.catbox.moe/jm9ap2.png",
+  "得意":"https://files.catbox.moe/lqzeix.png",
+  "飞吻":"https://files.catbox.moe/qjam6e.png",
+  "刚睡醒或困倦":"https://files.catbox.moe/iy1kl1.png",
+  "高兴":"https://files.catbox.moe/36wfqx.png",
+  "害羞":"https://files.catbox.moe/pcpq37.png",
+  "红温":"https://files.catbox.moe/zcre0b.png",
+  "假装很生气":"https://files.catbox.moe/kcgwc9.png",
+  "惊讶":"https://files.catbox.moe/76fxk6.png",
+  "警觉或察觉":"https://files.catbox.moe/iny2nn.png",
+  "窘迫":"https://files.catbox.moe/jqrgzl.png",
+  "流泪":"https://files.catbox.moe/t6t51g.png",
+  "卖萌":"https://files.catbox.moe/j82pgq.png",
+  "疲惫或无语":"https://files.catbox.moe/as6jqc.png",
+  "祈祷":"https://files.catbox.moe/k3xqfo.png",
+  "失落":"https://files.catbox.moe/g9apcw.png",
+  "思考":"https://files.catbox.moe/oib9op.png",
+  "完全胜利":"https://files.catbox.moe/91uicn.png",
+  "微笑":"https://files.catbox.moe/v7sma7.png",
+  "无语":"https://files.catbox.moe/qxnrq1.png",
+  "星星眼":"https://files.catbox.moe/3wtjsn.png",
+  "羞涩":"https://files.catbox.moe/e64jon.png",
+  "疑问":"https://files.catbox.moe/2ddv4x.png",
+  "真的很生气":"https://files.catbox.moe/8h231g.png",
+  "自信":"https://files.catbox.moe/r6a79l.png",
+  "做鬼脸":"https://files.catbox.moe/8fcd8w.png",
+  "比较开心2":"https://files.catbox.moe/y3uv96.png",
+  "闭眼唱歌":"https://files.catbox.moe/yvqllp.png",
+  "唱哭了":"https://files.catbox.moe/s8bkrq.png",
+  "沉醉":"https://files.catbox.moe/xr9wzv.png",
+  "吃醋":"https://files.catbox.moe/3ktbqv.png",
+  "弹吉他":"https://files.catbox.moe/h0j7ph.png",
+  "俏皮":"https://files.catbox.moe/owzjii.png",
+  "俏皮2":"https://files.catbox.moe/09dpoy.png",
+  "俏皮歌唱":"https://files.catbox.moe/nq5j5h.png",
+  "撒娇":"https://files.catbox.moe/8suxql.png",
+  "微笑弹吉他":"https://files.catbox.moe/7ydko5.png",
+  "委屈":"https://files.catbox.moe/zdgkxk.png",
+  "笑着弹吉他":"https://files.catbox.moe/znw6v6.png",
+  "笑着歌唱":"https://files.catbox.moe/cio6w2.png",
+  "演出服wink":"https://files.catbox.moe/u44rp3.png",
+  "演出服不甘":"https://files.catbox.moe/wua3k9.png",
+  "演出服歌唱":"https://files.catbox.moe/e90lyb.png",
+  "演出服开心":"https://files.catbox.moe/uq7onm.png",
+  "演出服俏皮":"https://files.catbox.moe/h9en2q.png",
+  "演出服生气":"https://files.catbox.moe/qw2mog.png",
+  "演出服歌唱开心":"https://files.catbox.moe/ujrefd.png",
+  "演出服委屈":"https://files.catbox.moe/am0xcs.png",
+  "演出服无语":"https://files.catbox.moe/z9kmw2.png",
+  "演出服无语2":"https://files.catbox.moe/u7vc16.png",
+  "演出服自豪":"https://files.catbox.moe/odd6l0.png"
+  // 加立绘：键=表情名(要和世界书给AI的名单完全一致)，值=图片URL
+};
+var sceneBackgrounds = {
+  /* 键 =「地点·时段段」。时段段：白日 / 黄昏 / 夜晚（由 TIME_BAND 从 MVU 时段换算）。
+     有夜晚版的地点写两条(白日+夜晚)；只有一版的只写白日，夜晚会自动回落到白日版(见 paintBG)。 */
+  "城郊花田·白日":"https://files.catbox.moe/nsjdq1.png",
+  "城郊花田·黄昏":"https://files.catbox.moe/csaulb.png",
+  "草原·白日":"https://files.catbox.moe/d2zlog.png",
+  "雪山·白日":"https://files.catbox.moe/917l5y.png",
+  "小镇·白日":"https://files.catbox.moe/335qgh.jpg",
+  "街区·白日":"https://files.catbox.moe/5ptc2s.jpg",
+  "教室·白日":"https://files.catbox.moe/411x91.png",
+  "校园·白日":"https://files.catbox.moe/7umvnl.png",
+  "教堂·白日":"https://files.catbox.moe/ksgcnb.png",
+  "公园·白日":"https://files.catbox.moe/kc5j7q.png",
+  "公园·夜晚":"https://files.catbox.moe/tz8dj5.png",
+  "海边·白日":"https://files.catbox.moe/3748mu.png",
+  "海边·夜晚":"https://files.catbox.moe/gfpofd.png",
+  "海边小镇·白日":"https://files.catbox.moe/b7jklz.png",
+  "海边小镇·夜晚":"https://files.catbox.moe/54dvha.png",
+  "咖啡馆·白日":"https://files.catbox.moe/vu5bpi.png",
+  "咖啡馆·夜晚":"https://files.catbox.moe/dkkl00.png",
+  "录音室·白日":"https://files.catbox.moe/t4gucb.png",
+  "录音室·夜晚":"https://files.catbox.moe/wohjuq.png",
+  "宿舍·白日":"https://files.catbox.moe/1aflxf.png",
+  "宿舍·夜晚":"https://files.catbox.moe/hz4r00.png",
+  "商业街·白日":"https://files.catbox.moe/6bpztc.png",
+  "商业街·夜晚":"https://files.catbox.moe/0dmg0u.png",
+  "事务所办公室·白日":"https://files.catbox.moe/xe2yhs.png",
+  "事务所办公室·夜晚":"https://files.catbox.moe/kgjjiy.png",
+  "车内·白日":"https://files.catbox.moe/zwxrrz.png",
+  "电影院·白日":"https://files.catbox.moe/3hbfcj.png",
+  "水族馆·白日":"https://files.catbox.moe/4sv0fv.png",
+  "舞台·白日":"https://files.catbox.moe/7e3d4x.png",
+  "舞台后台·白日":"https://files.catbox.moe/vrgjfa.png",
+  "游乐园·白日":"https://files.catbox.moe/gm0uet.png"
+  // 追加地点（单版·白日，夜晚自动回落）
+};
+var cgLibrary = {
+  /* 键 = CG 名(语义化，要和世界书给AI的名单完全一致)。AI 用 <cg>名</cg> 或 <cg=名>…</cg> 触发 */
+  "璀璨笑容":"https://files.catbox.moe/brhd1p.jpg",
+  "公园吉他或唱歌":"https://files.catbox.moe/i41vna.jpg",
+  "海边":"https://files.catbox.moe/4g09vd.jpg",
+  "海边2":"https://files.catbox.moe/64st23.jpg",
+  "海边弹吉他或者唱歌":"https://files.catbox.moe/wclmz8.jpg",
+  "日常逛街":"https://files.catbox.moe/xj8g0l.jpg",
+  "在雪地":"https://files.catbox.moe/he6m8k.jpg",
+  "朝user伸手":"https://files.catbox.moe/lfxmla.jpg",
+  "演出服下化妆":"https://files.catbox.moe/8c3qmm.jpg",
+  "演出服躺着":"https://files.catbox.moe/jc3r3d.jpg",
+  "雨天在公园":"https://files.catbox.moe/kpetig.jpg",
+  "雨中回眸":"https://files.catbox.moe/vz1cng.jpg",
+  "在路边偶遇":"https://files.catbox.moe/i9ztzu.jpg",
+  "在雨中和猫猫一起":"https://files.catbox.moe/jayuak.jpg",
+  "百奇游戏":"https://files.catbox.moe/y0kcrw.jpg",
+  "半夜睡不着看手机":"https://files.catbox.moe/yum60k.jpg",
+  "奔向user":"https://files.catbox.moe/abfd1d.jpg",
+  "出门购物":"https://files.catbox.moe/wml097.jpg",
+  "花海":"https://files.catbox.moe/ol05lp.png",
+  "星空双人":"https://files.catbox.moe/0xswiv.jpg"
+};
+var FIXED_TAG = "girl, long hair, 1.3::black to light blue gradient hair::, blue eyes";
+var TIME_BAND={"清晨":"白日","上午":"白日","午后":"白日","傍晚":"黄昏","夜晚":"夜晚","深夜":"夜晚"};
+var LOC_TAG={"城郊花田":"flower field, meadow","草原":"grassland, plains","雪山":"snowy mountain","小镇":"small town, quiet street","街区":"city street, downtown","教室":"classroom, school desks","校园":"school campus","教堂":"church interior","公园":"park, trees","海边":"seaside, beach, ocean","海边小镇":"seaside town","咖啡馆":"cafe interior","录音室":"recording studio","宿舍":"dorm room, bedroom","商业街":"shopping street, storefronts","事务所办公室":"office, agency room","练习室":"dance practice room, mirror wall","校门口":"school gate, ginkgo trees","车内":"car interior, inside a car","电影院":"movie theater, cinema, dark auditorium","水族馆":"aquarium, glass tanks, blue light","舞台":"concert stage, spotlights, stage lights","舞台后台":"backstage, dressing room","游乐园":"amusement park, ferris wheel, rides"};
+var TIME_TAG={"清晨":"early morning light","上午":"morning light","午后":"warm afternoon sunlight","傍晚":"golden hour, sunset","夜晚":"night, moonlight","深夜":"late night"};
+var EXPR_TAG={"害羞":"shy, blushing","脸红":"blushing","微笑":"gentle smile","开心":"bright smile","星星眼":"sparkling eyes","得意":"smug, proud","高兴":"cheerful","流泪":"teary eyes","惊讶":"surprised"};
+var FX=["soft","pop","bounce","sway","slideL","slideR","drop","zoomIn","zoomOut","tilt","glow","shake"];
+
+/* ===== ② MVU 读取 —— iframe 里酒馆助手/MVU 注入的入口，逐个试；都没有就用兜底 ===== */
+var FAKE_MVU={天数:1,时段:"午后",地点:"校园",阶段:"地下偶像期"};   // 读不到真 MVU 时的兜底（校园=开场所在，比花田合理）
+function dig(o,p){ try{return p.split('.').reduce(function(a,k){return a[k];},o);}catch(e){return undefined;} }
+/* 地点清洗：世界书要求 AI【只写地点名】，但万一它写成「咖啡馆·夜晚」/「咖啡馆 白日」，这里剥掉时段后缀。
+   —— 状态栏显示、背景拼键、文生图查 LOC_TAG 全靠它，剥不干净会连带出错。有 $ 锚定，"深夜食堂"这种不会被误伤。 */
+function cleanLoc(s){ if(s==null||s==='') return s;
+  return String(s).trim().replace(/[·・\.\-\/\s]*(白日|黄昏|夜晚|清晨|上午|午后|傍晚|深夜)$/,"").trim()||String(s).trim(); }
+function norm(d,s,l,st){ return {天数:(d==null||d==='')?FAKE_MVU.天数:d, 时段:s||FAKE_MVU.时段, 地点:cleanLoc(l)||FAKE_MVU.地点,
+  阶段:st||FAKE_MVU.阶段}; }
+/* MVU(StageDog/MagVarUpdate) 把变量【全挂在 stat_data 下】：stat_data.地点 / stat_data.时间.时段 …
+   读的时候先试 stat_data.<path>，再退回顶层 <path>（兼容没套 stat_data 的环境）。 */
+function digAny(v,p){ var r=dig(v,'stat_data.'+p); if(r===undefined||r===null||r==='') r=dig(v,p); return r; }
+function nonEmpty(x){ return x!=null && x!==''; }
+function readMVU(){
+  /* ⚠️ 每条源【只有真读到地点才 return】，读到空就往下试。
+     老 bug：第一条只要函数存在就 return，即使读到 undefined 也 return → 全程走兜底(FAKE_MVU) → 背景永远卡在兜底地点。 */
+  // 源①：getVariables（酒馆助手最稳）
+  try{ if(typeof getVariables==='function'){
+    var mid; try{ if(typeof getCurrentMessageId==='function') mid=getCurrentMessageId(); }catch(em){}
+    var cands=[];
+    /* ⭐ 先读【本条消息自己】的快照：每一楼显示它【当时】的地点，不被后面 MVU 录入的新地点覆盖。
+       MVU 按消息存快照(每条消息存它更新后的 stat_data)，所以带上本楼的 message_id 就能取到"当时"的值。 */
+    if(mid!=null){ try{cands.push(getVariables({type:'message',message_id:mid}));}catch(e0){} }
+    try{cands.push(getVariables({type:'message'}));}catch(e1){}   // 兜底：不带 id（酒馆通常给最后一条）
+    try{cands.push(getVariables({type:'chat'}));}catch(e2){}
+    try{cands.push(getVariables());}catch(e3){}
+    for(var i=0;i<cands.length;i++){ var v=cands[i]; if(!v) continue;
+      var l=digAny(v,'地点');
+      if(nonEmpty(l)) return norm(digAny(v,'时间.天数'),digAny(v,'时间.时段'),l,digAny(v,'名气.阶段')); }
+  } }catch(e){}
+  // 源②：MVU 官方 API（内部自己处理 stat_data）
+  try{ if(typeof Mvu!=='undefined'&&Mvu.getMvuVariable){ var l2=Mvu.getMvuVariable('地点');
+    if(nonEmpty(l2)) return norm(Mvu.getMvuVariable('时间.天数'),Mvu.getMvuVariable('时间.时段'),l2,Mvu.getMvuVariable('名气.阶段')); } }catch(e){}
+  // 源③：getvar（STscript 变量），stat_data 前缀 + 顶层都试
+  try{ if(typeof getvar==='function'){ var l3=getvar('stat_data.地点')||getvar('地点');
+    if(nonEmpty(l3)) return norm(getvar('stat_data.时间.天数')||getvar('时间.天数'),getvar('stat_data.时间.时段')||getvar('时间.时段'),l3,getvar('stat_data.名气.阶段')||getvar('名气.阶段')); } }catch(e){}
+  return FAKE_MVU;
+}
+
+/* ===== ③ 解析 ===== */
+function parseGal(raw){
+  var m=raw.match(/<Gal>([\s\S]*?)<\/Gal>/); if(m) raw=m[1];
+  var r={modules:[],env:"",inner:"",choices:[],live:null,image:null}, mode="", cgScene=null;
+  /* 文生图 prompt：<image>image###…###</image>，【跨三行】。必须在行循环【之前】整块抠掉，
+     否则里面的 "Character 1 Prompt:…|centers:c3;" 含 | ，会被当成对话行切碎。 */
+  var im=raw.match(/<image>([\s\S]*?)<\/image>/i);
+  if(im){ r.image=im[1].replace(/^\s*image\s*###/i,"").replace(/###\s*$/,"").trim(); raw=raw.replace(im[0],""); }
+  raw.split(/\r?\n/).forEach(function(line){
+    line=line.trim(); if(!line) return; var x;
+    /* 直播模式：<live>形式|背景</live>（形式=唱歌/杂谈，背景=录音室/宿舍）。有这行 = 整轮进直播模式 */
+    if(x=line.match(/^<live>([\s\S]*?)<\/live>$/)){ var p=x[1].split('|');
+      r.live={form:(p[0]||"杂谈").trim(), bg:(p[1]||"宿舍").trim(), title:(p[2]||"").trim()}; return; }
+    if(x=line.match(/^<dm>([\s\S]*?)<\/dm>$/)){ var p=x[1].split('|');                      // 弹幕：ID|内容
+      r.modules.push({type:"dm", who:(p[0]||"?").trim(), text:(p.slice(1).join('|')||"").trim()}); return; }
+    if(x=line.match(/^<sc>([\s\S]*?)<\/sc>$/)){ var p=x[1].split('|');                      // 醒目留言：ID|金额|内容
+      r.modules.push({type:"sc", who:(p[0]||"?").trim(), yen:(+((p[1]||"").trim())||30), text:(p.slice(2).join('|')||"").trim()}); return; }
+    if(x=line.match(/^<env>([\s\S]*?)<\/env>$/)){ r.env=x[1].trim(); return; }
+    if(x=line.match(/^<inner>([\s\S]*?)<\/inner>$/)){ r.inner=x[1].trim(); return; }
+    if(x=line.match(/^<cg=([\s\S]*?)>$/)){ cgScene=x[1].trim(); return; }   // 自动CG场景 开始：这段话铺CG直到 </cg>
+    if(line==="</cg>"){ cgScene=null; return; }                              // 自动CG场景 结束
+    if(x=line.match(/^<cg>([\s\S]*?)<\/cg>$/)){ var p=x[1].split('|'); r.modules.push({type:"cg",name:p[0].trim(),tag:(p[1]||"").trim()}); return; }
+    if(x=line.match(/^<choice>(.*)<\/choice>$/)){ (x[1].match(/\[([^\]]*)\]/g)||[]).forEach(function(c){r.choices.push(c.replace(/^\[|\]$/g,""));}); return; }
+    if(line==="<choice>"){mode="choice";return;} if(line==="</choice>"){mode="";return;}
+    if(mode==="choice"){ r.choices.push(line.replace(/^\[|\]$/g,"")); return; }
+    if(line.indexOf("|")>-1){ var f=line.split("|"); r.modules.push({type:"line",text:(f[0]||"").trim(),who:(f[1]||"").trim(),expr:(f[2]||"").trim(),dialogue:/^「[\s\S]*」$/.test((f[0]||"").trim()),cg:cgScene}); }
+  });
+  return r;
+}
+
+/* ===== ④ 渲染 ===== */
+var data=parseGal(__GAL_SRC);
+var idx=0,typing=false,typer=null,cgActive=false,lastExpr=null,lastFx=null,autoCg=null;
+var front=$("layA"),back=$("layB");
+
+function preload(){ var u=[]; for(var k in expressionMap)u.push(expressionMap[k]); for(var c in cgLibrary)u.push(cgLibrary[c]); for(var b in sceneBackgrounds)u.push(sceneBackgrounds[b]); u.forEach(function(x){var i=new Image();i.src=x;}); }
+/* v19：gal 背景【彻底跟随 MVU】—— 已移除小手机手动切背景的覆盖机制。背景 = MVU(地点+时段) 的纯函数，别再加覆盖层。 */
+/* ===== 名单外地点的「代理地点」自动配图 =====
+   世界书允许 AI 在 16 个地点名单外【自己编地点名】（便利店 / 天台 / 电视台后台 / 医院…），
+   这里负责给它找一张不违和的背景。三层：
+
+   ① LOC_HINT 关键词猜测：能猜出来就用最贴切的真地点（校门口→校园、便利店→商业街、练习室→录音室）。
+      —— 加新地点词只要往这张表里补一行；顺序 = 优先级，从具体到泛化，先命中先赢。
+   ② hashPick 哈希兜底：关键词全没命中（医院、水族馆…）→ 按地点名哈希锁一个代理地点。
+      【为什么不是 Math.random】gal 每条消息渲染一个新 iframe，真随机会让连着三条都在「便利店」
+      却每条背景都换一张，非常出戏。哈希保证「同一个地点名 → 永远同一张图」。
+   ③ 拿到代理地点后走正常的时段回落 —— 白天/夜晚拿到的是【同一场景的两个时段版】，不是两张不相干的图。 */
+var LOC_ALL=(function(){ var seen={},a=[]; for(var k in sceneBackgrounds){ var l=k.split("·")[0]; if(!seen[l]){seen[l]=1;a.push(l);} } return a; })();
+var LOC_HINT=[
+  ["海边小镇|海滨小镇",                                          "海边小镇"],
+  ["车内|车里|车上|车中|副驾|后座|驾驶座|车厢",                  "车内"],        // 追加正式地点
+  ["电影院|影院|影厅|放映厅|观影",                              "电影院"],
+  ["水族馆|海洋馆|海洋公园|水生馆",                              "水族馆"],
+  ["游乐园|游乐场|主题乐园|主题公园|嘉年华|摩天轮|过山车",        "游乐园"],
+  ["后台|化妆间|候场|候场区|休息室",                            "舞台后台"],
+  ["舞台|演唱会|演出现场|音乐节|音乐厅|公演|livehouse|live house","舞台"],
+  ["事务所|经纪|公司|办公|会议|电视台|摄影棚|演播|录制|采访|医院|诊所|病房", "事务所办公室"],  // 正经的室内公共空间
+  ["录音|排练|练习室|音乐室|琴房|录音棚",                        "录音室"],
+  ["便利店|超市|商场|商店|购物|药店|花店|车站|地铁|电车|站台|动物园|博物馆|体育馆", "商业街"],  // 逛街 / 出去玩，用热闹街景兜
+  ["咖啡|茶|甜品|蛋糕|餐厅|饭店|居酒屋|便当|拉面|食堂",           "咖啡馆"],
+  ["宿舍|房间|卧室|家里|她家|你家|公寓|客厅|厨房|浴室|阳台|床",   "宿舍"],
+  ["教室|课室|自习|讲台",                                        "教室"],
+  ["校门|学校|校园|操场|天台|楼顶|社团|部室|图书馆|走廊",         "校园"],
+  ["教堂|礼拜|婚礼|钟楼",                                        "教堂"],
+  ["公园|广场|长椅|河堤|河边|天桥|散步|喷泉",                     "公园"],
+  ["海边|沙滩|海滩|海岸|港口|码头|防波堤",                        "海边"],
+  ["花田|花海|田野|花园",                                        "城郊花田"],
+  ["草原|牧场|草地|山坡",                                        "草原"],
+  ["雪山|滑雪|雪地|冰",                                          "雪山"],
+  ["小镇|乡下|村|老街",                                          "小镇"],
+  ["街|巷|路边|马路|十字路口",                                    "街区"]     // 泛化兜底，必须垫底
+];
+function hashPick(seed,arr){ if(!arr||!arr.length) return null;
+  var h=0; for(var i=0;i<seed.length;i++) h=(h*31+seed.charCodeAt(i))|0;
+  return arr[Math.abs(h)%arr.length]; }
+function guessLoc(loc){ if(!loc) return null;
+  for(var i=0;i<LOC_HINT.length;i++){ try{ if(new RegExp(LOC_HINT[i][0]).test(loc)) return LOC_HINT[i][1]; }catch(e){} }
+  return hashPick(loc,LOC_ALL); }
+function bgOf(loc,band){ return sceneBackgrounds[loc+"·"+band]||sceneBackgrounds[loc+"·白日"]||sceneBackgrounds[loc+"·黄昏"]||sceneBackgrounds[loc+"·夜晚"]||null; }
+
+function currentBgKey(){ var v=readMVU(); return v.地点+"·"+(TIME_BAND[v.时段]||"白日"); }   // 背景键 = MVU 地点+时段，无任何覆盖
+function paintBG(){ var k=currentBgKey(), pp=k.split("·"), loc=pp[0], band=pp[1]||"白日";
+  var url=sceneBackgrounds[k]||bgOf(loc,band);                                   // ① 名单内地点：精确命中 / 该时段没图就回落同地点其它时段
+  if(!url){ var proxy=guessLoc(loc); if(proxy) url=bgOf(proxy,band); }           // ② 名单外地点：关键词猜 → 猜不出就哈希锁定，都稳定不跳图
+  if(url){ $("bg").style.background='center/cover no-repeat url("'+url+'")'; }
+  else{ $("bg").style.background='radial-gradient(60% 45% at 78% 12%, rgba(255,246,210,.9), transparent 60%),linear-gradient(180deg,#cdeafd 0%,#dff2ec 52%,#eaf7d8 100%)'; } }   // ③ 背景表整个空了才走渐变
+function paintLoc(){ var v=readMVU();   // 📍地点/🕐时段 直接显示 MVU 真值
+  $("status").querySelector(".loc .t").textContent="🕐 "+v.时段; $("status").querySelector(".loc .p").textContent="📍 "+v.地点; }
+function paintStatus(){ $("status").querySelector(".env .v").textContent=data.env||"—"; $("status").querySelector(".inner .v").textContent=data.inner||"—"; }
+/* 名气（阶段 + 当前任务）不在 gal 显示，改到「小手机 → 事务所」App 里看。gal 仍读 MVU 阶段以备用 */
+
+function pickFx(){ var f; do{f=FX[Math.random()*FX.length|0];}while(f===lastFx&&FX.length>1); lastFx=f; return f; }
+function setSprite(expr){
+  if(cgActive){ $("sprites").style.display="none"; return; } $("sprites").style.display="block";
+  if(!expr||expr==="-"||!expressionMap[expr]) return; if(expr===lastExpr) return; lastExpr=expr;
+  back.querySelector("img").src=expressionMap[expr];
+  var fx=pickFx(); back.className="layer"; void back.offsetWidth; back.classList.add("show","fx-"+fx);
+  front.classList.remove("show"); var t=front; front=back; back=t;
+}
+function typeOut(el,str){ clearInterval(typer); typing=true; el.textContent=""; var i=0; typer=setInterval(function(){ el.textContent=str.slice(0,++i); if(i>=str.length){clearInterval(typer);typing=false;} },22); }
+
+function showCG(mod){ cgActive=true; $("sprites").style.display="none"; var url=cgLibrary[mod.name],cg=$("cg");
+  if(url){ $("cgbg").style.backgroundImage='url("'+url+'")'; $("cgmain").style.backgroundImage='url("'+url+'")'; $("cgPh").style.display="none"; }
+  else{ $("cgbg").style.backgroundImage=""; $("cgmain").style.backgroundImage=""; $("cgPh").style.display="flex"; $("cgPh").textContent="〔 CG 占位："+mod.name+" 〕"; }
+  cg.classList.remove("show"); void cg.offsetWidth; cg.classList.add("show");
+}
+function hideCG(){ cgActive=false; $("cg").classList.remove("show"); }
+/* 自动CG场景：AI 用 <cg=名>…</cg> 圈住的重要台词，立绘播到这里自动铺满CG+文字压图，段落结束自动回立绘 */
+function applyAuto(name){ autoCg=name; clearInterval(typer); typing=false; if(cgActive) hideCG();
+  var url=cgLibrary[name];
+  if(url){ $("cgbg").style.backgroundImage='url("'+url+'")'; $("cgmain").style.backgroundImage='url("'+url+'")'; $("cgPh").style.display="none"; }
+  else{ $("cgbg").style.backgroundImage=""; $("cgmain").style.backgroundImage=""; $("cgPh").style.display="flex"; $("cgPh").textContent="〔 CG 占位："+name+" 〕"; }
+  $("sprites").style.display="none"; $("cg").classList.add("show"); $("stage").classList.add("cgauto"); }
+function clearAuto(){ if(autoCg===null) return; autoCg=null; $("stage").classList.remove("cgauto"); $("cg").classList.remove("show"); $("sprites").style.display="block"; }
+function paintAutoLine(mod){ var line=$("cgLine"), spk=$("cgSpk");
+  line.style.animation="none"; void line.offsetWidth; line.style.animation="";
+  if(mod.dialogue){ spk.className="on"; spk.textContent=mod.who||"？"; line.className=(mod.who==="天青")?"tq":""; }
+  else{ spk.className=""; spk.textContent=""; line.className="narr"; }
+  line.textContent=mod.text; }
+
+function render(){
+  if(idx>=data.modules.length){ clearAuto(); showChoices(); return; }
+  var mod=data.modules[idx];
+  if(mod.type==="cg"){ clearAuto(); showCG(mod); $("speaker").textContent=""; $("speaker").className="narrator"; $("text").textContent=""; return; }
+  if(mod.cg){ applyAuto(mod.cg); paintAutoLine(mod); return; }   // 自动CG场景内的行：铺CG+文字压图
+  clearAuto();
+  if(cgActive) hideCG(); setSprite(mod.expr);
+  if(mod.dialogue){ $("speaker").textContent=mod.who||"？"; $("speaker").className=""; $("text").className=(mod.who==="天青")?"tianqing":""; }
+  else{ $("speaker").textContent=mod.who||"旁白"; $("speaker").className="narrator"; $("text").className=""; }
+  typeOut($("text"),mod.text);
+}
+function advance(){ if(autoCg!==null){ idx++; render(); navRefresh(); return; }   /* 自动CG场景：点图直接推进(无打字机) */
+  if(typing){ clearInterval(typer); typing=false; if(data.modules[idx]&&data.modules[idx].type==="line") $("text").textContent=data.modules[idx].text; return; } idx++; render(); navRefresh(); }
+function navRefresh(){ if(window.__tqNav) window.__tqNav.refresh(); }
+/* 复制到剪贴板：优先 navigator.clipboard，失败退到 execCommand（酒馆 iframe 里常需要这个兜底） */
+function copyTxt(t){
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).catch(function(){ fallbackCopy(t); }); return; } }catch(e){}
+  fallbackCopy(t);
+}
+function fallbackCopy(t){
+  try{ var ta=document.createElement("textarea"); ta.value=t;
+    ta.style.cssText="position:fixed;left:-9999px;top:0;opacity:0"; document.body.appendChild(ta);
+    ta.focus(); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+  }catch(e){ console.warn("[gal] 复制失败", e); }
+}
+function showChoices(){
+  if(!data.choices.length){ $("hint").textContent="— 本轮结束 · 等待下一轮 —"; return; }
+  var box=$("choices"); box.innerHTML='<div class="q">该怎么回应天青？</div>';
+  data.choices.forEach(function(c){ var b=document.createElement("button"); b.textContent=c;
+    b.onclick=function(e){ e.stopPropagation(); copyTxt(c);        // 点选项 = 自动复制原文，粘到酒馆输入框即可
+      box.style.display="none";                                    // 复制完就收起 —— 选项框很占地方，老挡着对话框没法回看上一句
+      hintCopied(c, box); };
+    box.appendChild(b); });
+  box.style.display="flex";
+}
+/* 复制后的提示条：显示复制了什么 + 一个「↩ 选项」把选项框叫回来（防手滑点错、或者想换一个） */
+function hintCopied(c, box){
+  var h=$("hint"); h.textContent="";                               // 用 textContent 逐个塞，不拼 innerHTML —— 防注入
+  var s=document.createElement("span"); s.textContent="✓ 已复制「"+c+"」，粘贴到输入框发送　";
+  var a=document.createElement("span"); a.textContent="↩ 选项";
+  a.style.cssText="cursor:pointer;color:var(--main);font-weight:700;text-decoration:underline;text-underline-offset:3px";
+  a.onclick=function(e){ e.stopPropagation(); box.style.display="flex"; h.textContent="▼ 点击继续"; };
+  h.appendChild(s); h.appendChild(a);
+}
+
+$("dialogue").addEventListener("click",advance);
+
+/* 状态框折叠：点「–」收起成 💭 小圆，再点展开。记忆状态到 localStorage 跨消息保留 */
+(function(){
+  var st=$("status"), tog=st.querySelector(".stog"), LS="tq_gal_status_collapsed";
+  function apply(c){ st.classList.toggle("collapsed",c); tog.textContent=c?"💭":"–"; }
+  try{ apply(localStorage.getItem(LS)==="1"); }catch(e){}
+  tog.addEventListener("click",function(e){ e.stopPropagation(); var c=!st.classList.contains("collapsed"); apply(c); try{localStorage.setItem(LS,c?"1":"0");}catch(e){} });
+})();
+
+preload(); paintBG(); paintLoc(); paintStatus(); render();
+
+/* 立绘界面外观应用器 —— 背景覆盖 + 对话框玻璃(磨砂/浓度/色调) 现在全部由「小手机 · 外观」调。
+   gal 本地不再放 🎨 面板，这里只负责：读 localStorage 套用 + 监听 storage 事件实时刷新。 */
+(function(){
+  function applyGlass(o){ if(!o) return; var d=document.documentElement.style;
+    var hue=o.hue||'15,20,28', op=(typeof o.op==='number')?o.op:0.48, blur=(typeof o.blur==='number')?o.blur:16;
+    d.setProperty('--dlg-tint','rgba('+hue+','+op+')'); d.setProperty('--dlg-blur',blur+'px'); }
+  try{ applyGlass(JSON.parse(localStorage.getItem('tq_gal_glass')||'null')); }catch(e){}
+  /* 接图：小手机（相册 → ✨生成）出图后写 localStorage['tq_gal_cg'] = 图片URL。
+     这里接住 → 当成一张名为「✨ AI 生成」的 CG 塞进图库 → 直接复用现成的 CG 模式（回看导航、🖼/🎭 切换全都白拿）。*/
+  var GEN_NAME="✨ AI 生成";
+  function takeGenCg(url,jump){ if(!url) return; cgLibrary[GEN_NAME]=url;
+    if(jump && window.__tqCg) window.__tqCg.enter(GEN_NAME); }
+  try{ takeGenCg(localStorage.getItem('tq_gal_cg'),false); }catch(e){}     // 本条消息重渲染时把已生成的图捡回来
+  window.addEventListener('storage',function(e){
+    if(e.key==='tq_gal_cg'){ takeGenCg(e.newValue,true); return; }         // 小手机刚出图 → 立刻铺上
+
+    if(e.key==='tq_gal_glass'){ try{ applyGlass(JSON.parse(e.newValue||'null')); }catch(x){} }
+    // v19：手动切背景已移除，gal 背景纯跟 MVU，这里不再监听 tq_gal_bg
+  });
+})();
+
+/* ===== 左右箭头：上一句 / 下一句 =====
+   三种模式通吃：手动CG模式→走它自己的 go()；立绘/自动CG→直接挪 idx 重绘。
+   注意 setSprite 有 lastExpr 去重，回退时要清掉才会重画立绘。 */
+(function(){
+  var L=$("navL"), R=$("navR"); if(!L||!R) return;
+  function total(){ return data.modules.length; }
+  function step(d){
+    if(window.__tqCg && window.__tqCg.inMode()){ window.__tqCg.go(d); refresh(); return; }   // 手动CG模式：走句子表
+    if(typing){ clearInterval(typer); typing=false; if(data.modules[idx]&&data.modules[idx].type==="line") $("text").textContent=data.modules[idx].text; if(d>0){ refresh(); return; } }
+    var n=idx+d; if(n<0||n>=total()) { refresh(); return; }
+    idx=n; lastExpr=null;                       // 清掉去重，保证回退也重画立绘
+    $("choices").style.display="none";          // 从"本轮结束"退回来时要收掉选项
+    render(); refresh();
+  }
+  function refresh(){
+    var atStart, atEnd;
+    if(window.__tqCg && window.__tqCg.inMode()){ var p=window.__tqCg.pos(); atStart=(p.cur<=0); atEnd=(p.cur>=p.total-1); }
+    else { atStart=(idx<=0); atEnd=(idx>=total()); }
+    L.classList.toggle("off",!!atStart); R.classList.toggle("off",!!atEnd);
+  }
+  L.onclick=function(e){ e.stopPropagation(); step(-1); };
+  R.onclick=function(e){ e.stopPropagation(); step(1); };
+  window.__tqNav={ refresh:refresh };           // 供 advance/CG模式 调用刷新箭头状态
+  refresh();
+})();
+
+/* ===== CG 手动切换模式（独立于 🎨 调节器）=====
+   立绘⇄CG 一个独立按钮(贴🎨正下方)。CG 模式：满屏当前 CG + 藏对话框/状态框 + 文字压图(后句盖前句) + 底部 ‹N/M› 回看。
+   显示哪张 CG：默认取本轮 <cg>，没有就用 cgLibrary 第一张；也可用🎨面板 CG 行换图/退出。
+   —— 对接未来「世界书强制每轮选一张 CG」：到时点按钮＝动立绘 ⇄ 静 CG + 动对话。 */
+(function(){
+  var stage=$("stage"); if(!stage) return;
+  var cgViewMode=false, cgLines=[], cgPos=0, curCg=null;
+
+  function roundCg(){ for(var i=0;i<data.modules.length;i++){ if(data.modules[i].type==="cg") return data.modules[i].name; } for(var i=0;i<data.modules.length;i++){ if(data.modules[i].cg) return data.modules[i].cg; } var ks=Object.keys(cgLibrary); return ks.length?ks[0]:null; }
+  function buildLines(){ cgLines=[]; for(var i=0;i<data.modules.length;i++){ if(data.modules[i].type==="line") cgLines.push(i); } }        // 收集对话/旁白行(跳过cg模块)
+  function mIdx2pos(i){ var b=0; for(var j=0;j<cgLines.length;j++){ if(cgLines[j]<=i) b=j; else break; } return b; }                      // 立绘模块下标 → 句子下标(≤当前最近一句)
+
+  function paintCg(name){ var url=cgLibrary[name];
+    if(url){ $("cgbg").style.backgroundImage='url("'+url+'")'; $("cgmain").style.backgroundImage='url("'+url+'")'; $("cgPh").style.display="none"; }
+    else{ $("cgbg").style.backgroundImage=""; $("cgmain").style.backgroundImage=""; $("cgPh").style.display="flex"; $("cgPh").textContent="〔 CG 占位："+name+" 〕"; }
+    curCg=name; }
+
+  function paintLine(){ var line=$("cgLine"), spk=$("cgSpk");
+    if(!cgLines.length){ spk.className=""; spk.textContent=""; line.className="narr"; line.textContent="（本轮没有可显示的对话）"; $("cgNavCur").textContent="0"; $("cgNavTot").textContent="0"; $("cgPrev").disabled=true; $("cgNext").disabled=true; return; }
+    var mod=data.modules[cgLines[cgPos]];
+    line.style.animation="none"; void line.offsetWidth; line.style.animation="";                 // 重触发淡入
+    if(mod.dialogue){ spk.className="on"; spk.textContent=mod.who||"？"; line.className=(mod.who==="天青")?"tq":""; }
+    else{ spk.className=""; spk.textContent=""; line.className="narr"; }
+    line.textContent=mod.text;
+    $("cgNavCur").textContent=(cgPos+1); $("cgNavTot").textContent=cgLines.length;
+    $("cgPrev").disabled=(cgPos<=0); $("cgNext").disabled=(cgPos>=cgLines.length-1); }
+
+  function go(d){ if(!cgViewMode||!cgLines.length) return; var n=cgPos+d; if(n<0||n>=cgLines.length) return; cgPos=n; paintLine(); if(window.__tqNav) window.__tqNav.refresh(); }
+
+  function enter(name){ var wasIn=cgViewMode; buildLines(); cgViewMode=true;
+    clearInterval(typer); typing=false;                    // 停掉立绘打字机
+    if(cgActive) hideCG();                                  // 清掉立绘模式的瞬时 CG 态
+    if(!wasIn) cgPos=mIdx2pos(idx);                         // 仅首次进入对齐进度；已在 CG 模式只换图不动位置
+    paintCg(name||curCg||roundCg());
+    $("sprites").style.display="none"; $("cg").classList.add("show"); stage.classList.add("cgmode");
+    paintLine(); setTog(); if(window.__tqNav) window.__tqNav.refresh(); }
+
+  function exit(){ cgViewMode=false;
+    stage.classList.remove("cgmode"); $("cg").classList.remove("show"); $("sprites").style.display="block";
+    if(cgLines.length) idx=cgLines[cgPos];                  // 回到当前句对应的立绘位置
+    lastExpr=null; render(); setTog(); if(window.__tqNav) window.__tqNav.refresh(); }   // 强制重画立绘
+
+  // 独立切换按钮（贴🎨正下方；想挪去右上角改 top/left 一行即可）
+  var tbtn=document.createElement('div'); tbtn.id='cgTog'; tbtn.title='切换 立绘 / CG';
+  tbtn.style.cssText='position:absolute;top:12px;left:12px;z-index:21;height:34px;padding:0 11px;display:flex;align-items:center;gap:5px;background:rgba(18,24,32,.55);border:1px solid rgba(255,255,255,.2);border-radius:9px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 6px 18px rgba(0,0,0,.4);cursor:pointer;font-size:13px;font-weight:600;color:#eef2f6;user-select:none;white-space:nowrap';
+  function setTog(){ tbtn.textContent = cgViewMode ? '🎭 立绘' : '🖼 CG'; }
+  setTog();
+  tbtn.onclick=function(e){ e.stopPropagation(); if(cgViewMode) exit(); else enter(); };
+  stage.appendChild(tbtn);
+
+  $("cg").addEventListener("click",function(e){ if(cgViewMode){ e.stopPropagation(); go(1); } else if(autoCg!==null){ e.stopPropagation(); advance(); } });   // 点图前进(手动CG回看 / 自动CG推进)
+  $("cgPrev").addEventListener("click",function(e){ e.stopPropagation(); go(-1); });
+  $("cgNext").addEventListener("click",function(e){ e.stopPropagation(); go(1); });
+
+  window.__tqCg={ enter:enter, exit:exit, inMode:function(){return cgViewMode;},
+    go:go, pos:function(){ return {cur:cgPos,total:cgLines.length}; } };   // go/pos 供左右箭头调用
+})();
+
+/* ==================================================================
+   直播模式 —— AI 吐 <live> 就整轮切成 B站直播间
+   ------------------------------------------------------------------
+   · 不新开正则：还是同一套 <Gal> 差分，只是引擎换个渲染分支。
+   · 弹幕【自动连播】：一次 advance 连续吐弹幕/SC，遇到天青说话才停（打字机）。
+   · 人数/热度【前端按名气阶段算】，不让 AI 写 —— 数据必定符合阶段，且随推进缓慢上涨。
+   · {{user}} 发弹幕 → 填进酒馆输入框 [弹幕|ID|内容]，填不进去退回剪贴板。
+   · 回放：小手机写 localStorage['tq_live_replay'] → 最新的那个 gal iframe 接管。
+   ================================================================== */
+(function(){
+  registerLatest();                                                // 先登记自己，isLatest() 才判断得对
+  var stage=$("stage"); if(!stage||!data.live) return;
+  clearInterval(typer); typing=false;                              // 停掉立绘模式已经起跑的打字机
+
+  /* --- 各阶段的直播量级（抄自世界书〈名气系统〉，改那边记得同步这里）--- */
+  var STAGE={
+    "地下偶像期":{v:[30,80],   peak:150,   heat:[500,2000],    hu:"" },
+    "正式出道期":{v:[150,400], peak:800,   heat:[5000,15000],  hu:"" },
+    "MV突破期":  {v:[500,1500],peak:3500,  heat:[20000,60000], hu:"万"},
+    "专辑稳定期":{v:[1500,4000],peak:8000, heat:[50000,150000],hu:"万"}
+  };
+  /* SC 档位配色（B站真实的醒目留言分档）*/
+  var SC_TIERS=[[2000,"#ab1a32"],[1000,"#e54d60"],[500,"#e09443"],[100,"#e2b52b"],[50,"#427d9e"],[0,"#2a60b2"]];
+  function scColor(y){ for(var i=0;i<SC_TIERS.length;i++) if(y>=SC_TIERS[i][0]) return SC_TIERS[i][1]; return SC_TIERS[5][1]; }
+  /* 时段 → 一个具体钟点（同一场固定，靠哈希，不会每次重绘都跳） */
+  var CLOCK={清晨:[6,8],上午:[9,11],午后:[13,17],傍晚:[18,19],夜晚:[20,22],深夜:[23,25]};
+
+  var v=readMVU(), st=STAGE[v.阶段]||STAGE["地下偶像期"];
+  var seed=(data.live.form+data.live.bg+(data.modules[0]&&data.modules[0].text||"")).slice(0,40);
+  function h(s,n){ var x=0; for(var i=0;i<s.length;i++) x=(x*31+s.charCodeAt(i))|0; return Math.abs(x)%n; }   // 确定性伪随机
+  var nDone=0, nTotal=data.modules.length||1;
+
+  function fmt(n){ return n>=10000?(n/10000).toFixed(1)+"万":(n>=1000?n.toLocaleString():String(n)); }
+  function paintBar(){
+    var cr=CLOCK[v.时段]||[21,22], hh=(cr[0]+h(seed,Math.max(1,cr[1]-cr[0])))%24, mm=h(seed+"m",60);
+    $("liveClock").textContent=("0"+hh).slice(-2)+":"+("0"+mm).slice(-2);
+    var lo=st.v[0]+h(seed+"v",Math.max(1,st.v[1]-st.v[0])>>1);          // 起始同接（同一场固定）
+    var grow=(st.peak-lo)*0.55*(nDone/nTotal);                            // 随推进往峰值爬 —— 观众越聚越多
+    $("liveViewers").textContent="👤 "+fmt(Math.round(lo+grow));
+    var hb=st.heat[0]+h(seed+"h",st.heat[1]-st.heat[0]);
+    $("liveHeat").textContent="🔥 "+fmt(Math.round(hb*(0.7+0.5*nDone/nTotal)));
+  }
+
+  /* --- 弹幕框 --- */
+  var box=$("liveDm");
+  function pushDm(m){
+    var el=document.createElement("div");
+    if(m.type==="sc"){
+      var c=scColor(m.yen);
+      el.className="sc"; el.style.background=c;
+      var top=document.createElement("div"); top.className="top";
+      var y=document.createElement("span"); y.className="y"; y.textContent="¥"+m.yen;
+      var n=document.createElement("span"); n.textContent=m.who;                 // textContent 防注入
+      top.appendChild(y); top.appendChild(n);
+      var bd=document.createElement("div"); bd.className="bd"; bd.textContent=m.text;
+      el.appendChild(top); el.appendChild(bd);
+    } else {
+      el.className="dm"+(m.me?" me":"");
+      var n2=document.createElement("span"); n2.className="n"; n2.textContent=m.who;
+      var t2=document.createElement("span"); t2.textContent=m.text;
+      el.appendChild(n2); el.appendChild(t2);
+    }
+    box.appendChild(el); box.scrollTop=box.scrollHeight;
+    while(box.children.length>60) box.removeChild(box.firstChild);              // 别让 DOM 无限长
+  }
+  function sysDm(t){ var e=document.createElement("div"); e.className="dm sys"; e.textContent=t; box.appendChild(e); box.scrollTop=box.scrollHeight; }
+
+  /* --- 天青字幕（后一句盖前一句，打字机）--- */
+  var sub=$("liveSub"), subTimer=null, subTyping=false;
+  function paintSub(mod){
+    clearInterval(subTimer); subTyping=true;
+    sub.className=mod.dialogue?"":"narr";
+    sub.style.animation="none"; void sub.offsetWidth; sub.style.animation="";   // 重触发淡入
+    var full=mod.text, i=0; sub.textContent="";
+    subTimer=setInterval(function(){ i++; sub.textContent=full.slice(0,i);
+      if(i>=full.length){ clearInterval(subTimer); subTyping=false; } },26);
+  }
+
+  /* --- 推进：弹幕自动连播，遇到天青说话才停 --- */
+  var li=0, chaining=false;
+  function step(){
+    if(li>=data.modules.length){ chaining=false; $("hint")&&($("hint").textContent=""); sysDm("—— 直播继续中 · 发条弹幕她就会回你 ——"); nDone=nTotal; paintBar(); return; }
+    var mod=data.modules[li];
+    nDone=li; paintBar();
+    if(mod.type==="dm"||mod.type==="sc"){                        // 弹幕/SC：吐出来，接着自动连下一条
+      pushDm(mod); li++;
+      chaining=true; setTimeout(step, mod.type==="sc"?620:380);
+      return;
+    }
+    if(mod.type==="line"){                                        // 天青/旁白说话：停下来，等点击
+      chaining=false;
+      if(mod.who==="天青"&&mod.expr&&mod.expr!=="-") setSprite(mod.expr);
+      paintSub(mod); li++;
+      return;
+    }
+    li++; step();                                                // cg 等模块在直播里忽略
+  }
+  function liveAdvance(){
+    if(chaining) return;                                          // 连播中：点了也不打断
+    if(subTyping){ clearInterval(subTimer); subTyping=false;      // 打字机没打完 → 先补全
+      var p=data.modules[li-1]; if(p&&p.type==="line") sub.textContent=p.text; return; }
+    step();
+  }
+
+  /* --- {{user}} 发弹幕 / SC --- */
+  var NICK_LS="tq_live_nick";
+  var nick=$("liveNick"), inp=$("liveText"), sel=$("liveSc"), btn=$("liveSend");
+  try{ nick.textContent=localStorage.getItem(NICK_LS)||"匿名的听众"; }catch(e){}
+  nick.onclick=function(e){ e.stopPropagation();
+    var n=prompt("你在直播间用的马甲 ID（天青认不认得出来，看她的）：", nick.textContent);
+    if(n&&n.trim()){ nick.textContent=n.trim().slice(0,12); try{localStorage.setItem(NICK_LS,nick.textContent);}catch(e){} } };
+  [inp,sel].forEach(function(el){ el.addEventListener("click",function(e){e.stopPropagation();}); });
+  inp.addEventListener("keydown",function(e){ e.stopPropagation(); if(e.key==="Enter") send(); });
+
+  /* 送达：优先塞进酒馆输入框（同源 window.top，小手机也是这么干的）；不行就退回剪贴板 */
+  function toTavern(t){
+    try{
+      var doc=window.top.document;
+      var ta=doc.querySelector("#send_textarea")||doc.querySelector("textarea#send_textarea")||doc.querySelector(".mes_text_input");
+      if(ta){ ta.value=t; ta.dispatchEvent(new Event("input",{bubbles:true})); ta.focus(); return "填进输入框了，回车发送"; }
+    }catch(e){}
+    copyTxt(t); return "已复制，粘到输入框发送";
+  }
+  function send(e){ if(e) e.stopPropagation();
+    var t=inp.value.trim(); if(!t) return;
+    var yen=+sel.value||0, id=nick.textContent;
+    pushDm(yen?{type:"sc",who:id,yen:yen,text:t,me:1}:{type:"dm",who:id,text:t,me:1});   // 先本地上屏，立刻有反馈
+    var payload = yen ? "[SC|"+id+"|"+yen+"|"+t+"]" : "[弹幕|"+id+"|"+t+"]";
+    var msg=toTavern(payload);
+    inp.value=""; sel.value="0";
+    var old=btn.textContent; btn.textContent="✓"; btn.classList.add("ok");
+    sysDm(msg);
+    setTimeout(function(){ btn.textContent=old; btn.classList.remove("ok"); },1400);
+  }
+  btn.onclick=send;
+
+  /* --- 启动直播模式 --- */
+  stage.classList.add("live");
+  $("liveTitle").textContent=(data.live.form||"杂谈")+" · "+(data.live.bg||"宿舍")+(data.live.title?" · "+data.live.title:"");
+  (function(){                                                       // 直播条：点一下收起/展开（收起后只剩 🔴LIVE）
+    var st=$("stage"), bar=$("liveBar"), LS="tq_gal_barmin";
+    function apply(m){ st.classList.toggle("barmin",m); bar.title=m?"点一下展开":"点一下收起"; }
+    try{ apply(localStorage.getItem(LS)==="1"); }catch(e){ apply(false); }
+    bar.onclick=function(e){ e.stopPropagation();
+      var m=!st.classList.contains("barmin"); apply(m);
+      try{ localStorage.setItem(LS,m?"1":"0"); }catch(e2){} };
+  })();
+  (function(){                                                       // 弹幕框：点 💬 收起/展开。收起后按钮挪到左下角当入口
+    var st=$("stage"), tog=$("dmTog"), LS="tq_gal_dmoff";
+    function apply(off){ st.classList.toggle("dmoff",off);
+      tog.textContent = off ? "💬" : "✕";
+      tog.title = off ? "展开弹幕" : "收起弹幕"; }
+    try{ apply(localStorage.getItem(LS)==="1"); }catch(e){ apply(false); }
+    tog.onclick=function(e){ e.stopPropagation();
+      var off=!st.classList.contains("dmoff"); apply(off);
+      try{ localStorage.setItem(LS,off?"1":"0"); }catch(e2){} };
+  })();
+  // 直播背景钉死在 <live> 给的那个地点（下面直接铺，不经 MVU）
+  var band=TIME_BAND[v.时段]||"白日";
+  var url=bgOf(data.live.bg,band)||bgOf("宿舍",band);
+  if(url) $("bg").style.background='center/cover no-repeat url("'+url+'")';
+  paintBar(); sysDm("—— 直播开始 ——");
+  $("dialogue").removeEventListener("click",advance);              // 直播模式接管点击推进
+  stage.addEventListener("click",liveAdvance);
+  step();
+
+  /* ================= 回放（从小手机点进来）=================
+     所有 gal iframe 都会收到 storage 事件，但只有【最新那条消息】的 gal 该响应。
+     每个 iframe 启动时把自己写进 window.top.__tqGalLatest，后启动的覆盖先启动的 = 最新的赢。 */
+  window.__tqLive={ replay:doReplay };
+  function isLatest(){ try{ return window.top.__tqGalLatest===window; }catch(e){ return true; } }
+  function doReplay(show){
+    if(!show){ stage.classList.remove("replay"); return; }
+    data=parseGal(show.raw); if(!data.live) return;
+    box.innerHTML=""; li=0; chaining=false; nDone=0; nTotal=data.modules.length||1;
+    v=readMVU(); st=STAGE[show.stage]||st; seed=(show.id||"")+show.form;
+    stage.classList.add("replay");
+    $("liveReplayT").textContent=(show.form||"")+" · "+(show.title||show.when||"");
+    $("liveTitle").textContent=(show.form||"杂谈")+" · "+(show.bg||"宿舍");
+    var u2=bgOf(show.bg,TIME_BAND[v.时段]||"白日")||bgOf("宿舍","夜晚");
+    if(u2) $("bg").style.background='center/cover no-repeat url("'+u2+'")';
+    paintBar(); sysDm("—— 回放 · 这场播完了 ——"); step();
+  }
+  $("liveBack").onclick=function(e){ e.stopPropagation();
+    try{ localStorage.removeItem("tq_live_replay"); }catch(e){}
+    location.reload();                                             // 最省事：重载 iframe 回到本轮内容
+  };
+  window.addEventListener("storage",function(e){
+    if(e.key!=="tq_live_replay"||!e.newValue||!isLatest()) return;
+    try{ doReplay(JSON.parse(e.newValue)); }catch(err){}
+  });
+  try{ var pend=localStorage.getItem("tq_live_replay"); if(pend&&isLatest()) doReplay(JSON.parse(pend)); }catch(e){}
+})();
+
+/* 每个 gal iframe 启动时登记自己 —— 最后启动的 = 最新消息的 gal，回放只让它响应 */
+function registerLatest(){ try{ window.top.__tqGalLatest=window; }catch(e){} }
+})();
+</script>
+</body>
+</html>
+```

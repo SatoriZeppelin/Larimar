@@ -1,0 +1,1429 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SummerNight Plus</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Noto+Serif+SC:wght@500;600;700&family=ZCOOL+QingKe+HuangYou&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="interface/stage.css" />
+  </head>
+  <body>
+    <div id="title-screen" class="open" aria-hidden="false">
+      <div class="title-screen-bg" aria-hidden="true"></div>
+      <div class="title-screen-frame" aria-hidden="true"></div>
+      <div class="title-screen-rail">
+        <div class="title-screen-brand">
+          <p class="title-screen-name">SummerNight Plus</p>
+        </div>
+        <nav class="title-screen-menu" aria-label="开始菜单">
+          <button type="button" class="title-menu-btn" data-title-act="new">开始新游戏</button>
+          <button type="button" class="title-menu-btn" data-title-act="continue" id="btn-title-continue">
+            继续游戏
+          </button>
+          <button type="button" class="title-menu-btn" data-title-act="saves">存档界面</button>
+          <button type="button" class="title-menu-btn" data-title-act="settings">设置界面</button>
+        </nav>
+      </div>
+    </div>
+
+    <div id="saves-panel" aria-hidden="true" inert>
+      <div class="saves-page" role="dialog" aria-modal="true" aria-labelledby="saves-title">
+        <header class="saves-topbar">
+          <h3 class="saves-title" id="saves-title">DATA</h3>
+          <div class="saves-topbar-actions">
+            <button type="button" class="saves-action-btn" id="btn-saves-load" disabled>读取选中存档</button>
+            <button type="button" class="saves-action-btn is-danger" id="btn-saves-delete" disabled>
+              删除选中存档
+            </button>
+            <button type="button" class="saves-close" id="btn-saves-close" aria-label="关闭">×</button>
+          </div>
+        </header>
+
+        <div class="saves-body">
+          <aside class="saves-preview" aria-label="存档预览">
+            <div class="saves-preview-kicker">DATA</div>
+            <div class="saves-preview-thumb" id="saves-preview-thumb">
+              <span class="saves-preview-placeholder">NO IMAGE</span>
+            </div>
+            <div class="saves-preview-fields">
+              <div class="saves-preview-field">
+                <span class="saves-preview-field-k">DATE</span>
+                <span class="saves-preview-field-v" id="saves-preview-date">—</span>
+              </div>
+              <div class="saves-preview-field">
+                <span class="saves-preview-field-k">TYPE</span>
+                <span class="saves-preview-field-v" id="saves-preview-slot">自动保存</span>
+              </div>
+              <div class="saves-preview-field">
+                <span class="saves-preview-field-k">COMMENT</span>
+                <span class="saves-preview-field-v" id="saves-preview-comment">—</span>
+              </div>
+            </div>
+          </aside>
+
+          <div class="saves-grid-wrap">
+            <div class="saves-grid" id="saves-grid" role="list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="stage">
+      <div id="bg">
+        <div class="bg-layer show" id="bgA"></div>
+        <div class="bg-layer" id="bgB"></div>
+      </div>
+      <div id="cg" aria-hidden="true">
+        <div id="cgbg"></div>
+        <div id="cgmain"></div>
+        <div id="cg-ui">
+          <div id="cg-copy">
+            <div id="cg-name" hidden></div>
+            <div id="cg-text"></div>
+          </div>
+        </div>
+      </div>
+      <div id="sprites">
+        <div class="layer" id="layA"><img alt="立绘" /></div>
+        <div class="layer" id="layB"><img alt="立绘" /></div>
+      </div>
+      <button
+        type="button"
+        id="btn-cg-swap"
+        title="切换 CG / 舞台"
+        aria-label="切换 CG / 舞台"
+        aria-pressed="false"
+        disabled
+        hidden
+      ></button>
+      <div id="dialogue">
+        <div id="dlg-body">
+          <div id="speaker">天青</div>
+          <div id="text"></div>
+        </div>
+        <div id="hint">▼ 点击继续</div>
+        <button type="button" id="btn-gear" title="设置" aria-label="设置"></button>
+      </div>
+      <div id="gal-toolbar-dock" class="is-locked" aria-label="游戏工具栏">
+        <div id="gal-toolbar">
+          <button
+            type="button"
+            class="gal-tb-btn is-on"
+            id="btn-gal-toolbar-lock"
+            data-gal-tb="lock"
+            title="锁定工具栏（点击解锁，离开后自动隐藏）"
+            aria-label="锁定工具栏"
+            aria-pressed="true"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="34"
+              height="34"
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="5" y="11" width="14" height="10" rx="2"></rect>
+              <path d="M8 11V8a4 4 0 0 1 8 0v3"></path>
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="gal-tb-btn gal-tb-text"
+            id="btn-gal-toolbar-save"
+            data-gal-tb="save"
+            title="存档"
+            aria-label="存档"
+          >
+            SAVE
+          </button>
+          <button
+            type="button"
+            class="gal-tb-btn gal-tb-text"
+            id="btn-gal-toolbar-qsave"
+            data-gal-tb="qsave"
+            title="快速存档"
+            aria-label="快速存档"
+          >
+            Q.SAVE
+          </button>
+          <button
+            type="button"
+            class="gal-tb-btn"
+            id="btn-gal-toolbar-settings"
+            data-gal-tb="settings"
+            title="设置"
+            aria-label="设置"
+          ></button>
+          <button
+            type="button"
+            class="gal-tb-btn"
+            id="btn-gal-toolbar-prevround"
+            data-gal-tb="prevround"
+            title="回到上一轮开头"
+            aria-label="上一轮"
+          ></button>
+          <button
+            type="button"
+            class="gal-tb-btn"
+            id="btn-gal-toolbar-rewind"
+            data-gal-tb="rewind"
+            title="快退到本轮开头"
+            aria-label="快退"
+          ></button>
+          <button
+            type="button"
+            class="gal-tb-btn"
+            id="btn-gal-toolbar-back"
+            data-gal-tb="back"
+            title="后退一句"
+            aria-label="后退"
+          ></button>
+          <button
+            type="button"
+            class="gal-tb-btn"
+            id="btn-gal-toolbar-log"
+            data-gal-tb="log"
+            title="back log"
+            aria-label="back log"
+          ></button>
+          <button
+            type="button"
+            class="gal-tb-btn"
+            id="btn-gal-toolbar-fwd"
+            data-gal-tb="fwd"
+            title="前进一句"
+            aria-label="前进"
+          ></button>
+          <button
+            type="button"
+            class="gal-tb-btn"
+            id="btn-gal-toolbar-fastfwd"
+            data-gal-tb="fastfwd"
+            title="快进到本轮选项"
+            aria-label="快进"
+          ></button>
+          <button
+            type="button"
+            class="gal-tb-btn"
+            id="btn-gal-toolbar-auto"
+            data-gal-tb="auto"
+            title="自动前进"
+            aria-label="自动前进"
+            aria-pressed="false"
+          ></button>
+        </div>
+      </div>
+      <div id="gal-log-panel" aria-hidden="true" inert>
+        <div class="gal-log-card" role="dialog" aria-modal="true" aria-labelledby="gal-log-title">
+          <div class="gal-log-head">
+            <h3 class="gal-log-title" id="gal-log-title">back log</h3>
+            <button type="button" class="gal-log-close" id="btn-gal-log-close" aria-label="关闭">×</button>
+          </div>
+          <div class="gal-log-list" id="gal-log-list"></div>
+        </div>
+      </div>
+      <div id="choices"></div>
+      <button type="button" class="nav l" id="navL" title="上一句">‹</button>
+      <button type="button" class="nav r" id="navR" title="下一句">›</button>
+    </div>
+
+    <div id="settings-panel" aria-hidden="true" inert>
+      <div class="settings-page">
+        <div class="settings-tabs">
+          <button type="button" class="settings-tab active" data-tab="general">
+            <span class="tab-inner">
+              <span class="tab-icon" id="tab-icon-general"></span>
+              <span class="tab-label">通用设置</span>
+            </span>
+          </button>
+          <button type="button" class="settings-tab" data-tab="character">
+            <span class="tab-inner">
+              <span class="tab-icon" id="tab-icon-character"></span>
+              <span class="tab-label">角色设置</span>
+            </span>
+          </button>
+          <button type="button" class="settings-tab" data-tab="system">
+            <span class="tab-inner">
+              <span class="tab-icon" id="tab-icon-system"></span>
+              <span class="tab-label">系统设置</span>
+            </span>
+          </button>
+          <button type="button" class="settings-tab" data-tab="debug">
+            <span class="tab-inner">
+              <span class="tab-icon" id="tab-icon-debug"></span>
+              <span class="tab-label">调试设置</span>
+            </span>
+          </button>
+          <button type="button" id="btn-settings-close" title="退出设置" aria-label="退出设置"></button>
+        </div>
+
+        <div class="settings-body">
+          <div class="settings-pane active" id="pane-general" data-pane="general">
+            <nav class="settings-subnav" aria-label="通用设置二级目录">
+              <button type="button" class="settings-subtab active" data-sub="gal">
+                <span class="sub-label">GAL</span>
+              </button>
+              <button type="button" class="settings-subtab" data-sub="user">
+                <span class="sub-label">用户设定</span>
+              </button>
+            </nav>
+            <div class="settings-subcontent">
+              <div class="settings-subpane active" data-subpane="gal">
+                <div class="gal-settings-split">
+                  <section class="settings-l3 gal-settings-col">
+                    <h3 class="settings-l3-title">对话框</h3>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">对话框透明度</h4>
+                      <div class="tq-slider" data-slider="dlg-opacity">
+                        <div class="tq-range-wrap">
+                          <input
+                            type="range"
+                            class="tq-range"
+                            id="cfg-dlg-opacity"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value="100"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          class="tq-slider-num"
+                          id="cfg-dlg-opacity-num"
+                          inputmode="numeric"
+                          value="100"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">磨砂强度</h4>
+                      <div class="tq-slider" data-slider="dlg-blur">
+                        <div class="tq-range-wrap">
+                          <input type="range" class="tq-range" id="cfg-dlg-blur" min="0" max="40" step="1" value="16" />
+                        </div>
+                        <input type="text" class="tq-slider-num" id="cfg-dlg-blur-num" inputmode="numeric" value="16" />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">对话框样式</h4>
+
+                      <div class="settings-l5">
+                        <h5 class="settings-l5-title">边框</h5>
+                        <label class="settings-rgb">
+                          <span class="settings-rgb-label">颜色</span>
+                          <input type="color" id="cfg-dlg-border-color" value="#ffffff" />
+                        </label>
+                        <div class="tq-slider" data-slider="dlg-border-alpha">
+                          <div class="tq-range-wrap">
+                            <input
+                              type="range"
+                              class="tq-range"
+                              id="cfg-dlg-border-alpha"
+                              min="0"
+                              max="100"
+                              step="1"
+                              value="16"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            class="tq-slider-num"
+                            id="cfg-dlg-border-alpha-num"
+                            inputmode="numeric"
+                            value="16"
+                          />
+                        </div>
+                      </div>
+
+                      <div class="settings-l5">
+                        <h5 class="settings-l5-title">背景</h5>
+                        <label class="settings-rgb">
+                          <span class="settings-rgb-label">颜色</span>
+                          <input type="color" id="cfg-dlg-bg-color" value="#0f141c" />
+                        </label>
+                        <div class="tq-slider" data-slider="dlg-bg-alpha">
+                          <div class="tq-range-wrap">
+                            <input
+                              type="range"
+                              class="tq-range"
+                              id="cfg-dlg-bg-alpha"
+                              min="0"
+                              max="100"
+                              step="1"
+                              value="48"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            class="tq-slider-num"
+                            id="cfg-dlg-bg-alpha-num"
+                            inputmode="numeric"
+                            value="48"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="gal-actions-row">
+                      <button type="button" class="tq-reset-btn" id="btn-reset-page" title="重置本页面设置">
+                        <span class="tq-reset-icon" id="btn-reset-page-icon"></span>
+                        <span class="tq-reset-label">重置本页面设置</span>
+                      </button>
+                      <label class="tq-check-row gal-auto-cg-check" for="cfg-auto-enter-cg">
+                        <input type="checkbox" id="cfg-auto-enter-cg" checked />
+                        <span class="tq-check-box" aria-hidden="true"></span>
+                        <span class="tq-check-label">自动进入CG模式</span>
+                      </label>
+                    </div>
+                  </section>
+
+                  <section class="settings-l3 gal-settings-col">
+                    <h3 class="settings-l3-title">文本</h3>
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">文本大小</h4>
+                      <div class="tq-slider" data-slider="text-size">
+                        <div class="tq-range-wrap">
+                          <input
+                            type="range"
+                            class="tq-range"
+                            id="cfg-text-size"
+                            min="12"
+                            max="28"
+                            step="1"
+                            value="16"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          class="tq-slider-num"
+                          id="cfg-text-size-num"
+                          inputmode="numeric"
+                          value="16"
+                        />
+                      </div>
+                      <h4 class="settings-l4-title settings-l4-title-sub">文本阴影</h4>
+                      <div class="tq-slider" data-slider="text-shadow">
+                        <div class="tq-range-wrap">
+                          <input
+                            type="range"
+                            class="tq-range"
+                            id="cfg-text-shadow"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value="90"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          class="tq-slider-num"
+                          id="cfg-text-shadow-num"
+                          inputmode="numeric"
+                          value="90"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">天青</h4>
+                      <div class="tq-slider tq-color-slider">
+                        <input
+                          type="color"
+                          class="tq-color"
+                          id="cfg-text-tq-color"
+                          value="#8dd4e0"
+                          title="天青字体颜色"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title" id="cfg-label-producer">{{producer}} / {{user}}</h4>
+                      <div class="tq-slider tq-color-slider">
+                        <input
+                          type="color"
+                          class="tq-color"
+                          id="cfg-text-producer-color"
+                          value="#f2f5f8"
+                          title="{{producer}} / {{user}} 字体颜色"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">其他</h4>
+                      <div class="tq-slider tq-color-slider">
+                        <input
+                          type="color"
+                          class="tq-color"
+                          id="cfg-text-other-color"
+                          value="#f2f5f8"
+                          title="其他字体颜色"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">对话框预览</h4>
+                      <div class="dlg-preview-stage">
+                        <div class="dlg-preview" id="dlg-preview">
+                          <div class="dlg-preview-text is-tq">这是一段天青的示例文本</div>
+                          <div class="dlg-preview-text is-producer">这是一段{{producer}}的示例文本</div>
+                          <div class="dlg-preview-text is-other">这是一段其他的示例文本</div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+
+              <div class="settings-subpane" data-subpane="user">
+                <section class="settings-l3 settings-user">
+                  <div class="user-pane-head">
+                    <input
+                      type="text"
+                      class="user-name-input"
+                      id="cfg-user-name"
+                      placeholder="用户名称（同步 {{user}} / {{producer}}）"
+                      autocomplete="off"
+                      spellcheck="false"
+                    />
+                  </div>
+
+                  <div class="settings-l4">
+                    <h4 class="settings-l4-title">用户设定描述</h4>
+                    <textarea
+                      id="cfg-user-desc"
+                      class="user-desc"
+                      spellcheck="false"
+                      autocomplete="off"
+                      placeholder="示例: [{{user}}是一个28岁的罗马尼亚猫娘。]"
+                    ></textarea>
+                    <div class="user-desc-meta">人设词符数: <span id="cfg-user-desc-count">0</span></div>
+                  </div>
+
+                  <div class="settings-l4">
+                    <h4 class="settings-l4-title">插入位置</h4>
+                    <select id="cfg-user-position" class="tq-select user-position">
+                      <option value="none">无（已禁用）</option>
+                      <option value="prompt" selected>在故事字符串/提示词管理器中</option>
+                      <option value="an_top">作者注的顶部</option>
+                      <option value="an_bottom">作者注的底部</option>
+                      <option value="depth">聊天的特定深度</option>
+                    </select>
+                    <div class="user-depth-wrap" id="cfg-user-depth-wrap" hidden>
+                      <label class="user-depth-label">
+                        深度
+                        <input
+                          type="number"
+                          class="tq-input user-depth-input"
+                          id="cfg-user-depth"
+                          min="0"
+                          max="999"
+                          step="1"
+                          value="4"
+                        />
+                      </label>
+                      <p class="tq-hint">0 = 紧贴最新消息之前；数值越大离最新消息越远</p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-pane" id="pane-character" data-pane="character">
+            <nav class="settings-subnav" id="character-subnav" aria-label="角色设置二级目录"></nav>
+            <div class="settings-subcontent" id="character-subcontent">
+              <div class="char-pane-head">
+                <h3 class="char-pane-title" id="char-pane-title">天青</h3>
+                <div class="char-pane-actions">
+                  <button type="button" class="tq-preset-btn char-tool-btn" id="btn-char-wb-add">
+                    <span class="tq-preset-icon" aria-hidden="true">
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="18"
+                        height="18"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M12 5v14" />
+                        <path d="M5 12h14" />
+                      </svg>
+                    </span>
+                    <span>新增条目</span>
+                  </button>
+                  <button type="button" class="tq-preset-btn char-tool-btn" id="btn-char-import-wb">
+                    <span class="tq-preset-icon" id="btn-char-import-wb-icon" aria-hidden="true"></span>
+                    <span>导入现有世界书</span>
+                  </button>
+                  <input type="file" id="cfg-char-wb-file" accept=".json,application/json" hidden />
+                  <label class="tq-preset-btn char-tool-btn char-color-btn" title="重新取色" aria-label="重新取色">
+                    <span class="tq-preset-icon char-color-icon" id="char-color-icon" aria-hidden="true"></span>
+                    <span>重新取色</span>
+                    <input type="color" id="char-tab-color" value="#2a6f9e" />
+                  </label>
+                  <button type="button" class="tq-preset-btn char-tool-btn" id="btn-char-rename">
+                    <span class="tq-preset-icon" id="btn-char-rename-icon" aria-hidden="true"></span>
+                    <span>重命名</span>
+                  </button>
+                  <button type="button" class="tq-preset-btn is-danger char-tool-btn" id="btn-char-delete">
+                    <span class="tq-preset-icon" id="btn-char-delete-icon" aria-hidden="true"></span>
+                    <span>删除</span>
+                  </button>
+                </div>
+              </div>
+              <div class="char-pane-body">
+                <div class="preset-panel char-wb-panel">
+                  <div class="preset-list-wrap">
+                    <ul class="preset-list regex-list" id="char-wb-list"></ul>
+                    <p class="tq-hint preset-list-empty" id="char-wb-list-empty">
+                      导入或新增后，世界书条目将显示在这里
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="char-help-fab" id="btn-char-help" title="求救说明" aria-label="求救说明">
+              <span class="char-help-fab-icon" id="btn-char-help-icon" aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <div class="settings-pane" id="pane-system" data-pane="system">
+            <nav class="settings-subnav" aria-label="系统设置二级目录">
+              <button type="button" class="settings-subtab active" data-sub="api">
+                <span class="sub-label">API</span>
+              </button>
+              <button type="button" class="settings-subtab" data-sub="preset">
+                <span class="sub-label">预设</span>
+              </button>
+              <button type="button" class="settings-subtab" data-sub="regex">
+                <span class="sub-label">正则</span>
+              </button>
+              <button type="button" class="settings-subtab" data-sub="prompt">
+                <span class="sub-label">提示词</span>
+              </button>
+              <button type="button" class="settings-subtab" data-sub="variable">
+                <span class="sub-label">变量</span>
+              </button>
+              <button type="button" class="settings-subtab" data-sub="image">
+                <span class="sub-label">图片</span>
+              </button>
+              <button type="button" class="settings-subtab" data-sub="t2i">
+                <span class="sub-label">文生图</span>
+              </button>
+            </nav>
+            <div class="settings-subcontent">
+              <div class="settings-subpane active" data-subpane="api">
+                <section class="settings-l3 settings-api">
+                  <div class="settings-api-col">
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">URL</h4>
+                      <input
+                        type="text"
+                        class="tq-input"
+                        id="cfg-api-base"
+                        placeholder="https://api.openai.com/v1"
+                        autocomplete="off"
+                        spellcheck="false"
+                      />
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">密钥</h4>
+                      <div class="tq-field">
+                        <input
+                          type="password"
+                          class="tq-input tq-input-has-icon"
+                          id="cfg-api-key"
+                          placeholder="sk-...（反向代理可留空）"
+                          autocomplete="off"
+                          spellcheck="false"
+                        />
+                        <button
+                          type="button"
+                          class="tq-field-icon"
+                          id="btn-api-key-vis"
+                          data-visible="0"
+                          aria-label="显示密钥"
+                          title="显示密钥"
+                        ></button>
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">模型</h4>
+                      <div class="tq-model-field" id="cfg-api-model-wrap">
+                        <div class="tq-field">
+                          <input
+                            type="text"
+                            class="tq-input tq-input-has-icon"
+                            id="cfg-api-model"
+                            placeholder="连接后选择，也可手动填写"
+                            autocomplete="off"
+                            spellcheck="false"
+                          />
+                          <button
+                            type="button"
+                            class="tq-field-icon tq-field-caret"
+                            id="btn-api-model-menu"
+                            aria-label="选择模型"
+                            title="选择模型"
+                            aria-expanded="false"
+                            aria-controls="cfg-api-model-menu"
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              width="14"
+                              height="14"
+                              aria-hidden="true"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path fill="currentColor" d="M6.2 9.2h11.6L12 16.4 6.2 9.2z" />
+                            </svg>
+                          </button>
+                        </div>
+                        <ul class="tq-model-menu" id="cfg-api-model-menu" hidden role="listbox"></ul>
+                      </div>
+                    </div>
+
+                    <div class="settings-api-actions">
+                      <button type="button" class="tq-action-btn" id="btn-api-connect">连接</button>
+                      <button type="button" class="tq-action-btn" id="btn-api-test">发送测试消息</button>
+                    </div>
+
+                    <label class="tq-check-row" for="cfg-api-auto-connect">
+                      <input type="checkbox" id="cfg-api-auto-connect" />
+                      <span class="tq-check-box" aria-hidden="true"></span>
+                      <span class="tq-check-label">自动连接到上次的服务器</span>
+                    </label>
+
+                    <div class="settings-api-status" id="api-status" data-state="idle">
+                      <span class="api-status-icon" id="api-status-icon"></span>
+                      <span class="api-status-text" id="api-status-text">未连接</span>
+                    </div>
+
+                    <div class="settings-l4 settings-api-stream-opts">
+                      <label class="tq-check-row" for="cfg-api-stream">
+                        <input type="checkbox" id="cfg-api-stream" />
+                        <span class="tq-check-box" aria-hidden="true"></span>
+                        <span class="tq-check-label">流式传输</span>
+                      </label>
+                      <label class="tq-check-row" for="cfg-api-stream-display">
+                        <input type="checkbox" id="cfg-api-stream-display" checked />
+                        <span class="tq-check-box" aria-hidden="true"></span>
+                        <span class="tq-check-label">流式显示</span>
+                      </label>
+                      <p class="tq-hint">
+                        随着回复的生成，逐词逐句地接收结果。<br />
+                        关闭后，回复将在完成后一次性返回。
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="settings-api-col">
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">上下文长度</h4>
+                      <div class="tq-slider" data-slider="api-context">
+                        <div class="tq-range-wrap">
+                          <input
+                            type="range"
+                            class="tq-range"
+                            id="cfg-api-context"
+                            min="1024"
+                            max="2000000"
+                            step="1024"
+                            value="200000"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          class="tq-slider-num tq-slider-num-wide"
+                          id="cfg-api-context-num"
+                          inputmode="numeric"
+                          value="200000"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">最大回复长度</h4>
+                      <input
+                        type="text"
+                        class="tq-input"
+                        id="cfg-api-max-tokens"
+                        inputmode="numeric"
+                        placeholder="4096"
+                        autocomplete="off"
+                        spellcheck="false"
+                      />
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">温度</h4>
+                      <div class="tq-slider" data-slider="api-temp">
+                        <div class="tq-range-wrap">
+                          <input
+                            type="range"
+                            class="tq-range"
+                            id="cfg-api-temp"
+                            min="0"
+                            max="2"
+                            step="0.01"
+                            value="0.90"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          class="tq-slider-num tq-slider-num-wide"
+                          id="cfg-api-temp-num"
+                          inputmode="decimal"
+                          value="0.90"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">频率惩罚</h4>
+                      <div class="tq-slider" data-slider="api-freq">
+                        <div class="tq-range-wrap">
+                          <input
+                            type="range"
+                            class="tq-range"
+                            id="cfg-api-freq"
+                            min="-2"
+                            max="2"
+                            step="0.01"
+                            value="0.00"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          class="tq-slider-num tq-slider-num-wide"
+                          id="cfg-api-freq-num"
+                          inputmode="decimal"
+                          value="0.00"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">存在惩罚</h4>
+                      <div class="tq-slider" data-slider="api-pres">
+                        <div class="tq-range-wrap">
+                          <input
+                            type="range"
+                            class="tq-range"
+                            id="cfg-api-pres"
+                            min="-2"
+                            max="2"
+                            step="0.01"
+                            value="0.00"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          class="tq-slider-num tq-slider-num-wide"
+                          id="cfg-api-pres-num"
+                          inputmode="decimal"
+                          value="0.00"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">Top P</h4>
+                      <div class="tq-slider" data-slider="api-top-p">
+                        <div class="tq-range-wrap">
+                          <input
+                            type="range"
+                            class="tq-range"
+                            id="cfg-api-top-p"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value="1.00"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          class="tq-slider-num tq-slider-num-wide"
+                          id="cfg-api-top-p-num"
+                          inputmode="decimal"
+                          value="1.00"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <h4 class="settings-l4-title">推理强度</h4>
+                      <select class="tq-select" id="cfg-api-reasoning">
+                        <option value="auto">自动</option>
+                        <option value="minimal">极低</option>
+                        <option value="low">低</option>
+                        <option value="medium">中</option>
+                        <option value="high">高</option>
+                        <option value="xhigh" selected>极高</option>
+                      </select>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <div class="settings-subpane" data-subpane="preset">
+                <section class="settings-l3 settings-preset">
+                  <div class="preset-panel-head">
+                    <div class="preset-panel-title-row">
+                      <div class="preset-switcher" id="preset-switcher">
+                        <button
+                          type="button"
+                          class="preset-switch-btn"
+                          id="btn-preset-switch"
+                          aria-haspopup="listbox"
+                          aria-expanded="false"
+                        >
+                          <span class="preset-switch-name" id="preset-panel-name">未命名预设</span>
+                          <span class="preset-switch-caret" aria-hidden="true"></span>
+                        </button>
+                        <div class="preset-switch-menu" id="preset-switch-menu" hidden>
+                          <ul class="preset-switch-list" id="preset-switch-list" role="listbox"></ul>
+                          <p class="preset-switch-empty" id="preset-switch-empty">暂无其他预设，导入后会出现在这里</p>
+                        </div>
+                      </div>
+                      <span class="preset-panel-stat" id="preset-panel-stat">0/0 个条目已启用</span>
+                    </div>
+                    <div class="settings-preset-actions">
+                      <button type="button" class="tq-preset-btn" id="btn-preset-add">
+                        <span class="tq-preset-icon" id="btn-preset-add-icon" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M12 5v14" />
+                            <path d="M5 12h14" />
+                          </svg>
+                        </span>
+                        <span>新增条目</span>
+                      </button>
+                      <button type="button" class="tq-preset-btn" id="btn-preset-import">
+                        <span class="tq-preset-icon" id="btn-preset-import-icon" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M12 3v12" />
+                            <polyline points="7 11 12 16 17 11" />
+                            <path d="M4 21h16" />
+                            <path d="M4 21v-4" />
+                            <path d="M20 21v-4" />
+                          </svg>
+                        </span>
+                        <span>导入预设</span>
+                      </button>
+                      <button type="button" class="tq-preset-btn" id="btn-preset-export">
+                        <span class="tq-preset-icon" id="btn-preset-export-icon" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M12 16V4" />
+                            <polyline points="7 9 12 4 17 9" />
+                            <path d="M4 21h16" />
+                            <path d="M4 21v-4" />
+                            <path d="M20 21v-4" />
+                          </svg>
+                        </span>
+                        <span>导出预设</span>
+                      </button>
+                      <button type="button" class="tq-preset-btn" id="btn-preset-save" disabled>
+                        <span class="tq-preset-icon" id="btn-preset-save-icon" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M5 3h11l3 3v15H5z" />
+                            <path d="M8 3v6h8V3" />
+                            <path d="M8 21v-7h8v7" />
+                          </svg>
+                        </span>
+                        <span>保存更改</span>
+                      </button>
+                      <button type="button" class="tq-preset-btn is-danger" id="btn-preset-delete">
+                        <span class="tq-preset-icon" id="btn-preset-delete-icon" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M8 6V4h8v2" />
+                            <path d="M19 6l-1 14H6L5 6" />
+                            <path d="M10 11v6" />
+                            <path d="M14 11v6" />
+                          </svg>
+                        </span>
+                        <span>删除预设</span>
+                      </button>
+                    </div>
+                  </div>
+                  <input type="file" id="cfg-preset-file" accept=".json,application/json" hidden />
+
+                  <div class="preset-panel">
+                    <div class="preset-list-wrap">
+                      <ul class="preset-list" id="preset-list"></ul>
+                      <p class="tq-hint preset-list-empty" id="preset-list-empty">新增或导入预设后，条目将显示在这里</p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <div class="settings-subpane" data-subpane="regex">
+                <section class="settings-l3 settings-regex">
+                  <div class="preset-panel-head">
+                    <div class="preset-panel-title-row">
+                      <h4 class="regex-panel-title">
+                        <span id="regex-panel-name">未命名预设</span>
+                        <span class="regex-panel-sub">的正则</span>
+                      </h4>
+                      <span class="preset-panel-stat" id="regex-panel-stat">0/0 条正则已启用</span>
+                    </div>
+                    <div class="settings-preset-actions">
+                      <button type="button" class="tq-preset-btn" id="btn-regex-add">
+                        <span class="tq-preset-icon" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M12 5v14" />
+                            <path d="M5 12h14" />
+                          </svg>
+                        </span>
+                        <span>新增正则</span>
+                      </button>
+                      <button type="button" class="tq-preset-btn" id="btn-regex-save" disabled>
+                        <span class="tq-preset-icon" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M5 3h11l3 3v15H5z" />
+                            <path d="M8 3v6h8V3" />
+                            <path d="M8 21v-7h8v7" />
+                          </svg>
+                        </span>
+                        <span>保存更改</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="preset-panel regex-panel">
+                    <div class="preset-list-wrap">
+                      <ul class="preset-list regex-list" id="regex-list"></ul>
+                      <p class="tq-hint preset-list-empty" id="regex-list-empty">
+                        导入带正则的预设后，条目将显示在这里
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <div class="settings-subpane" data-subpane="prompt">
+                <section class="settings-l3 settings-prompt">
+                  <div class="char-pane-head prompt-pane-head">
+                    <h3 class="char-pane-title">提示词</h3>
+                    <div class="char-pane-actions">
+                      <button type="button" class="tq-preset-btn char-tool-btn" id="btn-prompt-add">
+                        <span class="tq-preset-icon" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M12 5v14" />
+                            <path d="M5 12h14" />
+                          </svg>
+                        </span>
+                        <span>新增</span>
+                      </button>
+                      <button type="button" class="tq-preset-btn char-tool-btn" id="btn-prompt-import">
+                        <span class="tq-preset-icon" id="btn-prompt-import-icon" aria-hidden="true"></span>
+                        <span>导入</span>
+                      </button>
+                      <input type="file" id="cfg-prompt-file" accept=".json,application/json" hidden />
+                    </div>
+                  </div>
+                  <div class="preset-panel char-wb-panel prompt-panel">
+                    <div class="preset-list-wrap">
+                      <ul class="preset-list regex-list" id="prompt-list"></ul>
+                      <p class="tq-hint preset-list-empty" id="prompt-list-empty">
+                        新增或导入世界书后，条目将显示在这里
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <div class="settings-subpane" data-subpane="variable">
+                <section class="settings-l3 settings-variable">
+                  <div class="var-pane-head">
+                    <div class="var-view-toggle" role="group" aria-label="变量视图切换">
+                      <button
+                        type="button"
+                        class="var-view-btn active"
+                        id="btn-var-view-json"
+                        data-view="json"
+                        aria-pressed="true"
+                      >
+                        JSON
+                      </button>
+                      <button
+                        type="button"
+                        class="var-view-btn"
+                        id="btn-var-view-yaml"
+                        data-view="yaml"
+                        aria-pressed="false"
+                      >
+                        YAML
+                      </button>
+                      <button
+                        type="button"
+                        class="var-view-btn"
+                        id="btn-var-view-tree"
+                        data-view="tree"
+                        aria-pressed="false"
+                      >
+                        变量树
+                      </button>
+                    </div>
+                  </div>
+                  <div class="var-pane-body">
+                    <div class="var-view active" data-viewpane="text">
+                      <textarea
+                        id="cfg-var-text"
+                        class="var-textarea"
+                        spellcheck="false"
+                        autocomplete="off"
+                        placeholder="{ }"
+                      ></textarea>
+                    </div>
+                    <div class="var-view" data-viewpane="tree" hidden>
+                      <div id="var-tree" class="var-tree" role="tree"></div>
+                      <p class="tq-hint var-tree-empty" id="var-tree-empty" hidden>右键空白处可新建 Object</p>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <div class="settings-subpane" data-subpane="image">
+                <section class="settings-l3 settings-image">
+                  <div class="img-pane-head">
+                    <div class="img-type-toggle" role="tablist" aria-label="图片类型">
+                      <button
+                        type="button"
+                        class="img-type-btn active"
+                        role="tab"
+                        data-img-type="bg"
+                        aria-selected="true"
+                      >
+                        背景
+                      </button>
+                      <button type="button" class="img-type-btn" role="tab" data-img-type="cg" aria-selected="false">
+                        CG
+                      </button>
+                      <button
+                        type="button"
+                        class="img-type-btn"
+                        role="tab"
+                        data-img-type="sprite"
+                        aria-selected="false"
+                      >
+                        立绘
+                      </button>
+                      <button
+                        type="button"
+                        class="img-type-btn"
+                        role="tab"
+                        data-img-type="sticker"
+                        aria-selected="false"
+                      >
+                        表情包
+                      </button>
+                    </div>
+                  </div>
+                  <div class="img-pane-body">
+                    <div id="img-gallery" class="img-gallery" data-fit="cover" role="list"></div>
+                    <p class="tq-hint img-gallery-empty" id="img-gallery-empty" hidden>暂无图片</p>
+                  </div>
+                </section>
+              </div>
+              <div class="settings-subpane" data-subpane="t2i">
+                <section class="settings-l3">
+                  <p class="tq-hint">文生图相关设置将在这里配置</p>
+                </section>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-pane" id="pane-debug" data-pane="debug">
+            <nav class="settings-subnav" aria-label="调试设置二级目录"></nav>
+            <div class="settings-subcontent">
+              <section class="settings-l3">
+                <p class="tq-hint">调试相关设置将在这里配置</p>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <div id="var-tree-menu" class="var-tree-menu" aria-hidden="true" role="menu">
+      <div class="var-tree-menu-label">新建</div>
+      <button type="button" role="menuitem" data-act="new-object">文件夹</button>
+      <button type="button" role="menuitem" data-act="new-value">值</button>
+      <button type="button" role="menuitem" data-act="new-boolean">布尔</button>
+      <div class="var-tree-menu-sep"></div>
+      <button type="button" role="menuitem" data-act="rename">重命名</button>
+      <button type="button" role="menuitem" data-act="delete">删除</button>
+    </div>
+
+    <div id="img-preview-modal" aria-hidden="true">
+      <div class="img-preview-backdrop" data-img-preview-close></div>
+      <div class="img-preview-card" role="dialog" aria-modal="true" aria-labelledby="img-preview-title">
+        <div class="img-preview-head">
+          <h4 class="img-preview-title" id="img-preview-title">预览</h4>
+          <button type="button" class="img-preview-close" id="btn-img-preview-close" title="关闭" aria-label="关闭预览">
+            ×
+          </button>
+        </div>
+        <div class="img-preview-body">
+          <img id="img-preview-img" alt="" />
+        </div>
+      </div>
+    </div>
+
+    <div id="char-help-modal" aria-hidden="true">
+      <div class="char-help-card" role="dialog" aria-modal="true" aria-labelledby="char-help-title">
+        <h4 class="char-help-title" id="char-help-title">求救说明</h4>
+        <div class="char-help-body">
+          <p>我是奶人，我奶的不行了以至于不得不点开这个求救</p>
+          <p>角色设置界面相当于酒馆的世界书，实际上也确实如此（</p>
+          <p>
+            角色设置允许你开启，关闭，新建，销毁角色世界书，每个角色都有其对应的世界书条目，且支持你直接导入酒馆的世界书
+          </p>
+        </div>
+        <div class="char-help-actions">
+          <button type="button" class="tq-preset-btn" id="btn-char-help-close">知道了</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="char-wb-overwrite-modal" aria-hidden="true">
+      <div class="char-wb-overwrite-card" role="dialog" aria-modal="true" aria-labelledby="char-wb-overwrite-msg">
+        <button
+          type="button"
+          class="char-wb-overwrite-exit"
+          id="btn-char-wb-overwrite-exit"
+          title="退出"
+          aria-label="退出，不导入"
+        >
+          <span id="btn-char-wb-overwrite-exit-icon" aria-hidden="true"></span>
+        </button>
+        <p class="char-wb-overwrite-msg" id="char-wb-overwrite-msg">当前角色已有条目，请问是否覆盖</p>
+        <div class="char-wb-overwrite-actions">
+          <button type="button" class="tq-preset-btn" id="btn-char-wb-overwrite">覆盖</button>
+          <button type="button" class="tq-preset-btn" id="btn-char-wb-keep">不覆盖</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="prompt-overwrite-modal" aria-hidden="true">
+      <div class="char-wb-overwrite-card" role="dialog" aria-modal="true" aria-labelledby="prompt-overwrite-msg">
+        <button
+          type="button"
+          class="char-wb-overwrite-exit"
+          id="btn-prompt-overwrite-exit"
+          title="退出"
+          aria-label="退出，不导入"
+        >
+          <span id="btn-prompt-overwrite-exit-icon" aria-hidden="true"></span>
+        </button>
+        <p class="char-wb-overwrite-msg" id="prompt-overwrite-msg">当前已有条目，请问是否覆盖</p>
+        <div class="char-wb-overwrite-actions">
+          <button type="button" class="tq-preset-btn" id="btn-prompt-overwrite">覆盖</button>
+          <button type="button" class="tq-preset-btn" id="btn-prompt-keep">不覆盖</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tq-confirm" aria-hidden="true" inert>
+      <div class="tq-confirm-card" role="dialog" aria-modal="true" aria-labelledby="tq-confirm-msg">
+        <p class="tq-confirm-msg" id="tq-confirm-msg">是否需要重置本页面设置为默认状态？</p>
+        <div class="tq-confirm-actions">
+          <button type="button" class="tq-confirm-btn is-yes" id="tq-confirm-yes">
+            <span class="tq-confirm-icon" id="tq-confirm-yes-icon"></span>
+            <span>是</span>
+          </button>
+          <button type="button" class="tq-confirm-btn is-no" id="tq-confirm-no">
+            <span class="tq-confirm-icon" id="tq-confirm-no-icon"></span>
+            <span>否</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tq-api-error" aria-hidden="true" inert>
+      <div class="tq-api-error-card" role="alertdialog" aria-modal="true" aria-labelledby="tq-api-error-code">
+        <div class="tq-api-error-head">
+          <h4 class="tq-api-error-code" id="tq-api-error-code">HTTP 400</h4>
+          <button type="button" class="tq-api-error-close" id="tq-api-error-close" aria-label="关闭">×</button>
+        </div>
+        <textarea class="tq-api-error-body" id="tq-api-error-body" readonly spellcheck="false"></textarea>
+        <div class="tq-api-error-actions">
+          <button type="button" class="tq-action-btn" id="tq-api-error-copy">复制</button>
+          <button type="button" class="tq-action-btn" id="tq-api-error-ok">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tq-prompt-edit" aria-hidden="true">
+      <div class="tq-prompt-edit-card" role="dialog" aria-modal="true" aria-labelledby="tq-prompt-edit-title">
+        <h4 class="tq-prompt-edit-title" id="tq-prompt-edit-title">编辑条目</h4>
+        <textarea class="tq-prompt-edit-body" id="tq-prompt-edit-body" rows="10" spellcheck="false"></textarea>
+        <div class="tq-prompt-edit-actions">
+          <button type="button" class="tq-action-btn" id="tq-prompt-edit-save">保存</button>
+          <button type="button" class="tq-action-btn" id="tq-prompt-edit-cancel">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="char-wb-editor-modal" aria-hidden="true">
+      <div class="char-wb-editor-card" role="dialog" aria-modal="true" aria-label="内容编辑">
+        <div class="char-wb-editor-toolbar">
+          <button
+            type="button"
+            class="char-wb-editor-close"
+            id="btn-char-wb-editor-close"
+            title="退出"
+            aria-label="退出"
+          >
+            <span id="btn-char-wb-editor-close-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="char-wb-editor-wrap" id="char-wb-editor-wrap">
+          <div class="char-wb-editor-guides" id="char-wb-editor-guides" aria-hidden="true"></div>
+          <textarea
+            class="char-wb-editor-ta"
+            id="char-wb-editor-ta"
+            spellcheck="false"
+            autocomplete="off"
+            wrap="off"
+          ></textarea>
+        </div>
+        <p class="char-wb-editor-hint">Tab 缩进（宽度 4）· Esc 退出并保存</p>
+      </div>
+    </div>
+
+    <script src="vendor/js-yaml.min.js"></script>
+    <script src="resource/expressions.js"></script>
+    <script src="resource/avatars.js"></script>
+    <script src="resource/backgrounds.js"></script>
+    <script src="resource/cg.js"></script>
+    <script src="resource/stickers.js"></script>
+    <script src="resource/tags.js"></script>
+    <script src="resource/keys.js"></script>
+    <script src="resource/svg.js"></script>
+    <script src="resource/system.js"></script>
+    <script src="resource/opening.js"></script>
+
+    <script src="backend/parse.js"></script>
+    <script src="backend/state.js"></script>
+    <script src="backend/persona.js"></script>
+    <script src="backend/api.js"></script>
+    <script src="backend/preset.js"></script>
+    <script src="backend/prompt-builder.js"></script>
+    <script src="backend/regex.js"></script>
+    <script src="backend/save.js"></script>
+    <script src="backend/chat.js"></script>
+
+    <script src="interface/stage.js"></script>
+    <script src="interface/toolbar.js"></script>
+    <script src="interface/title.js"></script>
+    <script src="interface/settings-api.js"></script>
+    <script src="interface/settings-preset.js"></script>
+    <script src="interface/settings-regex.js"></script>
+    <script src="interface/settings-prompt.js"></script>
+    <script src="interface/settings-variable.js"></script>
+    <script src="interface/settings-image.js"></script>
+    <script src="interface/settings-user.js"></script>
+    <script src="interface/settings-character.js"></script>
+    <script src="interface/settings.js"></script>
+    <script src="interface/app.js"></script>
+  </body>
+</html>

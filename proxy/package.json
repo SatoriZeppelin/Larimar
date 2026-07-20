@@ -1,0 +1,13 @@
+{
+  "name": "tianqing-plus-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SummerNight Plus 可选 CORS 代理（不是游戏本体）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

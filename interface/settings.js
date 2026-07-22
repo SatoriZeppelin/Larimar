@@ -269,13 +269,23 @@
     }
 
     function apply() {
-      document.querySelectorAll('.settings-tab').forEach(function (btn) {
+      document.querySelectorAll('#settings-panel > .settings-page > .settings-tabs .settings-tab').forEach(function (btn) {
         btn.classList.toggle('active', btn.getAttribute('data-tab') === name);
       });
       document.querySelectorAll('.settings-pane').forEach(function (pane) {
         pane.classList.toggle('active', pane.getAttribute('data-pane') === name);
       });
       syncSubnavVisibility();
+      var activeTab = document.querySelector(
+        '#settings-panel .settings-tabs-scroll .settings-tab[data-tab="' + name + '"]',
+      );
+      if (activeTab && activeTab.scrollIntoView) {
+        try {
+          activeTab.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+        } catch (e) {
+          activeTab.scrollIntoView(false);
+        }
+      }
     }
 
     var body = document.querySelector('#settings-panel .settings-body');

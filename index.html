@@ -257,30 +257,32 @@
     <div id="settings-panel" aria-hidden="true" inert>
       <div class="settings-page">
         <div class="settings-tabs">
-          <button type="button" class="settings-tab active" data-tab="general">
-            <span class="tab-inner">
-              <span class="tab-icon" id="tab-icon-general"></span>
-              <span class="tab-label">通用设置</span>
-            </span>
-          </button>
-          <button type="button" class="settings-tab" data-tab="character">
-            <span class="tab-inner">
-              <span class="tab-icon" id="tab-icon-character"></span>
-              <span class="tab-label">角色设置</span>
-            </span>
-          </button>
-          <button type="button" class="settings-tab" data-tab="system">
-            <span class="tab-inner">
-              <span class="tab-icon" id="tab-icon-system"></span>
-              <span class="tab-label">系统设置</span>
-            </span>
-          </button>
-          <button type="button" class="settings-tab" data-tab="debug">
-            <span class="tab-inner">
-              <span class="tab-icon" id="tab-icon-debug"></span>
-              <span class="tab-label">调试设置</span>
-            </span>
-          </button>
+          <div class="settings-tabs-scroll" role="tablist" aria-label="设置一级目录">
+            <button type="button" class="settings-tab active" data-tab="general">
+              <span class="tab-inner">
+                <span class="tab-icon" id="tab-icon-general"></span>
+                <span class="tab-label">通用设置</span>
+              </span>
+            </button>
+            <button type="button" class="settings-tab" data-tab="character">
+              <span class="tab-inner">
+                <span class="tab-icon" id="tab-icon-character"></span>
+                <span class="tab-label">角色设置</span>
+              </span>
+            </button>
+            <button type="button" class="settings-tab" data-tab="system">
+              <span class="tab-inner">
+                <span class="tab-icon" id="tab-icon-system"></span>
+                <span class="tab-label">系统设置</span>
+              </span>
+            </button>
+            <button type="button" class="settings-tab" data-tab="debug">
+              <span class="tab-inner">
+                <span class="tab-icon" id="tab-icon-debug"></span>
+                <span class="tab-label">调试设置</span>
+              </span>
+            </button>
+          </div>
           <button type="button" id="btn-settings-close" title="退出设置" aria-label="退出设置"></button>
         </div>
 

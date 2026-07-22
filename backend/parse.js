@@ -11,6 +11,7 @@
       image: null,
       snapshot: '',
       variablesRaw: '',
+      hooks: [],
       format: '',
       partial: false,
       complete: true,
@@ -156,6 +157,25 @@
     }
   }
 
+  function parseSummernightHooks(raw) {
+    var hooks = [];
+    var full = String(raw == null ? '' : raw);
+    var block = full.match(/<summernight_hook>([\s\S]*?)<\/summernight_hook>/i);
+    if (!block) return hooks;
+    var inner = block[1];
+    var re = /<\s*([a-zA-Z0-9_+-]+)\s*\|\s*([\s\S]*?)>/g;
+    var m;
+    while ((m = re.exec(inner))) {
+      var app = String(m[1] || '')
+        .trim()
+        .toLowerCase();
+      var text = String(m[2] || '').trim();
+      if (!app || !text) continue;
+      hooks.push({ app: app, text: text });
+    }
+    return hooks;
+  }
+
   function parseSummerNight(raw) {
     var r = emptyResult();
     r.format = 'summernight';
@@ -178,6 +198,8 @@
       /<summernight_variables>([\s\S]*?)<\/summernight_variables>/i,
     );
     if (vars) r.variablesRaw = vars[1].trim();
+
+    r.hooks = parseSummernightHooks(full);
 
     return r;
   }
@@ -324,6 +346,7 @@
     parseGal: parseGal,
     parseSummerNight: parseSummerNight,
     parseSummerNightPartial: parseSummerNightPartial,
+    parseSummernightHooks: parseSummernightHooks,
     parseLegacyGal: parseLegacyGal,
   };
 })();

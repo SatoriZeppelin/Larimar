@@ -170,6 +170,15 @@
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   pointer-events: none;
+  transition:
+    color 0.2s ease,
+    text-shadow 0.2s ease;
+}
+
+/* 浅色 App 内页：状态栏改黑字/黑图标 */
+.tq-phone__screen.is-status-dark .tq-phone__status {
+  color: #111;
+  text-shadow: none;
 }
 
 .tq-phone__status-time {
@@ -376,6 +385,34 @@
   transition:
     transform 0.14s ease,
     opacity 0.14s ease;
+}
+
+.tq-phone-app-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.tq-phone-app-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.tq-phone-app-badge[hidden] {
+  display: none !important;
 }
 
 .tq-phone-app-icon svg {

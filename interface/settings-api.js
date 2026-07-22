@@ -23,7 +23,7 @@
   }
 
   function modeLabel(m) {
-    return { auto: '自动', direct: '直连', reverse: '反向代理', cors: '本地 CORS 代理' }[m] || m;
+    return { auto: '自动', direct: '直连', reverse: '反向代理' }[m] || m;
   }
 
   function normalizeCmp(u) {
@@ -324,6 +324,12 @@
     } catch (e) {
       console.warn('[天青 API] listModels', e);
       try {
+        if (window.天青_api && typeof window.天青_api.isDefinitiveUpstreamError === 'function') {
+          if (window.天青_api.isDefinitiveUpstreamError(e)) throw e;
+        } else {
+          var em = String((e && e.message) || e || '');
+          if (/HTTP\s*40[123]\b|HTTP\s*429\b|No Keys|Proxy error|Too Many Requests/i.test(em)) throw e;
+        }
         saveFromDom();
         var cfg = api().loadConfig();
         if (!cfg.model) throw e;
@@ -333,7 +339,9 @@
       } catch (e2) {
         console.warn('[天青 API]', e2);
         setStatus(false, '连接失败');
-        toast(String((e2 && e2.message) || e2 || e));
+        var failMsg = String((e2 && e2.message) || e2 || e || '连接失败');
+        if (failMsg.indexOf('连接失败') !== 0) failMsg = '连接失败：' + failMsg;
+        toast(failMsg.slice(0, 180));
       }
     } finally {
       busy = false;
@@ -352,7 +360,9 @@
     } catch (e) {
       console.warn('[天青 API]', e);
       setStatus(false, '连接失败');
-      toast(String((e && e.message) || e));
+      var msg = String((e && e.message) || e || '连接失败');
+      if (msg.indexOf('连接失败') !== 0) msg = '连接失败：' + msg;
+      toast(msg.slice(0, 120));
     } finally {
       busy = false;
     }

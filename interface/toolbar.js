@@ -100,22 +100,6 @@
     toast('存档界面未就绪');
   }
 
-  function doQuickSave() {
-    if (!window.天青_save || !window.天青_save.quickSave) {
-      toast('存档模块未就绪');
-      return;
-    }
-    if (!window.天青_save.hasProgress || !window.天青_save.hasProgress()) {
-      toast('当前没有可保存的进度');
-      return;
-    }
-    window.天青_save.quickSave();
-    toast('已保存到自动存档');
-    if (window.天青_title && window.天青_title.refreshSaves) {
-      window.天青_title.refreshSaves();
-    }
-  }
-
   function openSettings() {
     if (window.天青_settings && window.天青_settings.open) {
       window.天青_settings.open();
@@ -212,7 +196,6 @@
     var stage = window.天青_stage;
     if (act === 'lock') toggleLock();
     else if (act === 'save') openSavePanel();
-    else if (act === 'qsave') doQuickSave();
     else if (act === 'settings') openSettings();
     else if (act === 'prevround') {
       if (window.天青_app && window.天青_app.rewindPrevRound) {

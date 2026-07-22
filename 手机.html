@@ -1,0 +1,1107 @@
+/* =====================================================================
+   天青 · 小手机  —— 酒馆助手脚本（JS-Slash-Runner / TavernHelper 脚本库）
+   装法：酒馆助手扩展 → 脚本库 → 新建脚本(角色脚本) → 整段粘贴 → 启用
+   功能：悬浮球开手机；私聊天青(真 generate，<sms> 回复)；提取正文里的
+        [短信|天青|…]/[小红书|…]/[趋势|…] 渲染到手机；手机记录注入主线上下文；
+        小红书(推荐/趋势) + 相册；数据存 localStorage。
+   ===================================================================== */
+(function(){
+'use strict';
+
+/* ---------- 环境（iframe 里 reach parent；主窗口里 parent===window） ---------- */
+var W, D;
+try{
+  W = window.top || window.parent || window;           // 直达最顶层酒馆窗口（可能有多层 iframe 嵌套）
+  D = W.document; if(!D || !D.documentElement) throw 0;
+  console.log('[天青小手机] 挂载目标 = 顶层酒馆窗口');
+}catch(e){
+  try{ W = (window.parent && window.parent!==window) ? window.parent : window; D = W.document; if(!D||!D.documentElement) throw 0; console.warn('[天青小手机] 顶层不可达，退到上级窗口', e); }
+  catch(e2){ W = window; D = window.document; console.warn('[天青小手机] 上级也不可达，改挂本地 document', e2); }
+}
+function ctx(){ try{ if(W.SillyTavern&&W.SillyTavern.getContext) return W.SillyTavern.getContext(); if(window.SillyTavern&&window.SillyTavern.getContext) return window.SillyTavern.getContext(); }catch(e){} return null; }
+/* 读 MVU 变量（时间/地点/名气）——逐个试各种接口，读不到给兜底值。和 gal 引擎读的是同一份数据 */
+function dig(o,p){ try{ return p.split('.').reduce(function(a,k){return a[k];},o); }catch(e){ return undefined; } }
+function readMVU(){
+  var F={天数:1,时段:'午后',地点:'城郊花田',阶段:'地下偶像期'};
+  function pack(d,s,l,st){ return {天数:(d==null||d==='')?F.天数:d,时段:s||F.时段,地点:l||F.地点,阶段:st||F.阶段}; }
+  try{ var g=W.getvar||window.getvar; if(typeof g==='function') return pack(g('时间.天数'),g('时间.时段'),g('地点'),g('名气.阶段')); }catch(e){}
+  try{ var M=W.Mvu||window.Mvu; if(M&&M.getMvuVariable) return pack(M.getMvuVariable('时间.天数'),M.getMvuVariable('时间.时段'),M.getMvuVariable('地点'),M.getMvuVariable('名气.阶段')); }catch(e){}
+  try{ var gv=W.getVariables||window.getVariables;
+    if(typeof gv==='function'){ var v=gv({type:'message'})||gv()||{}; return pack(dig(v,'时间.天数'),dig(v,'时间.时段'),dig(v,'地点'),dig(v,'名气.阶段')); } }catch(e){}
+  return F;
+}
+function LSget(k){ try{ return W.localStorage.getItem(k); }catch(e){ return null; } }
+function LSset(k,v){ try{ W.localStorage.setItem(k,v); }catch(e){} }
+
+/* ====================================================================
+   ① 数据区（改内容动这里）
+   ==================================================================== */
+var USER_AVATAR="data:image/svg+xml;charset=utf-8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#3a4655"/><circle cx="50" cy="40" r="17" fill="#8b96a5"/><path d="M20 83 Q20 57 50 57 Q80 57 80 83 Z" fill="#8b96a5"/></svg>');
+var TIANQING_AVATAR="https://files.catbox.moe/08zgoe.jpg";
+var HOME_WALLPAPER="https://files.catbox.moe/sbg8r1.jpg";
+var TIANQING_NAME="天青";
+
+/* 立绘 30 张 —— gal 的差分用。小手机这边【只给相册看】，不再当聊天表情包。 */
+var SPRITES={"暧昧地打量":"https://files.catbox.moe/5fue3f.png","比较高兴":"https://files.catbox.moe/pjx5ey.png","比心":"https://files.catbox.moe/s7bc1l.png","比耶":"https://files.catbox.moe/lq53oh.png","不满":"https://files.catbox.moe/jm9ap2.png","得意":"https://files.catbox.moe/lqzeix.png","飞吻":"https://files.catbox.moe/qjam6e.png","刚睡醒或困倦":"https://files.catbox.moe/iy1kl1.png","高兴":"https://files.catbox.moe/36wfqx.png","害羞":"https://files.catbox.moe/pcpq37.png","红温":"https://files.catbox.moe/zcre0b.png","假装很生气":"https://files.catbox.moe/kcgwc9.png","惊讶":"https://files.catbox.moe/76fxk6.png","警觉或察觉":"https://files.catbox.moe/iny2nn.png","窘迫":"https://files.catbox.moe/jqrgzl.png","流泪":"https://files.catbox.moe/t6t51g.png","卖萌":"https://files.catbox.moe/j82pgq.png","疲惫或无语":"https://files.catbox.moe/as6jqc.png","祈祷":"https://files.catbox.moe/k3xqfo.png","失落":"https://files.catbox.moe/g9apcw.png","思考":"https://files.catbox.moe/oib9op.png","完全胜利":"https://files.catbox.moe/91uicn.png","微笑":"https://files.catbox.moe/v7sma7.png","无语":"https://files.catbox.moe/qxnrq1.png","星星眼":"https://files.catbox.moe/3wtjsn.png","羞涩":"https://files.catbox.moe/e64jon.png","疑问":"https://files.catbox.moe/2ddv4x.png","真的很生气":"https://files.catbox.moe/8h231g.png","自信":"https://files.catbox.moe/r6a79l.png","做鬼脸":"https://files.catbox.moe/8fcd8w.png","比较开心2":"https://files.catbox.moe/y3uv96.png","闭眼唱歌":"https://files.catbox.moe/yvqllp.png","唱哭了":"https://files.catbox.moe/s8bkrq.png","沉醉":"https://files.catbox.moe/xr9wzv.png","吃醋":"https://files.catbox.moe/3ktbqv.png","弹吉他":"https://files.catbox.moe/h0j7ph.png","俏皮":"https://files.catbox.moe/owzjii.png","俏皮2":"https://files.catbox.moe/09dpoy.png","俏皮歌唱":"https://files.catbox.moe/nq5j5h.png","撒娇":"https://files.catbox.moe/8suxql.png","微笑弹吉他":"https://files.catbox.moe/7ydko5.png","委屈":"https://files.catbox.moe/zdgkxk.png","笑着弹吉他":"https://files.catbox.moe/znw6v6.png","笑着歌唱":"https://files.catbox.moe/cio6w2.png","演出服wink":"https://files.catbox.moe/u44rp3.png","演出服不甘":"https://files.catbox.moe/wua3k9.png","演出服歌唱":"https://files.catbox.moe/e90lyb.png","演出服开心":"https://files.catbox.moe/uq7onm.png","演出服俏皮":"https://files.catbox.moe/h9en2q.png","演出服生气":"https://files.catbox.moe/qw2mog.png","演出服歌唱开心":"https://files.catbox.moe/ujrefd.png","演出服委屈":"https://files.catbox.moe/am0xcs.png","演出服无语":"https://files.catbox.moe/z9kmw2.png","演出服无语2":"https://files.catbox.moe/u7vc16.png","演出服自豪":"https://files.catbox.moe/odd6l0.png"};
+
+/* ⭐ 聊天表情包（15 张，v15 换的一批 Q 版贴纸）—— 和 30 张立绘是【两套东西】：
+     · 立绘 = gal 对话行的 `文本|天青|表情|`，30 个名字
+     · 表情包 = 小手机私聊里发的贴纸，`[短信|天青|表情|名字]`，就下面这 15 个
+   两套名字【不通用】。世界书〈gal格式〉里分开列了两份名单，改一边就要改另一边。 */
+var STICKERS={"不行":"https://files.catbox.moe/mfrzjm.png","不知道":"https://files.catbox.moe/690ef1.png","从墙边探头":"https://files.catbox.moe/anz4en.png","从纸箱里探头":"https://files.catbox.moe/4as3ze.png","得意":"https://files.catbox.moe/nn3056.png","低落":"https://files.catbox.moe/h4ankk.png","点赞":"https://files.catbox.moe/vtp4ta.png","害怕或哭泣":"https://files.catbox.moe/tw30zb.png","举白旗":"https://files.catbox.moe/00nq96.png","开心":"https://files.catbox.moe/otzq1d.png","少女祈祷中":"https://files.catbox.moe/km9ist.png","生气":"https://files.catbox.moe/uy161q.png","思考":"https://files.catbox.moe/uuffuj.png","叹气":"https://files.catbox.moe/ahx8ks.png","疑问":"https://files.catbox.moe/zpzui1.png"};
+var STICKER_FALLBACK=STICKERS['疑问'];   // 名字对不上时兜底，别掉回用户头像（那样很怪）
+
+var ALBUMS={"背景":[{name:'城郊花田·白日',url:'https://files.catbox.moe/nsjdq1.png'},{name:'城郊花田·黄昏',url:'https://files.catbox.moe/csaulb.png'},{name:'草原·白日',url:'https://files.catbox.moe/d2zlog.png'},{name:'雪山·白日',url:'https://files.catbox.moe/917l5y.png'},{name:'小镇·白日',url:'https://files.catbox.moe/335qgh.jpg'},{name:'街区·白日',url:'https://files.catbox.moe/5ptc2s.jpg'},{name:'教室·白日',url:'https://files.catbox.moe/411x91.png'},{name:'校园·白日',url:'https://files.catbox.moe/7umvnl.png'},{name:'教堂·白日',url:'https://files.catbox.moe/ksgcnb.png'},{name:'公园·白日',url:'https://files.catbox.moe/kc5j7q.png'},{name:'公园·夜晚',url:'https://files.catbox.moe/tz8dj5.png'},{name:'海边·白日',url:'https://files.catbox.moe/3748mu.png'},{name:'海边·夜晚',url:'https://files.catbox.moe/gfpofd.png'},{name:'海边小镇·白日',url:'https://files.catbox.moe/b7jklz.png'},{name:'海边小镇·夜晚',url:'https://files.catbox.moe/54dvha.png'},{name:'咖啡馆·白日',url:'https://files.catbox.moe/vu5bpi.png'},{name:'咖啡馆·夜晚',url:'https://files.catbox.moe/dkkl00.png'},{name:'录音室·白日',url:'https://files.catbox.moe/t4gucb.png'},{name:'录音室·夜晚',url:'https://files.catbox.moe/wohjuq.png'},{name:'宿舍·白日',url:'https://files.catbox.moe/1aflxf.png'},{name:'宿舍·夜晚',url:'https://files.catbox.moe/hz4r00.png'},{name:'商业街·白日',url:'https://files.catbox.moe/6bpztc.png'},{name:'商业街·夜晚',url:'https://files.catbox.moe/0dmg0u.png'},{name:'事务所办公室·白日',url:'https://files.catbox.moe/xe2yhs.png'},{name:'事务所办公室·夜晚',url:'https://files.catbox.moe/kgjjiy.png'},{name:'车内·白日',url:'https://files.catbox.moe/zwxrrz.png'},{name:'电影院·白日',url:'https://files.catbox.moe/3hbfcj.png'},{name:'水族馆·白日',url:'https://files.catbox.moe/4sv0fv.png'},{name:'舞台·白日',url:'https://files.catbox.moe/7e3d4x.png'},{name:'舞台后台·白日',url:'https://files.catbox.moe/vrgjfa.png'},{name:'游乐园·白日',url:'https://files.catbox.moe/gm0uet.png'}],"CG":[{name:'璀璨笑容',url:'https://files.catbox.moe/brhd1p.jpg'},{name:'公园吉他或唱歌',url:'https://files.catbox.moe/i41vna.jpg'},{name:'海边',url:'https://files.catbox.moe/4g09vd.jpg'},{name:'海边2',url:'https://files.catbox.moe/64st23.jpg'},{name:'海边弹吉他或者唱歌',url:'https://files.catbox.moe/wclmz8.jpg'},{name:'日常逛街',url:'https://files.catbox.moe/xj8g0l.jpg'},{name:'在雪地',url:'https://files.catbox.moe/he6m8k.jpg'},{name:'朝user伸手',url:'https://files.catbox.moe/lfxmla.jpg'},{name:'演出服下化妆',url:'https://files.catbox.moe/8c3qmm.jpg'},{name:'演出服躺着',url:'https://files.catbox.moe/jc3r3d.jpg'},{name:'雨天在公园',url:'https://files.catbox.moe/kpetig.jpg'},{name:'雨中回眸',url:'https://files.catbox.moe/vz1cng.jpg'},{name:'在路边偶遇',url:'https://files.catbox.moe/i9ztzu.jpg'},{name:'在雨中和猫猫一起',url:'https://files.catbox.moe/jayuak.jpg'},{name:'百奇游戏',url:'https://files.catbox.moe/y0kcrw.jpg'},{name:'半夜睡不着看手机',url:'https://files.catbox.moe/yum60k.jpg'},{name:'奔向user',url:'https://files.catbox.moe/abfd1d.jpg'},{name:'出门购物',url:'https://files.catbox.moe/wml097.jpg'},{name:'花海',url:'https://files.catbox.moe/ol05lp.png'},{name:'星空双人',url:'https://files.catbox.moe/0xswiv.jpg'}],"立绘":Object.keys(SPRITES).map(function(k){return {name:k,url:SPRITES[k]};}),"表情包":Object.keys(STICKERS).map(function(k){return {name:k,url:STICKERS[k]};})};
+// 小红书自带底帖（AI 发的帖会插到前面）
+var BASE_POSTS=[
+  {author:'天青',avatar:TIANQING_AVATAR,tag:'日常',title:'今天也超努力练习啦！',body:'排练室泡了一整天，新歌副歌终于顺下来了！\n**累是真的累**，但想到能唱给大家听就[[干劲满满]]～\n对了，[[青:我的制作人]]今天来接我放学，还带了热可可🥤 幸福！',likes:'1.2万',comments:96,stars:302},
+  {author:'天青',avatar:TIANQING_AVATAR,tag:'安利',title:'城郊的花田绝了，随手一拍都是壁纸',body:'午后的花田真的太美了～\n**强烈建议**傍晚来，[[橙:黄昏的光]]打在花上超温柔。\n（其实是和某人一起来过才觉得格外好看啦）',likes:'2万',comments:184,stars:641}
+];
+/* 趋势分两个板块：
+   推荐 = 天青/她作品相关（数据要贴合当前名气阶段；AI 用 [趋势|推荐|词条|说明] 推）
+   地区 = 与她无关的大环境：时政 / 偶像行业 / 社会话题（AI 用 [趋势|地区|词条|说明] 推）
+   底部这些是打底内容，AI 推的会插到前面。默认按「地下偶像期」的量级写。 */
+var BASE_TRENDS=[
+  {cat:'音乐 · 趋势',topic:'Larimar',cnt:'趋势 · 1,842 帖子'},
+  {cat:'地下偶像 · 趋势',topic:'#今晚livehouse',cnt:'612 帖子'}
+];
+var BASE_AREA=[
+  {cat:'娱乐 · 趋势',topic:'某顶流偶像 毕业公演',cnt:'趋势 · 9.6万 帖子'},
+  {cat:'地区 · 趋势',topic:'都内 深夜地铁增发',cnt:'趋势 · 4.2万 帖子'},
+  {cat:'偶像行业 · 趋势',topic:'大型事务所 新人海选',cnt:'趋势 · 2.8万 帖子'},
+  {cat:'社会 · 趋势',topic:'livehouse 补助金 政策',cnt:'1.1万 帖子'}
+];
+
+/* ---------- 存储：必须【按对话隔离】 ----------
+   ⚠️ v6 之前的真 bug：localStorage 是【按域名】存的 —— 它不认角色卡、也不认哪一场对话。
+      key 写死成 'tqp_chat' 的话：删卡重装、导入新版本、新开一场对话，
+      上一场的私聊 / 帖子 / 趋势 / 直播存档都会原样冒出来。用户删卡也删不掉，因为数据根本不在卡里。
+
+   修法：给 key 加一个「这一场对话」的前缀。酒馆 getContext().chatId 就是聊天存档的文件名，
+        新开一场 = 新 chatId = 新前缀 = 手机天然是干净的；切回旧对话 = 旧前缀 = 那一场的数据还在。 */
+function h32(s){ var x=0; for(var i=0;i<s.length;i++) x=(x*31+s.charCodeAt(i))|0; return Math.abs(x).toString(36); }
+function chatNS(){
+  var c=ctx();
+  try{ if(c&&c.chatId!=null&&c.chatId!=='') return 'n'+h32(String(c.chatId)); }catch(e){}                       // ① 最准
+  try{ if(c&&typeof c.getCurrentChatId==='function'){ var i=c.getCurrentChatId(); if(i!=null&&i!=='') return 'n'+h32(String(i)); } }catch(e){}
+  try{ var m0=c&&c.chat&&c.chat[0]; if(m0) return 'f'+h32(String(c.name2||'')+'|'+String(m0.send_date||'')); }catch(e){}  // ② 兜底：开场白时间戳（同卡两场也不同）
+  return 'default';                                                                                            // ③ 全拿不到 → 退化成老行为；外观App有「清空」按钮兜底
+}
+function keysOf(ns){ return {chat:'tqp.'+ns+'.chat', posts:'tqp.'+ns+'.posts', trends:'tqp.'+ns+'.trends',
+                             area:'tqp.'+ns+'.area', live:'tqp.'+ns+'.live', seen:'tqp.'+ns+'.seen',
+                             feed:'tqp.'+ns+'.feed'}; }
+var NS=chatNS(), K=keysOf(NS);
+
+/* 清掉 v6 之前那份「所有对话混在一起」的旧数据 —— 不清的话它会一直占着空间又永远没人读 */
+(function(){ ['tqp_chat','tqp_posts','tqp_trends','tqp_seen','tqp_area','tqp_live'].forEach(function(k){ try{ W.localStorage.removeItem(k); }catch(e){} }); })();
+
+/* 只留最近 5 场对话的手机数据。localStorage 只有 ~5MB，玩久了几十场对话会把它撑爆 */
+function gcNS(keep){
+  if(NS==='default') return;
+  try{
+    var idx=JSON.parse(LSget('tqp.index')||'null')||{}; idx[NS]=Date.now();
+    Object.keys(idx).sort(function(a,b){return idx[b]-idx[a];}).slice(keep).forEach(function(ns){
+      var k=keysOf(ns); for(var t in k){ try{ W.localStorage.removeItem(k[t]); }catch(e){} } delete idx[ns];
+    });
+    LSset('tqp.index',JSON.stringify(idx));
+  }catch(e){}
+}
+
+/* 【两种来源，必须分开存】
+     extra*  = 剧情内容 —— AI 在正文里发的 [小红书|…] / [趋势|…]。这是剧情记录，【刷新绝不能动它】。
+     feed*   = 信息流填充 —— 🔄 刷新生成的那批。【每次刷新整批替换掉】，不然刷十次堆三十条。
+   开局 feed* = BASE_*（自带底帖/底趋势），第一次刷新就把它们换掉。
+   —— 顺带修了个雷：底帖以前是模块级常量，在它下面评论 → 评论存进常量里 → 刷新页面就没了。
+      现在底帖开局就复制进 feed*（进 localStorage），评论才留得住。 */
+var chatLog, extraPosts, extraTrends, extraArea, liveShows, seen;
+var feedPosts, feedTrends, feedArea;
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function loadState(){                                              // 从【当前命名空间】读。切对话时会重跑
+  chatLog     = JSON.parse(LSget(K.chat)||'null')   || [{me:false,type:'text',v:'（这里是你和天青的私聊，随便聊两句～）'}];
+  extraPosts  = JSON.parse(LSget(K.posts)||'null')  || [];
+  extraTrends = JSON.parse(LSget(K.trends)||'null') || [];         // 推荐板块(天青相关)
+  extraArea   = JSON.parse(LSget(K.area)||'null')   || [];         // 地区板块(时政/偶像行业)
+  liveShows   = JSON.parse(LSget(K.live)||'null')   || [];         // 最近 3 场直播（新的在前，满 3 场挤掉最旧的）
+  var fd      = JSON.parse(LSget(K.feed)||'null')   || null;
+  feedPosts   = (fd&&fd.posts)  || clone(BASE_POSTS);              // 没刷新过 → 用自带底帖
+  feedTrends  = (fd&&fd.trends) || clone(BASE_TRENDS);
+  feedArea    = (fd&&fd.area)   || clone(BASE_AREA);
+  feedPosts.forEach(function(p){ if(!p.cmts) p.cmts=[]; });
+  seen        = JSON.parse(LSget(K.seen)||'null')   || {sms:{},post:{},trend:{},live:{},cmt:{}};
+  if(!seen.live) seen.live={}; if(!seen.cmt) seen.cmt={};
+  extraPosts.forEach(function(p){ if(!p.cmts) p.cmts=[]; });          // v10 之前存下的老帖子没有 cmts 字段，补上
+}
+loadState(); gcNS(5);
+
+/* 切换对话（或上下文晚就绪、指纹这才拿得到）→ 换命名空间 + 重读 + 整个手机重画。
+   少了重画这一步，界面还会停在上一场的内容上。 */
+function reloadForChat(){
+  var ns=chatNS(); if(ns===NS) return;                             // 还是同一场，什么都不用做
+  NS=ns; K=keysOf(NS); gcNS(5); loadState();
+  try{ W.localStorage.removeItem('tq_live_replay'); }catch(e){}    // 上一场的直播回放别泄漏到这一场
+  try{ goHome(); }catch(e){}                                       // 别停在上一场的某个 App 页里
+  try{ var pd=$('.qcpage'); if(pd) pd.classList.remove('on'); curPost=-1; }catch(e){}
+  try{ renderContacts(); renderMsgs(); renderXHS(); renderTrends(); renderLive(); }catch(e){}
+}
+
+function saveLive(){ LSset(K.live,JSON.stringify(liveShows)); }
+function save(){ LSset(K.live,JSON.stringify(liveShows)); LSset(K.chat,JSON.stringify(chatLog)); LSset(K.posts,JSON.stringify(extraPosts)); LSset(K.trends,JSON.stringify(extraTrends)); LSset(K.area,JSON.stringify(extraArea)); LSset(K.seen,JSON.stringify(seen));
+  LSset(K.feed,JSON.stringify({posts:feedPosts,trends:feedTrends,area:feedArea})); }
+
+/* ====================================================================
+   ② 注入样式 + DOM
+   ==================================================================== */
+var CSS='<style id="tqp-style">\
+#tqp-ball{position:fixed;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(92px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border-radius:50%;z-index:2147483000;cursor:pointer;background:linear-gradient(150deg,#5fe0cf,#268ba0);box-shadow:0 6px 20px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:26px;user-select:none;touch-action:none}\
+#tqp-mask{position:fixed;top:0;left:0;width:100vw;width:100dvw;height:100vh;height:100dvh;z-index:2147483001;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center}\
+#tqp-mask.on{display:flex}\
+#tqp-root{width:390px;max-width:94vw;height:800px;max-height:92vh;max-height:92dvh;border-radius:38px;overflow:hidden;position:relative;background:#000;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 10px #12202780,0 0 0 12px #0b1216;font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;color:#22333f}\
+#tqp-root *{margin:0;padding:0;box-sizing:border-box}\
+#tqp-root .sb{position:absolute;top:0;left:0;right:0;height:34px;z-index:60;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:13px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}\
+#tqp-root .home{position:absolute;inset:0;z-index:10;background-size:cover;background-position:center;display:flex;flex-direction:column;align-items:center;background-image:linear-gradient(180deg,rgba(0,0,0,.25),transparent 22%,transparent 60%,rgba(0,0,0,.35)),url('+"'"+HOME_WALLPAPER+"'"+')}\
+#tqp-root .hclk{margin-top:74px;text-align:center;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.5)}\
+#tqp-root .hclk .t{font-size:64px;font-weight:200;line-height:1}#tqp-root .hclk .d{font-size:15px;font-weight:500;margin-top:4px;opacity:.95}\
+#tqp-root .grid-a{margin-top:44px;margin-bottom:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:22px 18px;justify-items:center;padding:0 22px}\
+#tqp-root .ai{display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer}\
+#tqp-root .ai .ic{width:60px;height:60px;border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px rgba(0,0,0,.32),inset 0 1.5px 1px rgba(255,255,255,.4),inset 0 -2px 4px rgba(0,0,0,.14)}\
+#tqp-root .ai .ic svg{width:36px;height:36px}#tqp-root .ai .lb{font-size:12px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)}\
+#tqp-root .ic-l{background:linear-gradient(155deg,#5ac8e8,#fb7299)}\
+#tqp-root .ic-c{background:linear-gradient(160deg,#5fe0cf,#268ba0)}#tqp-root .ic-x{background:linear-gradient(150deg,#ff9a56,#ff5e7e)}#tqp-root .ic-a{background:linear-gradient(160deg,#fdfdfd,#eef1f4)}\
+#tqp-root .hbar{display:none}\
+#tqp-root .xbtn{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:72;width:42px;height:42px;border-radius:50%;background:rgba(0,0,0,.22);border:1.5px solid rgba(255,255,255,.6);color:#fff;font-size:20px;font-weight:300;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 3px 12px rgba(0,0,0,.3)}\
+#tqp-root .xbtn:active{background:rgba(0,0,0,.4);transform:translateX(-50%) scale(.94)}\
+#tqp-root .cw{padding-bottom:70px}\
+#tqp-root .xl,#tqp-root .tlist,#tqp-root .gr{padding-bottom:74px}\
+#tqp-root .app{position:absolute;inset:0;z-index:20;background:#eef4f6;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .28s cubic-bezier(.3,.8,.4,1);visibility:hidden}\
+#tqp-root .app.on{transform:translateY(0);visibility:visible}\
+#tqp-root .app .pad{height:34px;flex-shrink:0}\
+#tqp-root .hd{height:52px;flex-shrink:0;background:#fff;border-bottom:1px solid #e3ebee;display:flex;align-items:center;justify-content:center;position:relative;font-size:17px;font-weight:700}\
+#tqp-root .hd .bk{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:24px;color:#2b899d;cursor:pointer;width:32px;text-align:center}\
+#tqp-root .hd .su{position:absolute;left:48px;bottom:8px;font-size:11px;color:#6b7d89;font-weight:500}\
+#tqp-root .bd{flex:1;overflow-y:auto;position:relative;background:#eef4f6}#tqp-root .bd::-webkit-scrollbar{width:0}\
+#tqp-root .ct{display:flex;align-items:center;gap:12px;padding:13px 16px;background:#fff;border-bottom:1px solid #e3ebee;cursor:pointer}\
+#tqp-root .ct.dis{opacity:.5;cursor:default}\
+#tqp-root .avt{width:48px;height:48px;border-radius:50%;overflow:hidden;flex-shrink:0;background:#3a4655}#tqp-root .avt img{width:100%;height:100%;object-fit:cover;object-position:center}\
+#tqp-root .ci{flex:1;min-width:0}#tqp-root .cn{font-size:16px;font-weight:600}#tqp-root .cs{font-size:13px;color:#6b7d89;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+#tqp-root .cw{display:none;flex-direction:column;position:absolute;inset:0;background:#eef4f6}#tqp-root .cw.on{display:flex}\
+#tqp-root .ms{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:12px}#tqp-root .ms::-webkit-scrollbar{width:0}\
+#tqp-root .m{display:flex;gap:8px;max-width:82%}#tqp-root .m.me{align-self:flex-end;flex-direction:row-reverse}#tqp-root .m .avt{width:38px;height:38px}\
+#tqp-root .bb{padding:9px 13px;border-radius:4px 16px 16px 16px;background:#fff;font-size:15px;line-height:1.5;box-shadow:0 1px 2px rgba(0,0,0,.05);word-break:break-word}\
+#tqp-root .m.me .bb{background:linear-gradient(135deg,#5ec7d8,#3aa8bd);color:#083039;border-radius:16px 4px 16px 16px}\
+#tqp-root .bb.stk{background:transparent!important;box-shadow:none;padding:0}#tqp-root .bb.stk img{width:96px;height:96px;object-fit:contain}\
+#tqp-root .ty{align-self:flex-start;display:none;gap:8px}#tqp-root .ty.on{display:flex}\
+#tqp-root .ty .dt{background:#fff;border-radius:4px 16px 16px 16px;padding:12px 16px;box-shadow:0 1px 2px rgba(0,0,0,.05);display:flex;gap:5px}\
+#tqp-root .ty .dt i{width:6px;height:6px;border-radius:50%;background:#b9c6cd;animation:tqpb 1.3s infinite}#tqp-root .ty .dt i:nth-child(2){animation-delay:.2s}#tqp-root .ty .dt i:nth-child(3){animation-delay:.4s}\
+@keyframes tqpb{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}\
+#tqp-root .ib{flex-shrink:0;border-top:1px solid #e3ebee;background:#fff;padding:8px 10px;display:flex;gap:8px;align-items:center}\
+#tqp-root .ib .eb{width:34px;height:34px;flex-shrink:0;border:none;background:transparent;font-size:22px;cursor:pointer}\
+#tqp-root .ib input{flex:1;height:38px;border:1px solid #e3ebee;border-radius:19px;padding:0 15px;font-size:15px;outline:none;background:#f4f8f9}\
+#tqp-root .ib .snd{height:38px;padding:0 16px;border:none;border-radius:19px;background:#3aa8bd;color:#fff;font-size:14px;font-weight:600;cursor:pointer}\
+#tqp-root .sp{flex-shrink:0;display:none;background:#fff;border-top:1px solid #e3ebee;padding:10px;max-height:212px;overflow-y:auto;grid-template-columns:repeat(5,1fr);gap:7px}#tqp-root .sp.on{display:grid}\
+#tqp-root .sp .st{aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;background:#f0f5f6;border:1px solid #e3ebee;position:relative}#tqp-root .sp .st img{width:100%;height:100%;object-fit:cover}\
+#tqp-root .sp .st.add{display:flex;align-items:center;justify-content:center;background:#f4f8f9;border:1.5px dashed #c3d0d5;color:#9fb0b8;font-size:26px;font-weight:300}\
+#tqp-root .stb{display:flex;background:#fff;border-bottom:1px solid #e3ebee}#tqp-root .stb .s{flex:1;text-align:center;padding:11px;font-size:14px;font-weight:600;color:#6b7d89;cursor:pointer;position:relative}\
+#tqp-root .stb .s.on{color:#22333f}#tqp-root .stb .s.on::after{content:"";position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:28px;height:3px;border-radius:2px;background:#ff4d5e}\
+#tqp-root .sub{display:none}#tqp-root .sub.on{display:block}\
+#tqp-root .xl{padding:12px;display:flex;flex-direction:column;gap:12px}\
+#tqp-root .po{background:#fff;border-radius:14px;padding:14px 15px;box-shadow:0 2px 8px rgba(40,80,95,.06)}\
+#tqp-root .po .tp{display:flex;align-items:center;gap:9px;margin-bottom:9px}#tqp-root .po .tp .avt{width:34px;height:34px}\
+#tqp-root .po .au{font-size:14px;font-weight:600}#tqp-root .po .tg{font-size:11px;color:#fff;background:#ff4d5e;padding:1px 8px;border-radius:8px;margin-left:auto}\
+#tqp-root .po .ti{font-size:16px;font-weight:700;margin-bottom:6px}#tqp-root .po .bo{font-size:14.5px;line-height:1.7;color:#37474f;white-space:pre-wrap}#tqp-root .po .bo b{font-weight:800}\
+#tqp-root .po .ft{display:flex;gap:18px;margin-top:11px;padding-top:10px;border-top:1px solid #e3ebee;color:#6b7d89;font-size:13px}\
+#tqp-root .po{cursor:pointer}\
+/* 帖子详情+评论区。类名一律 qc 前缀。血泪教训：上一版用 .cw/.cn/.ci/.cs 这种两字母短名，而手机里早就有这几个类 —— .cw 是聊天窗遮罩(display:none;position:absolute;inset:0)，评论文字容器继承了它 → 评论区只剩头像圆圈，一个字不显示。加新 UI 前先 grep 类名有没有被占。 */\
+#tqp-root .qcpage{position:absolute;inset:0;background:#f5f8f9;z-index:6;display:none;flex-direction:column}\
+#tqp-root .qcpage.on{display:flex}\
+#tqp-root .qchd{flex:0 0 auto;height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;background:#fff;border-bottom:1px solid #e3ebee;font-size:15px;font-weight:600}\
+#tqp-root .qchd .qcbk{font-size:22px;cursor:pointer;color:#5d6f7a}\
+#tqp-root .qcbd{flex:1 1 auto;overflow-y:auto;padding:12px}\
+#tqp-root .qcnum{margin:14px 0 8px;font-size:13px;font-weight:700;color:#5d6f7a}\
+#tqp-root .qcrow{display:flex;gap:9px;padding:9px 0;border-top:1px solid #e8eef1}\
+#tqp-root .qcrow .avt{width:30px;height:30px;flex:0 0 auto;border-radius:50%;overflow:hidden}\
+#tqp-root .qcrow .qctxt{flex:1 1 auto;min-width:0}\
+#tqp-root .qcrow .qcwho{font-size:12.5px;font-weight:600;color:#7b8b95;margin-bottom:2px}\
+#tqp-root .qcrow .qcmsg{font-size:14px;line-height:1.6;color:#37474f;word-break:break-word;white-space:pre-wrap}\
+#tqp-root .qcrow.me .qcwho{color:#2b899d}\
+#tqp-root .qcrow.au .qcwho{color:#ff5b6a}\
+#tqp-root .qcrow.au .qcmsg{background:#fff2f3;border-radius:9px;padding:7px 9px}\
+#tqp-root .qcempty{font-size:13px;color:#9aa8b2;padding:12px 0}\
+#tqp-root .qcbar{flex:0 0 auto;display:flex;gap:8px;padding:9px 11px;background:#fff;border-top:1px solid #e3ebee}\
+#tqp-root .qcbar .qcinput{flex:1 1 auto;height:36px;border:1px solid #dde5ea;border-radius:18px;padding:0 14px;font-size:14px;font-family:inherit;outline:none;background:#f3f7f8;min-width:0}\
+#tqp-root .qcbar .qcsend{flex:0 0 auto;height:36px;padding:0 16px;border:none;border-radius:18px;background:#8dd4e0;color:#0d2730;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer}\
+#tqp-root .qcbar .qcsend:disabled{opacity:.45}\
+#tqp-root .ttb{display:flex;gap:8px;padding:10px 12px 4px;background:#eef4f6}\
+#tqp-root .ttb .t{padding:6px 18px;border-radius:999px;font-size:13px;font-weight:600;color:#6b7d89;background:#fff;border:1px solid #e3ebee;cursor:pointer}\
+#tqp-root .ttb .t.on{background:#3aa8bd;color:#fff;border-color:#3aa8bd}\
+#tqp-root .tlist2{display:none;padding-bottom:74px}\
+#tqp-root .tban{margin:12px;height:120px;border-radius:14px;overflow:hidden;position:relative;background:linear-gradient(120deg,#0b1a3a,#14233f);display:flex;flex-direction:column;justify-content:center;padding:0 20px;color:#fff}\
+#tqp-root .tban .a{font-size:22px;font-weight:800}#tqp-root .tban .b{font-size:13px;opacity:.85;margin-top:3px}#tqp-root .tban::after{content:"→";position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:24px}\
+#tqp-root .tit{padding:12px 16px;background:#fff;border-bottom:1px solid #e3ebee;position:relative}#tqp-root .tit .c{font-size:12px;color:#6b7d89}#tqp-root .tit .o{font-size:16px;font-weight:700;margin-top:2px}#tqp-root .tit .n{font-size:12px;color:#6b7d89;margin-top:2px}\
+#tqp-root .atb{display:flex;background:#fff;border-bottom:1px solid #e3ebee;padding:6px 10px;gap:6px}#tqp-root .atb .a{flex:1;text-align:center;padding:7px;font-size:13px;font-weight:600;border-radius:9px;cursor:pointer;color:#6b7d89}#tqp-root .atb .a.on{background:#3aa8bd;color:#fff}\
+#tqp-root .lvl{padding:11px;display:flex;flex-direction:column;gap:10px}\
+#tqp-root .lvc{border-radius:13px;overflow:hidden;background:#fff;box-shadow:0 3px 12px rgba(40,90,110,.13);cursor:pointer;border:1px solid #e6eef1}\
+#tqp-root .lvc:active{transform:scale(.985)}\
+#tqp-root .lvc .cv{height:88px;background-size:cover;background-position:center;position:relative;display:flex;align-items:flex-end;padding:8px}\
+#tqp-root .lvc .cv:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.62))}\
+#tqp-root .lvc .cv .bd2{position:relative;z-index:2;display:flex;align-items:center;gap:6px;color:#fff;font-size:11px;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.7)}\
+#tqp-root .lvc .cv .lvt{background:#fb7299;padding:1px 6px;border-radius:4px;font-size:9.5px;letter-spacing:.05em}\
+#tqp-root .lvc .in{padding:9px 11px}\
+#tqp-root .lvc .in .t{font-size:13.5px;font-weight:700;color:#20384a;margin-bottom:3px}\
+#tqp-root .lvc .in .m{font-size:11px;color:#7d94a3;display:flex;gap:9px;flex-wrap:wrap}\
+#tqp-root .lvc .in .p{margin-top:6px;font-size:11.5px;color:#5c7486;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}\
+#tqp-root .lvempty{padding:38px 22px;text-align:center;color:#93a7b3;font-size:12.5px;line-height:1.8}\
+#tqp-root .genp{display:none;padding:11px 12px 4px}\
+#tqp-root .genp.on{display:block}\
+#tqp-root .genp .pv{font-family:ui-monospace,Consolas,monospace;font-size:10.5px;line-height:1.6;color:#4a5c68;background:#eef3f6;border:1px solid #dde5ea;\
+  border-radius:9px;padding:9px;max-height:132px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin-bottom:9px}\
+#tqp-root .genp .pv.none{color:#9aa8b2;font-family:inherit;font-size:12.5px;text-align:center;padding:16px 9px}\
+#tqp-root .genp .rw{display:flex;gap:7px;margin-bottom:8px}\
+#tqp-root .genp .rw button{flex:1;height:34px;border-radius:9px;border:1px solid #d4dde2;background:#fff;font-size:13px;font-weight:600;color:#42525c;font-family:inherit;cursor:pointer}\
+#tqp-root .genp .rw button.go{background:var(--tqp-main,#8dd4e0);color:#0d2730;border-color:transparent}\
+#tqp-root .genp .rw button:disabled{opacity:.45}\
+#tqp-root .genp .st{font-size:11.5px;line-height:1.6;color:#7d8c96;white-space:pre-wrap;min-height:16px}\
+#tqp-root .genp .st.err{color:#c0392b}#tqp-root .genp .st.ok{color:#2e8b6f}\
+#tqp-root .genp .dg{margin-top:9px;padding-top:9px;border-top:1px dashed #dde5ea;font-size:11px;line-height:1.7;color:#8a99a3;font-family:ui-monospace,Consolas,monospace}\
+#tqp-root .gr{padding:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}#tqp-root .gr .cl{aspect-ratio:1;border-radius:9px;overflow:hidden;background:#dfe8eb;cursor:pointer;position:relative}#tqp-root .gr .cl img{width:100%;height:100%;object-fit:cover}\
+#tqp-root .gr .cl span{position:absolute;left:0;right:0;bottom:0;font-size:10px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.6));padding:8px 5px 3px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+#tqp-root .lbx{position:absolute;inset:0;z-index:80;background:rgba(8,14,18,.94);display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:20px}#tqp-root .lbx.on{display:flex}#tqp-root .lbx img{max-width:100%;max-height:78%;border-radius:10px}#tqp-root .lbx .cap{color:#fff;font-size:14px}#tqp-root .lbx .x{position:absolute;top:16px;right:18px;color:#fff;font-size:26px;cursor:pointer}\
+#tqp-root .ic-s{background:linear-gradient(160deg,#a78bfa,#6366f1)}\
+#tqp-root .ic-g{background:linear-gradient(160deg,#34d399,#0f8a6a)}\
+#tqp-root .agc{padding:16px 16px 84px}\
+#tqp-root .agc .card{background:#fff;border:1px solid #e3ebee;border-radius:16px;padding:18px;margin-bottom:14px}\
+#tqp-root .agc .stg{font-size:11px;font-weight:700;color:#8a99a3;letter-spacing:.08em;margin-bottom:6px}\
+#tqp-root .agc .nm{font-size:24px;font-weight:800;color:#22333f;margin-bottom:14px}\
+#tqp-root .agc .lbl{display:flex;justify-content:space-between;font-size:12px;color:#6b7d89;margin-bottom:6px}\
+#tqp-root .agc .lbl b{color:#3aa8bd;font-size:14px}\
+#tqp-root .agc .bar{height:9px;border-radius:5px;background:#e8eff2;overflow:hidden}\
+#tqp-root .agc .bar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#5fe0cf,#268ba0);transition:width .5s}\
+#tqp-root .agc .hint{font-size:11px;color:#9fb0b8;margin-top:9px;line-height:1.6}\
+#tqp-root .agc .rows{display:flex;gap:10px}\
+#tqp-root .agc .rows .c{flex:1;background:#fff;border:1px solid #e3ebee;border-radius:14px;padding:13px;text-align:center}\
+#tqp-root .agc .rows .c .k{font-size:11px;color:#8a99a3;margin-bottom:4px}\
+#tqp-root .agc .rows .c .v{font-size:15px;font-weight:700;color:#22333f}\
+#tqp-root .agc .steps{margin-top:4px}\
+#tqp-root .agc .steps .st{display:flex;align-items:center;gap:9px;padding:9px 2px;font-size:13px;color:#9fb0b8}\
+#tqp-root .agc .steps .st .d{width:9px;height:9px;border-radius:50%;background:#dae3e7;flex-shrink:0}\
+#tqp-root .agc .steps .st.done{color:#6b7d89}#tqp-root .agc .steps .st.done .d{background:#3aa8bd}\
+#tqp-root .agc .steps .st.now{color:#22333f;font-weight:700}#tqp-root .agc .steps .st.now .d{background:#3aa8bd;box-shadow:0 0 0 4px rgba(58,168,189,.2)}\
+#tqp-root .rfz{display:flex;justify-content:flex-end;padding:0 12px 8px;background:#eef4f6}\
+#tqp-root .rfz .rf{padding:6px 14px;border-radius:999px;font-size:12px;font-weight:600;color:#3aa8bd;background:#fff;border:1px solid #cfe3e8;cursor:pointer}\
+#tqp-root .rfz .rf.busy{opacity:.55;cursor:default}\
+#tqp-root .skin{padding:14px 16px 84px}\
+#tqp-root .skin .sec{font-size:12px;font-weight:700;color:#8a99a3;margin:15px 2px 9px;letter-spacing:.04em}\
+#tqp-root .skin .sec:first-child{margin-top:2px}\
+#tqp-root .skin .bgs{display:flex;flex-wrap:wrap;gap:8px}\
+#tqp-root .skin .bgs .b,#tqp-root .skin .hue .b{padding:8px 12px;border-radius:10px;border:1px solid #d4dde2;background:#fff;font-size:13px;font-weight:600;color:#42525c;cursor:pointer}\
+#tqp-root .skin .bgs .b.on,#tqp-root .skin .hue .b.on{background:#3aa8bd;border-color:#3aa8bd;color:#fff}\
+#tqp-root .skin .rw{display:flex;align-items:center;gap:10px;margin:12px 2px}\
+#tqp-root .skin .rw .nm{width:34px;font-size:13px;color:#42525c;flex-shrink:0}\
+#tqp-root .skin .rw input[type=range]{flex:1;accent-color:#3aa8bd}\
+#tqp-root .skin .rw .vv{width:44px;text-align:right;font-size:12px;color:#8a99a3}\
+#tqp-root .skin .hue{display:flex;gap:8px;margin-top:4px}\
+#tqp-root .skin .hue .b{flex:1;text-align:center}\
+#tqp-root .skin .tip{font-size:11px;color:#9fb0b8;margin:16px 2px 0;line-height:1.6}\
+</style>';
+
+var HTML='<div id="tqp-mask"><div id="tqp-root">\
+<div class="sb"><span class="clk">10:33</span><span>5G&nbsp;&nbsp;🔋81%</span></div>\
+<div class="home"><div class="hclk"><div class="t clk"></div><div class="d dt"></div></div>\
+<div class="grid-a">\
+<div class="ai" data-app="chat"><div class="ic ic-c"><svg viewBox="0 0 40 40"><path d="M20 7.5C11.4 7.5 5 12.8 5 19.3c0 3.6 2 6.8 5.2 8.9-.2 1.9-1.1 3.7-2.6 5.2 2.9-.3 5.4-1.3 7.4-2.8 1.6.4 3.3.6 5 .6 8.6 0 15-5.3 15-11.7S28.6 7.5 20 7.5z" fill="#fff"/></svg></div><div class="lb">聊天</div></div>\
+<div class="ai" data-app="xhs"><div class="ic ic-x"><svg viewBox="0 0 40 40"><path fill="#fff" d="M20 30C20 30 9 22.5 9 15.5C9 12.4 11.4 10 14.3 10C16.5 10 18.5 11.3 20 13.5C21.5 11.3 23.5 10 25.7 10C28.6 10 31 12.4 31 15.5C31 22.5 20 30 20 30Z"/></svg></div><div class="lb">SNS</div></div>\
+<div class="ai" data-app="album"><div class="ic ic-a"><svg viewBox="0 0 40 40"><g transform="translate(20,20)"><ellipse cx="0" cy="-8.5" rx="3.6" ry="7.6" fill="#ff3b30" opacity=".82" transform="rotate(0)"/><ellipse cx="0" cy="-8.5" rx="3.6" ry="7.6" fill="#ff9500" opacity=".82" transform="rotate(45)"/><ellipse cx="0" cy="-8.5" rx="3.6" ry="7.6" fill="#ffcc00" opacity=".82" transform="rotate(90)"/><ellipse cx="0" cy="-8.5" rx="3.6" ry="7.6" fill="#34c759" opacity=".82" transform="rotate(135)"/><ellipse cx="0" cy="-8.5" rx="3.6" ry="7.6" fill="#32ade6" opacity=".82" transform="rotate(180)"/><ellipse cx="0" cy="-8.5" rx="3.6" ry="7.6" fill="#007aff" opacity=".82" transform="rotate(225)"/><ellipse cx="0" cy="-8.5" rx="3.6" ry="7.6" fill="#af52de" opacity=".82" transform="rotate(270)"/><ellipse cx="0" cy="-8.5" rx="3.6" ry="7.6" fill="#ff2d55" opacity=".82" transform="rotate(315)"/></g></svg></div><div class="lb">相册</div></div>\
+<div class="ai" data-app="skin"><div class="ic ic-s"><svg viewBox="0 0 40 40" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M11 13h18M11 20h18M11 27h18"/><circle cx="17" cy="13" r="3.4" fill="#fff" stroke="none"/><circle cx="25" cy="20" r="3.4" fill="#fff" stroke="none"/><circle cx="15" cy="27" r="3.4" fill="#fff" stroke="none"/></svg></div><div class="lb">外观</div></div>\
+<div class="ai" data-app="live"><div class="ic ic-l"><svg viewBox="0 0 40 40" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="14" width="26" height="18" rx="3.5"/><path d="M14.5 8l5.5 6 5.5-6"/><circle cx="20" cy="23" r="3.6" fill="#fff" stroke="none"/></svg></div><div class="lb">直播间</div></div>\
+<div class="ai" data-app="agency"><div class="ic ic-g"><svg viewBox="0 0 40 40" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 29V19M16.3 29V13M23.6 29V22M31 29V9"/></svg></div><div class="lb">事务所</div></div>\
+</div><div class="hbar"></div></div>\
+<div class="app" data-page="chat"><div class="pad"></div><div class="hd"><span class="bk" data-bk="chat">‹</span><span class="ctitle">聊天</span><span class="su csub"></span></div><div class="bd"><div class="clist"></div>\
+<div class="cw"><div class="ms"></div><div class="ty"><div class="avt"><img class="tyav"></div><div class="dt"><i></i><i></i><i></i></div></div><div class="sp"></div><div class="ib"><button class="eb">😊</button><input class="cin" placeholder="发消息…"><button class="snd">发送</button></div></div></div></div>\
+<div class="app" data-page="xhs"><div class="pad"></div><div class="hd"><span class="bk" data-bk="home">‹</span><span>SNS</span></div><div class="stb"><div class="s on" data-sub="rec">推荐</div><div class="s" data-sub="trend">趋势</div></div><div class="bd"><div class="sub on" data-sp="rec"><div class="rfz"><div class="rf qcrf">🔄 刷新</div></div><div class="xl"></div></div><div class="sub" data-sp="trend"><div class="ttb"><div class="t on" data-tt="rec">推荐</div><div class="t" data-tt="area">地区</div></div><div class="rfz"><div class="rf">🔄 刷新</div></div><div class="tban"><div class="a">全球趋势</div><div class="b">最热门的帖子</div></div><div class="tlist"></div><div class="tlist2"></div></div><div class="qcpage"><div class="qchd"><span class="qcbk">‹</span><span>帖子</span></div><div class="qcbd"></div><div class="qcbar"><input class="qcinput" type="text" maxlength="60" placeholder="说点什么…"><button class="qcsend">发送</button></div></div></div></div>\
+<div class="app" data-page="album"><div class="pad"></div><div class="hd"><span class="bk" data-bk="home">‹</span><span>相册</span></div><div class="bd"><div class="atb"></div><div class="genp"></div><div class="gr"></div><div class="lbx"><span class="x">×</span><img class="lbi"><div class="cap"></div></div></div></div>\
+<div class="app" data-page="skin"><div class="pad"></div><div class="hd"><span class="bk" data-bk="home">‹</span><span>外观 · 立绘界面</span></div><div class="bd"><div class="skin"></div></div></div>\
+<div class="app" data-page="live"><div class="pad"></div><div class="hd"><span class="bk" data-bk="home">‹</span><span>直播间 · 最近三场</span></div><div class="bd"><div class="lvl"></div></div></div>\
+<div class="app" data-page="agency"><div class="pad"></div><div class="hd"><span class="bk" data-bk="home">‹</span><span>事务所 · 数据</span></div><div class="bd"><div class="agc"></div></div></div>\
+<button class="xbtn" title="关闭">✕</button></div></div>';
+
+/* 幂等挂载：先清掉可能残留的旧节点，再插入，避免脚本重复运行叠出多个悬浮球 */
+['tqp-style','tqp-ball','tqp-mask'].forEach(function(id){ var o=D.getElementById(id); if(o&&o.parentNode) o.parentNode.removeChild(o); });
+try{
+  (D.head||D.documentElement).insertAdjacentHTML('beforeend',CSS);
+  // 关键：挂到 <html> 顶层（而不是 <body>），绕开酒馆移动端给 body/容器加的 transform —— 那会让 position:fixed 失准、手机壳只显示半截
+  D.documentElement.insertAdjacentHTML('beforeend','<div id="tqp-ball">📱</div>'+HTML);
+  console.log('[天青小手机] 悬浮球 + 界面已插入 <html> 顶层');
+}catch(e){ console.error('[天青小手机] 插入 DOM 失败：', e); return; }
+
+/* ====================================================================
+   ③ 引擎区
+   ==================================================================== */
+var root=D.getElementById('tqp-root'), mask=D.getElementById('tqp-mask'), ball=D.getElementById('tqp-ball');
+function $(s){ return root.querySelector(s); }
+function $$(s){ return root.querySelectorAll(s); }
+function esc(s){ return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function av(u){ return '<div class="avt"><img src="'+u+'" onerror="this.src=\''+USER_AVATAR+'\'"></div>'; }
+
+/* 开关手机 —— 悬浮球可拖动（拖过就不触发打开），位置记忆到 localStorage */
+(function(){
+  var sp=LSget('tqp_ball_pos'); if(sp){ try{ var p=JSON.parse(sp); ball.style.left=p.x+'px'; ball.style.top=p.y+'px'; ball.style.right='auto'; ball.style.bottom='auto'; }catch(e){} }
+  var drag=false, moved=false, sx=0, sy=0, ox=0, oy=0;
+  function vw(){ return W.innerWidth||D.documentElement.clientWidth; }
+  function vh(){ return W.innerHeight||D.documentElement.clientHeight; }
+  function down(e){ drag=true; moved=false; var t=e.touches?e.touches[0]:e; sx=t.clientX; sy=t.clientY; var r=ball.getBoundingClientRect(); ox=r.left; oy=r.top; }
+  function move(e){ if(!drag) return; var t=e.touches?e.touches[0]:e; var dx=t.clientX-sx, dy=t.clientY-sy;
+    if(Math.abs(dx)>4||Math.abs(dy)>4) moved=true; if(!moved) return; if(e.cancelable) e.preventDefault();
+    var sz=ball.offsetWidth, nx=Math.max(2,Math.min(ox+dx,vw()-sz-2)), ny=Math.max(2,Math.min(oy+dy,vh()-sz-2));
+    ball.style.left=nx+'px'; ball.style.top=ny+'px'; ball.style.right='auto'; ball.style.bottom='auto'; }
+  function up(){ if(!drag) return; drag=false; if(moved){ var r=ball.getBoundingClientRect(); LSset('tqp_ball_pos',JSON.stringify({x:Math.round(r.left),y:Math.round(r.top)})); } }
+  ball.addEventListener('mousedown',down); D.addEventListener('mousemove',move); D.addEventListener('mouseup',up);
+  ball.addEventListener('touchstart',down,{passive:false}); D.addEventListener('touchmove',move,{passive:false}); D.addEventListener('touchend',up);
+  ball.addEventListener('click',function(){ if(moved) return; mask.classList.add('on'); tick(); });
+})();
+mask.onclick=function(e){ if(e.target===mask) mask.classList.remove('on'); };
+
+/* 导航 */
+/* 外观App：在小手机里调 gal 立绘界面的 对话框玻璃（磨砂/浓度/色）。
+   写 localStorage(tq_gal_glass)，gal 同源 iframe 监听 storage 实时套用。
+   v19：背景手动切换已移除 —— gal 背景彻底跟随剧情所在地点(MVU)。 */
+function buildSkin(){
+  var wrap=$('.skin'); if(!wrap) return;
+  var G={hue:'15,20,28',op:0.48,blur:16};
+  try{ var sv=JSON.parse(LSget('tq_gal_glass')||'null'); if(sv){ if(sv.hue)G.hue=sv.hue; if(typeof sv.op==='number')G.op=sv.op; if(typeof sv.blur==='number')G.blur=sv.blur; } }catch(e){}
+  function writeG(){ LSset('tq_gal_glass',JSON.stringify(G)); }
+  wrap.innerHTML='<div class="sec">对话框玻璃</div>'
+    +'<div class="rw"><span class="nm">磨砂</span><input type="range" min="0" max="30" id="tqp-blur"><span class="vv" id="tqp-blurv"></span></div>'
+    +'<div class="rw"><span class="nm">浓度</span><input type="range" min="0" max="70" id="tqp-op"><span class="vv" id="tqp-opv"></span></div>'
+    +'<div class="hue" id="tqp-hue"></div>'
+    +'<div class="tip">这里调的是对话框玻璃外观，会实时同步到正在显示的 gal。背景由剧情所在地点(MVU)自动决定，不在这里手动切。</div>';
+  var sb=$('#tqp-blur'), sbv=$('#tqp-blurv'); sb.value=G.blur; sbv.textContent=G.blur+'px';
+  sb.oninput=function(){ G.blur=+this.value; sbv.textContent=G.blur+'px'; writeG(); };
+  var so=$('#tqp-op'), sov=$('#tqp-opv'); so.value=Math.round(G.op*100); sov.textContent=Math.round(G.op*100)+'%';
+  so.oninput=function(){ G.op=(+this.value)/100; sov.textContent=this.value+'%'; writeG(); };
+  var hueBox=$('#tqp-hue'), hues=[['深灰','15,20,28'],['深青','8,34,42'],['暖褐','38,26,18']];
+  hues.forEach(function(hh){ var b=D.createElement('div'); b.className='b'+((hh[1]===G.hue)?' on':''); b.textContent=hh[0];
+    b.onclick=function(){ G.hue=hh[1]; writeG(); $$('#tqp-hue .b').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); };
+    hueBox.appendChild(b); });
+
+  /* ---- 数据（逃生口）----
+     正常情况下手机数据是【按对话隔离】的，新开对话自动干净，不用管这里。
+     但万一酒馆版本读不到 chatId（指纹显示「默认」），自动隔离就失效了 —— 这时手动清。 */
+  var ok = (NS!=='default');
+  var dz=D.createElement('div');
+  dz.innerHTML='<div class="sec">数据</div>'
+    +'<div class="tip" style="margin:0 0 9px">会话指纹：<b style="color:'+(ok?'#3f9f7f':'#c9743c')+'">'+(ok?NS:'默认（没读到 chatId）')+'</b><br>'
+    +(ok ? '手机数据跟着这一场对话走。新开对话 = 新指纹 = 手机自动是空的，不会串到上一场。'
+         : '⚠️ 没读到对话 ID，自动隔离失效了 —— 换对话时手机内容会串。先用下面的按钮手动清，并把这行截图发我。')
+    +'</div>'
+    +'<div class="bgs"><div class="b" id="tqp-wipe" style="color:#c0392b;border-color:#e8c4bd">🗑 清空这台手机</div></div>'
+    +'<div class="tip">清掉私聊 / 小红书帖 / 趋势 / 直播存档（只清这一场，不动外观设置）。清完会从聊天记录里重新扫一遍。</div>';
+  wrap.appendChild(dz);
+
+  var wb=$('#tqp-wipe'), armed=false, t=null;
+  wb.onclick=function(){
+    if(!armed){ armed=true; wb.textContent='⚠️ 再点一次确认'; t=setTimeout(function(){ armed=false; wb.textContent='🗑 清空这台手机'; },3000); return; }
+    clearTimeout(t); armed=false;
+    for(var k in K){ try{ W.localStorage.removeItem(K[k]); }catch(e){} }
+    try{ W.localStorage.removeItem('tq_live_replay'); }catch(e){}
+    loadState();                                                    // 回到空状态
+    scanChat();                                                     // 再从当前聊天记录扫一遍（seen 已清空 → 全量重建）
+    renderContacts(); renderMsgs(); renderXHS(); renderTrends(); renderLive();
+    wb.textContent='✓ 已清空'; setTimeout(function(){ wb.textContent='🗑 清空这台手机'; },1600);
+  };
+}
+/* 事务所 App：显示 MVU 里的名气。数据源和 gal 是同一份 MVU。
+   ⚠️ v13 起【进度条那个数值没了】—— 不再是攒满 0~100 升级，而是【当前阶段有一个明确任务，
+      AI 每轮判断剧情里有没有达成；达成了就把 名气.阶段 推进到下一个】。
+      任务是【从阶段推导出来的】，不是变量 —— AI 只需要改 名气.阶段 这一个字段，改不坏。 */
+var STAGES=['地下偶像期','正式出道期','MV突破期','专辑稳定期'];
+var STAGE_INFO={
+  '地下偶像期':{fans:'800 - 2,000',live:'同接 30-80',biz:'基本没有',
+    goal:'正式出道', cond:'出道单曲正式发行', why:'现在还是 livehouse 和网上翻唱。要有一首真正属于她的歌，发出去。'},
+  '正式出道期':{fans:'5,000 - 15,000',live:'同接 150-400',biz:'月均 1-2 个邀约',
+    goal:'第一支 MV', cond:'第一支 MV 公开', why:'有歌了，但没有画面。要让人记住她长什么样。'},
+  'MV突破期':{fans:'20,000 - 50,000',live:'同接 500-1,500',biz:'月均 3-5 个邀约',
+    goal:'第一张专辑', cond:'第一张专辑发行', why:'单曲能红一时。要一张专辑，才算真正立住。'},
+  '专辑稳定期':{fans:'40,000 - 80,000',live:'同接 1,500-4,000',biz:'月均 5-10 个邀约',
+    goal:null, cond:null, why:'三个里程碑都拿到了。往后是更大的舞台 —— 但那是另一个故事了。'}
+};
+/* ====================================================================
+   直播间 App —— 最近三场直播的存档，点进去让 gal 界面切成那场的回放。
+   跨 iframe 怎么通信：写 localStorage['tq_live_replay'] → gal 监听 storage 事件接住。
+   （和外观调色板同一套路子；只有【最新那条消息】的 gal 会响应，见 gal 引擎 isLatest）
+   ==================================================================== */
+var LIVE_COVER={ '录音室':'https://files.catbox.moe/wohjuq.png', '宿舍':'https://files.catbox.moe/hz4r00.png' };   // 直播只用这两张背景（夜景版）
+function renderLive(){
+  var box=$('.lvl'); if(!box) return;
+  if(!liveShows.length){
+    box.innerHTML='<div class="lvempty">还没有直播存档。<br>天青每月会突然开 2-3 次播——<br>唱歌，或者深夜随便聊聊。<br><br>播过之后这里会留最近三场。</div>';
+    return;
+  }
+  box.innerHTML='';
+  liveShows.forEach(function(sh,i){
+    var c=document.createElement('div'); c.className='lvc';
+    var cover=LIVE_COVER[sh.bg]||LIVE_COVER['宿舍'];
+    var cv=document.createElement('div'); cv.className='cv'; cv.style.backgroundImage='url("'+cover+'")';
+    var b2=document.createElement('div'); b2.className='bd2';
+    var tag=document.createElement('span'); tag.className='lvt'; tag.textContent=(i===0?'最新':'回放');
+    var fm=document.createElement('span'); fm.textContent=sh.form+' · '+sh.bg;
+    b2.appendChild(tag); b2.appendChild(fm); cv.appendChild(b2);
+    var inn=document.createElement('div'); inn.className='in';
+    var t=document.createElement('div'); t.className='t'; t.textContent=sh.title;
+    var m=document.createElement('div'); m.className='m';
+    [sh.when, '💬 '+(sh.dm||0)+' 条弹幕', '🎁 '+(sh.sc||0)+' 个SC', sh.stage].forEach(function(x){
+      var e=document.createElement('span'); e.textContent=x; m.appendChild(e); });
+    var p=document.createElement('div'); p.className='p'; p.textContent=sh.peek||'';
+    inn.appendChild(t); inn.appendChild(m); if(sh.peek) inn.appendChild(p);
+    c.appendChild(cv); c.appendChild(inn);
+    c.onclick=function(){
+      try{ W.localStorage.setItem('tq_live_replay', JSON.stringify(sh)); }catch(e){}
+      goHome(); mask.classList.remove('on');                         // 收起手机，让用户直接看到 gal 切过去了
+    };
+    box.appendChild(c);
+  });
+}
+
+function buildAgency(){
+  var wrap=$('.agc'); if(!wrap) return;
+  var v=readMVU(), stage=v.阶段;
+  var si=STAGE_INFO[stage]||STAGE_INFO['地下偶像期'];
+  var cur=STAGES.indexOf(stage); if(cur<0) cur=0;
+  var next=STAGES[cur+1];
+  var steps='';
+  STAGES.forEach(function(s,i){
+    var cls=(i<cur)?'done':(i===cur?'now':'');
+    steps+='<div class="st '+cls+'"><span class="d"></span><span>'+esc(s)+'</span></div>';
+  });
+  var goalCard = si.goal
+    ? '<div class="card"><div class="stg">🎯 当前任务</div><div class="nm">'+esc(si.goal)+'</div>'
+      +'<div class="lbl"><span>达成条件</span><b>'+esc(si.cond)+'</b></div>'
+      +'<div class="hint">'+esc(si.why)+'<br><br>达成后 → 晋级「'+esc(next)+'」</div></div>'
+    : '<div class="card"><div class="stg">🏁 全部达成</div><div class="nm">出道 · MV · 专辑</div>'
+      +'<div class="hint">'+esc(si.why)+'</div></div>';
+  wrap.innerHTML=
+    '<div class="card"><div class="stg">当前阶段</div><div class="nm">'+esc(stage)+'</div>'
+    +'<div class="hint">第 '+(cur+1)+' / '+STAGES.length+' 阶段</div></div>'
+    + goalCard
+    +'<div class="rows"><div class="c"><div class="k">SNS 粉丝</div><div class="v">'+si.fans+'</div></div>'
+    +'<div class="c"><div class="k">直播规模</div><div class="v">'+si.live+'</div></div></div>'
+    +'<div class="card" style="margin-top:14px"><div class="stg">商业合作</div><div class="nm" style="font-size:16px;margin-bottom:0">'+si.biz+'</div></div>'
+    +'<div class="card"><div class="stg">成长路线</div><div class="steps">'+steps+'</div></div>';
+}
+
+/* 趋势刷新：让 AI 按当前剧情 + 名气阶段，重新生成一批趋势（推荐 or 地区，看当前在哪个板块） */
+var rfBusy=false;
+async function refreshTrends(){
+  if(rfBusy) return; rfBusy=true;
+  var btn=$('.sub[data-sp="trend"] .rf');   // 必须限定在【趋势】那个子页里 —— $('.rfz .rf') 会抓到推荐的那个（DOM 里它排在前面）
+  if(btn){ btn.classList.add('busy'); btn.textContent='⏳ 刷新中…'; }
+  var isArea = !!$('.ttb .t[data-tt="area"].on');
+  var v=readMVU();
+  var prompt;
+  if(isArea){
+    prompt='[独立任务 · 生成趋势热榜，忽略角色扮演格式]\n'
+      +'请生成 4 条【与天青无关】的社会热榜词条：时政、社会新闻、偶像行业动态、其他艺人的事、本地活动等，用来体现这个世界在正常运转。\n'
+      +'当前时间：第'+v.天数+'天 '+v.时段+'，地点：'+v.地点+'。\n'
+      +'每行一条，严格用这个格式（不要编号、不要多余的话）：\n分类|词条|热度说明\n'
+      +'例：\n娱乐 · 趋势|某顶流偶像 毕业公演|趋势 · 9.6万 帖子\n地区 · 趋势|都内 深夜地铁增发|4.2万 帖子\n\n直接输出 4 行：';
+  } else {
+    prompt='[独立任务 · 生成趋势热榜，忽略角色扮演格式]\n'
+      +'请生成 2~4 条和天青（艺名 Larimar，创作型偶像）相关的热榜词条，要贴合当前剧情和她的名气阶段。\n'
+      +'当前名气阶段：'+v.阶段+'。时间：第'+v.天数+'天 '+v.时段+'，地点：'+v.地点+'。\n'
+      +'【重要】热度数字必须匹配阶段：地下偶像期只有几百~一两千帖、且基本上不了大榜；正式出道期几千；MV突破期几万；专辑稳定期可到十几万。不要把地下偶像写成顶流。\n'
+      +'每行一条，严格用这个格式（不要编号、不要多余的话）：\n分类|词条|热度说明\n'
+      +'例：\n音乐 · 趋势|Larimar|趋势 · 1,842 帖子\n地下偶像 · 趋势|#今晚livehouse|612 帖子\n\n直接输出：';
+  }
+  var raw=stripWrap(await generate(prompt));   // 先剥思考链/注释，免得里面的示例标记污染解析
+  if(btn){ btn.classList.remove('busy'); btn.textContent='🔄 刷新'; }
+  rfBusy=false;
+  if(!raw){ alert('趋势刷新失败：拿不到生成接口，检查酒馆助手'); return; }
+  var out=[];
+  raw.replace(/<[^>]+>/g,'').split(/\r?\n/).forEach(function(ln){
+    ln=ln.trim(); if(!ln||ln.indexOf('|')<0) return;
+    var p=ln.split('|'); if(p.length<2) return;
+    var cat=p[0].trim().replace(/^[-*\d.、\s]+/,''), topic=(p[1]||'').trim(), cnt=(p[2]||'').trim();
+    if(!topic||topic.length>40) return;
+    out.push({cat:cat||(isArea?'地区 · 趋势':'热议 · 趋势'),topic:topic,cnt:cnt||'趋势'});
+  });
+  if(!out.length){ alert('趋势刷新失败：AI 没按格式返回\n\n它回的是：\n'+raw.slice(0,150)); return; }
+  /* 整批替换【刷新出来的那批】。旧写法 out.concat(extraTrends).slice(0,12) 会把
+     剧情里 AI 发的趋势一起挤出 12 条上限、悄悄丢掉。 */
+  if(isArea) feedArea=out; else feedTrends=out;
+  save(); renderTrends();
+}
+
+function openApp(n){ if(n==='xhs'){ var pd=$('.qcpage'); if(pd) pd.classList.remove('on'); curPost=-1; }
+  if(n==='skin') buildSkin(); if(n==='agency') buildAgency(); if(n==='live') renderLive(); if(n==='album'){ renderAlbTabs(); renderGenPanel(); renderGrid(); } $('.app[data-page="'+n+'"]').classList.add('on'); }
+function goHome(){ $$('.app').forEach(function(a){a.classList.remove('on');}); closeChat(); }
+$$('.ai').forEach(function(el){ el.onclick=function(){ openApp(el.dataset.app); }; });
+$('.hbar').onclick=goHome;
+var xbtn=$('.xbtn'); if(xbtn) xbtn.onclick=function(){ mask.classList.remove('on'); };
+$$('.hd .bk').forEach(function(b){ b.onclick=function(){ if(b.dataset.bk==='chat'&&curOpen){ closeChat(); $('.ctitle').textContent='聊天'; $('.csub').textContent=''; } else goHome(); }; });
+
+/* 聊天 */
+function renderContacts(){
+  var last=chatLog.length?chatLog[chatLog.length-1]:null, sub=last?(last.type==='sticker'?'[表情]':last.v):'和你一起来的地方…';
+  $('.clist').innerHTML='<div class="ct" data-c="tq">'+av(TIANQING_AVATAR)+'<div class="ci"><div class="cn">'+TIANQING_NAME+'</div><div class="cs">'+esc(sub)+'</div></div></div>'+
+    '<div class="ct dis">'+av(USER_AVATAR)+'<div class="ci"><div class="cn">多人群聊</div><div class="cs">（开发中）</div></div></div>';
+  $('.clist .ct[data-c="tq"]').onclick=openChat;
+}
+var curOpen=false;
+function openChat(){ curOpen=true; $('.ctitle').textContent=TIANQING_NAME; $('.csub').textContent='对方在线'; $('.cw').classList.add('on'); $('.tyav').src=TIANQING_AVATAR; renderMsgs(); }
+function closeChat(){ curOpen=false; $('.cw').classList.remove('on'); $('.sp').classList.remove('on'); }
+function renderMsgs(){ var h=''; chatLog.forEach(function(m){ var a=m.me?USER_AVATAR:TIANQING_AVATAR; var b=m.type==='sticker'?'<div class="bb stk"><img src="'+(STICKERS[m.v]||STICKER_FALLBACK)+'"></div>':'<div class="bb">'+esc(m.v)+'</div>'; h+='<div class="m'+(m.me?' me':'')+'">'+av(a)+b+'</div>'; }); $('.ms').innerHTML=h; var el=$('.ms'); el.scrollTop=el.scrollHeight; }
+function push(me,type,v){ chatLog.push({me:me,type:type,v:v}); save(); if(curOpen)renderMsgs(); renderContacts(); }
+
+/* 表情包 */
+$('.eb').onclick=function(){ $('.sp').classList.toggle('on'); };
+(function(){ var h='<div class="st add" title="表情包（以后可在数据区添加）">+</div>'; Object.keys(STICKERS).forEach(function(k){ h+='<div class="st" data-k="'+k+'"><img src="'+STICKERS[k]+'"></div>'; }); $('.sp').innerHTML=h;
+  $$('.sp .st[data-k]').forEach(function(el){ el.onclick=function(){ push(true,'sticker',el.dataset.k); $('.sp').classList.remove('on'); replyAsTianqing('[表情包]'+el.dataset.k); }; }); })();
+
+/* 发送 → 真 generate → <sms>
+   ⚠️ 选择器必须限定在【聊天的输入栏 .ib】里 —— 用裸 $('.cin') 会被误伤：
+      v11 把评论输入栏从 .cin 改名成 .qcbar 时做了全局替换 $('.cin')→$('.qcbar')，
+      把这里的聊天输入框也一起改了 → $('.qcbar') 拿到的是评论区那个 <div>，
+      .value 是 undefined，.trim() 直接抛异常 → 【发送按钮点了没反应，只有表情包能发】。 */
+$('.ib .snd').onclick=doSend;
+$('.ib .cin').addEventListener('keypress',function(e){ if(e.key==='Enter')doSend(); });
+function doSend(){ var inp=$('.ib .cin'); if(!inp) return; var v=(inp.value||'').trim(); if(!v)return;
+  inp.value=''; push(true,'text',v); replyAsTianqing(v); }
+
+/* ⚠️ 帖子正文里【可以有 ]】—— 世界书允许用 [[色:字]] 给正文上色（例：[[粉:他带了热可可]]）。
+   所以正文【绝不能】用 [^\]]* 匹配 —— 它会停在 [[粉:…]] 的第一个 ] 上，把标记从中间截断：
+     · 提取：正文被砍半，赞/评论/收藏三个数字读不到
+     · 隐藏：只删掉前半截，后半截 "…|127|28|45]" 原样漏在正文里（v15 实机截图就是这个）
+   正解：正文用【惰性 [\s\S]*?】，靠后面的 |赞|评论|收藏] 来收尾。
+   （赞/评论/收藏 三个字段里【不能】有 ] 或 |，那才是真正的结束锚点。）
+   ⚠️ 每次调用返回【新的】正则对象 —— /g 正则带 lastIndex 状态，共用一个会串场。 */
+function RE_POST(){ return /\[小红书\|([^|\n]*)\|([^|\n]*)\|([\s\S]*?)\|([^|\]\n]*)\|([^|\]\n]*)\|([^|\]\n]*)\]/g; }
+function RE_CMT(){ return /\[评论\|([^|\]\n]*)\|([^\]\n]*)\]/g; }   // 评论是单行短句，不会有 ]
+
+/* ==================== generate() 输出清洗 ====================
+   模型很爱在正文外面裹一层：<Think>思考链</Think>、<!-- 系统注释 -->、「好的，这是回复：」。
+   这些漏进私聊/评论区极其出戏 —— v14 的实机截图里，评论区直接印出了整段思考链和裸的 <cmt> 标签。
+
+   两个历史 bug（都真的发生过）：
+     ① cleanTag 的正则被【过度转义】：文件里写成 [\\s\\S]，JS 读成「反斜杠/s/S 三个字符的字符类」，
+        匹配不了任意字符 → 一次都没生效过，连正常的 <cmt>x</cmt> 都抠不出来。
+        (成因：把 JS 写在 Python 字符串里，转义多套了一层。)
+     ② cleanSms 只认 <think>/<thinking> 两种标签；换个名字或者【没闭合】就漏。
+
+   ⚠️ 改这段之后【必须从文件里 eval 出来跑测试】，不要在测试脚本里重新手打一遍 ——
+      手打的是对的、上线的是错的，测试就会骗你。①就是这么漏网的。 */
+
+var THINK = 'think|thinking|thought|thoughts|reasoning|reason|analysis|scratchpad|plan|planning|reflection|inner_monologue|monologue|思考|分析|推理';
+
+/* 剥包裹物：HTML 注释、各种思考块（含【没闭合】的）、代码栅栏、开场白 */
+function stripWrap(t){
+  t = String(t == null ? '' : t);
+  t = t.replace(/<!--[\s\S]*?-->/g, '');
+  t = t.replace(/<!--[\s\S]*$/g, '');
+  t = t.replace(new RegExp('<(' + THINK + ')\\b[^>]*>[\\s\\S]*?<\\/\\s*\\1\\s*>', 'gi'), '');
+  t = t.replace(new RegExp('^[\\s\\S]*?<\\/\\s*(?:' + THINK + ')\\s*>', 'i'), '');
+  t = t.replace(new RegExp('<(?:' + THINK + ')\\b[^>]*>[\\s\\S]*$', 'i'), '');
+  t = t.replace(/^\s*```[a-z]*\s*/i, '').replace(/\s*```\s*$/i, '');
+  t = t.replace(/^\s*(?:好的|好[的吧]|当然|明白|收到|以下是|这是|这里是)[^\n]{0,14}[：:]\s*/i, '');
+  return t.trim();
+}
+
+/* 从 <tag>…</tag> 取内容；取不到就剥掉包裹物返回剩下的 */
+function pickTag(raw, tag){
+  var t = String(raw == null ? '' : raw), m;
+  m = t.match(new RegExp('<\\s*' + tag + '\\s*>([\\s\\S]*?)<\\/\\s*' + tag + '\\s*>', 'i'));
+  if (m && m[1] && m[1].trim()) return stripWrap(m[1]);
+  m = t.match(new RegExp('<\\s*' + tag + '\\s*>([\\s\\S]+)', 'i'));
+  if (m && m[1] && m[1].trim()) return stripWrap(m[1]);
+  t = stripWrap(t);
+  var ps = t.split(/\n{2,}/).map(function(x){ return x.trim(); }).filter(Boolean);
+  return ps.length > 1 ? ps[ps.length - 1] : t;
+}
+
+/* 收尾：残留裸标签、markdown、首尾引号 */
+function polish(t, maxLen){
+  t = String(t == null ? '' : t)
+    .replace(/<\/?[A-Za-z_\u4e00-\u9fa5][^>\n]{0,40}>/g, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1')
+    .replace(/^["'\u300c\u300d\u201c\u201d\s]+|["'\u300c\u300d\u201c\u201d\s]+$/g, '')
+    .trim();
+  if (maxLen && t.length > maxLen) t = t.slice(0, maxLen);
+  return t;
+}
+
+function cleanSms(raw){
+  var t = polish(pickTag(raw, 'sms'), 200);
+  t = t.replace(/[\uff08(][^\uff09)]{0,30}[\uff09)]/g, '').replace(/\s+/g, ' ').trim();
+  return t || '\u2026\u2026';
+}
+function cleanTag(raw, tag){ return polish(pickTag(raw, tag), 300); }
+
+async function generate(prompt){
+  var c=ctx();
+  try{ var g=(typeof W.generate==='function')?W.generate:(typeof window.generate==='function'?window.generate:null);
+       if(g){ var r=await g({user_input:prompt,max_chat_history:'all'}); if(r&&typeof r==='string'&&r.trim())return r; } }catch(e){}
+  try{ if(c&&typeof c.generateQuietPrompt==='function'){ var r2=await c.generateQuietPrompt(prompt,false,false,'','',{skip_wian:false}); if(r2&&r2.trim())return r2; } }catch(e){}
+  return '';
+}
+/* ---------- 私聊里天青也能发表情包（v18） ----------
+   ⚠️ 这是【和正文叙事不同的一条路】：
+     · 正文里 AI 写 [短信|天青|表情|名字] → scanChat 提取  ← 世界书契约管这个
+     · 你在手机里直接跟她聊 → replyAsTianqing() 单独 generate ← 【提示词是写在这个 JS 里的】
+   v17 之前这条路的提示词【只让她回 <sms>文字</sms>】，压根没告诉她可以发表情包 ——
+   所以你说「发个表情包」，她会回一句「遵命！那我发这个——」然后什么也没有。 */
+
+/* 贴纸名容错：AI 可能写成「开心.png」「[开心]」「开心（笑）」，也可能写立绘名 */
+function pickSticker(x){
+  var s=String(x==null?'':x).replace(/[\[\]「」【】（）()"'`\s]/g,'').replace(/\.(png|jpe?g|webp)$/i,'').trim();
+  if(!s) return null;
+  if(STICKERS[s]) return s;
+  var ks=Object.keys(STICKERS);
+  for(var i=0;i<ks.length;i++) if(s.indexOf(ks[i])>=0 || ks[i].indexOf(s)>=0) return ks[i];
+  return null;                                    // 认不出来就【不发】，别乱塞一个不对的
+}
+
+/* 解析她的回复：<sms>文字</sms> 和 <stk>贴纸名</stk> 可以混着来，【按出现顺序】依次发出 */
+function parseReply(raw){
+  var t=stripWrap(raw), out=[], m;
+  var re=/<\s*(sms|stk)\s*>([\s\S]*?)<\/\s*\1\s*>/gi;
+  while(m=re.exec(t)){
+    if(m[1].toLowerCase()==='stk'){
+      var n=pickSticker(m[2]); if(n) out.push({type:'sticker', v:n});
+    }else{
+      var v=polish(m[2],200).replace(/[（(][^）)]{0,30}[）)]/g,'').replace(/\s+/g,' ').trim();
+      if(v) out.push({type:'text', v:v});
+    }
+  }
+  if(!out.length){                                // 一个标签都没写 → 当纯文字处理
+    var f=cleanSms(raw);
+    if(f && f!=='……') out.push({type:'text', v:f});
+  }
+  return out;
+}
+
+async function replyAsTianqing(userMsg){
+  $('.sp').classList.remove('on'); $('.ty').classList.add('on'); var el=$('.ms'); if(el)el.scrollTop=el.scrollHeight;
+
+  /* 最近的对话要【带上表情包】—— 原来只取 type==='text'，她根本看不见你发过什么贴纸 */
+  var recent=chatLog.slice(-10).map(function(m){
+    var who=m.me?'制作人':'天青';
+    return who+'：'+(m.type==='sticker' ? '[表情包：'+m.v+']' : m.v);
+  }).join('\n');
+
+  var names=Object.keys(STICKERS).join('` `');
+  var prompt='[独立任务 · 手机短信回复，忽略之前的角色扮演格式]\n'
+    +'你现在是天青，在手机上回复制作人（{{user}}）的私聊。天青是透明直球、心口如一的偶像，喜欢直接表达。\n\n'
+    +'【回复格式】文字和表情包可以混着发，【按你想发的顺序】写下来：\n'
+    +'  · 文字：<sms>一句话</sms>   （1~3 句纯短信口语，不要动作/旁白/括号/markdown）\n'
+    +'  · 表情包：<stk>贴纸名</stk>\n\n'
+    +'【表情包只能从这 15 个里【原样照抄】名字】（写别的会发不出去）：\n`'+names+'`\n'
+    +'挑贴纸提示：撒娇求饶→`举白旗` `少女祈祷中`；被戳穿/害羞躲起来→`从墙边探头` `从纸箱里探头`；'
+    +'夸他→`点赞`；得意→`得意` `开心`；累了→`叹气` `低落`；不服/拒绝→`不行` `生气`；没听懂→`不知道` `疑问` `思考`；委屈→`害怕或哭泣`。\n\n'
+    +'【什么时候发表情包】想撒娇、被逗到、懒得打字、或者制作人【明确让她发】的时候。别每条都发。\n'
+    +'例（她被夸了，先回一句再发个贴纸）：\n<sms>嘿嘿，那是当然的</sms>\n<stk>得意</stk>\n\n'
+    +'[最近的对话]\n'+(recent||'（第一次聊）')
+    +'\n\n[制作人刚发来]\n"'+userMsg+'"\n\n直接输出天青的回复：';
+
+  var raw=await generate(prompt);
+  $('.ty').classList.remove('on');
+  if(!raw){ push(false,'text','（天青暂时没回…检查一下酒馆助手/生成接口）'); return; }
+  var items=parseReply(raw);
+  if(!items.length){ push(false,'text','（天青没回上来…）'); return; }
+  items.forEach(function(it,i){                   // 多条的话错开一点，像真人一条条发
+    setTimeout(function(){ push(false, it.type, it.v); }, i*420);
+  });
+}
+
+/* 小红书 */
+var XC={红:'#ff5b6a',橙:'#ff9a3d',黄:'#e6ac00',绿:'#3ec97a',蓝:'#3d9aff',紫:'#a86bff',粉:'#ff6bb0',青:'#2b899d'};
+function mk(t){ var s=esc(t); s=s.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>'); s=s.replace(/\[\[([^\]:]+):([^\]]+)\]\]/g,function(m,c,x){return '<span style="color:'+(XC[c]||c)+'">'+x+'</span>';}); s=s.replace(/\[\[([^\]]+)\]\]/g,'<span style="color:#ff6bb0">$1</span>'); return s; }
+/* 剧情帖（她真的发过的）永远在上；刷新出来的信息流在下 */
+function allPosts(){ return extraPosts.concat(feedPosts); }
+function cmtCount(p){ return (p.cmts&&p.cmts.length) ? p.cmts.length : (+p.comments||0); }
+function postCard(p,i){
+  return '<div class="po" data-i="'+i+'"><div class="tp">'+av(p.avatar||(p.author===TIANQING_NAME?TIANQING_AVATAR:USER_AVATAR))
+    +'<div class="au">'+esc(p.author)+'</div>'+(p.tag?'<div class="tg">'+esc(p.tag)+'</div>':'')
+    +'</div><div class="ti">'+esc(p.title)+'</div><div class="bo">'+mk(p.body)+'</div>'
+    +'<div class="ft"><span>❤️ '+(p.likes||'…')+'</span><span>💬 '+cmtCount(p)+'</span><span>⭐ '+(p.stars||0)+'</span></div></div>';
+}
+function renderXHS(){
+  var posts=allPosts(), h='';
+  posts.forEach(function(p,i){ h+=postCard(p,i); });
+  $('.xl').innerHTML=h;
+  $$('.xl .po').forEach(function(el){ el.onclick=function(){ openPost(+el.dataset.i); }; });   // 点开帖子 → 详情页
+}
+
+/* ---------- 帖子详情 + 评论区 ----------
+   评论从哪来：① AI 在正文里写 [评论|评论者|内容]（跟在 [小红书|…] 后面）→ scanChat 提取
+              ② {{user}} 自己在这里发
+   {{user}} 评论【天青的帖子】→ 走 generate 让天青回一条（和私信 <sms> 一个套路，只是包在 <cmt> 里）。
+   别人的帖子下面，天青不会来回 —— 那不合逻辑。 */
+var curPost=-1;
+function openPost(i){
+  curPost=i; renderPostDetail();
+  $('.qcpage').classList.add('on');
+  var ci=$('.qcbar .qcinput'); if(ci) ci.value='';
+}
+function closePost(){ $('.qcpage').classList.remove('on'); curPost=-1; renderXHS(); }
+function renderPostDetail(){
+  var p=allPosts()[curPost]; if(!p) return;
+  var mine = (p.author===TIANQING_NAME);   // 只用来决定空评论区的文案
+  var h=postCard(p,curPost).replace('class="po"','class="po" style="cursor:default"');
+  h+='<div class="qcnum">评论 '+cmtCount(p)+'</div>';
+  var cs=p.cmts||[];
+  if(!cs.length) h+='<div class="qcempty">还没有人评论～'+(mine?'　来当第一个吧':'')+'</div>';
+  cs.forEach(function(c){
+    var who=cmtWho(c), isAu=isAuthorCmt(c);
+    var cls = c.me ? ' me' : (isAu ? ' au' : '');
+    var avu = c.me ? USER_AVATAR : (who===TIANQING_NAME ? TIANQING_AVATAR : '');
+    h+='<div class="qcrow'+cls+'">'+(avu?av(avu):'<div class="avt" style="background:#dbe5ea"></div>')
+      +'<div class="qctxt"><div class="qcwho">'+esc(who)+(isAu?' · 作者':'')+'</div><div class="qcmsg">'+esc(c.text)+'</div></div></div>';
+  });
+  $('.qcbd').innerHTML=h;
+  $('.qcbd').scrollTop=0;
+  $('.qcbar').style.display='flex';
+}
+/* {{user}} 在帖子下评论 → 【这条帖子的作者】来回他。
+   v14 之前只有天青的帖子会回；现在【任何帖子】的作者都会回 —— 真实的 SNS 就是这样，
+   你在谁的帖子下留言，就是谁回你。
+
+   ⭐ 一个刻意做对的细节：
+     · 天青【认得出】{{user}} 的账号 —— 她知道这是她的制作人，会当众炫耀他、会撒娇
+     · 别人【不认得】—— 音乐系学长看到的只是一个路人网友，不知道你是天青的制作人
+       （除非你自己在评论里说漏嘴，或者帖子上下文已经能看出来） */
+function cmtWho(c){ return c.me ? '我' : (c.who || (c.tq ? TIANQING_NAME : '')); }   // c.tq 是 v13 及以前的老数据
+function isAuthorCmt(c){ return !!(c.au || c.tq); }
+
+async function sendComment(){
+  var p=allPosts()[curPost]; if(!p) return;
+  var ci=$('.qcbar .qcinput'), btn=$('.qcbar .qcsend'), t=(ci.value||'').trim(); if(!t) return;
+  if(!p.cmts) p.cmts=[];
+  p.cmts.push({me:true, who:'我', text:t}); ci.value=''; save(); renderPostDetail();
+  $('.qcbd').scrollTop=$('.qcbd').scrollHeight;
+
+  var author=p.author||'', isTQ=(author===TIANQING_NAME);
+  btn.disabled=true;
+  p.cmts.push({au:true, who:author, text:'…', pending:true}); renderPostDetail();
+  $('.qcbd').scrollTop=$('.qcbd').scrollHeight;
+
+  var others=p.cmts.filter(function(c){return !c.pending;}).slice(-6)
+      .map(function(c){ return (c.me?'（这个人）':cmtWho(c))+'：'+c.text; }).join('\n');
+
+  var who = isTQ
+    ? '你现在是【天青】，在自己的小红书帖子下面回复评论。\n'
+      + '天青是透明直球、心口如一的地下偶像，当众炫耀制作人也毫不脸红。\n'
+      + '【刚评论你的这个人就是 {{user}} —— 你的制作人。你一眼就认得出他的账号。】\n'
+    : '你现在要【扮演这条帖子的作者「'+author+'」】，回复评论区里一条新评论。\n'
+      + '「'+author+'」不是天青，是天青所在这个圈子里的另一个人（粉丝 / 同行 / 路人）。\n'
+      + '【从帖子的标题和正文判断他/她是谁、什么口吻】，就用那个人的语气回。别演成天青。\n'
+      + '⚠️【他不知道刚评论的这个人是谁】—— 在他眼里就是个普通网友。不要突然叫对方「制作人」，\n'
+      + '也不要表现得认识对方，除非评论内容本身已经说漏嘴了。\n';
+
+  var prompt='[独立任务 · 小红书评论区回复，忽略之前的角色扮演格式]\n'+who
+    +'\n规则：只输出 1~2 句评论区口语，短，可以带点表情符号，不要动作/旁白/括号/markdown，用 <cmt></cmt> 包裹。\n\n'
+    +'[这条帖子]\n作者：'+author+'\n标题：'+p.title+'\n正文：'+p.body
+    +'\n\n[评论区]\n'+(others||'（还没人评论）')
+    +'\n\n[刚有人评论了]\n"'+t+'"\n\n直接输出「'+author+'」的回复：';
+
+  var raw=await generate(prompt);
+  p.cmts=p.cmts.filter(function(c){return !c.pending;});
+  var txt=cleanTag(raw,'cmt');
+  p.cmts.push({au:true, who:author, text: txt || '（没回上来…检查一下酒馆助手/生成接口）'});
+  btn.disabled=false; save(); renderPostDetail();
+  $('.qcbd').scrollTop=$('.qcbd').scrollHeight;
+}
+
+
+/* 推荐刷新：让 AI 按当前剧情 + 名气阶段重新生成一批帖子（带粉丝评论） */
+async function refreshPosts(){
+  var btn=$('.qcrf'); if(btn){ btn.classList.add('busy'); btn.textContent='⏳ 刷新中…'; }
+  var v=readMVU();
+  var prompt='[独立任务 · 生成小红书推荐流，忽略之前的角色扮演格式]\n'
+    +'按天青【当前的名气阶段】生成 3 条小红书帖子（可以是天青发的，也可以是粉丝/同行发的和她相关的），每条配 1~3 条粉丝评论。\n'
+    +'当前：阶段='+(v.阶段||'地下偶像期')+'，地点='+(v.地点||'')+'，时段='+(v.时段||'')+'\n'
+    +'⚠️ 互动数据必须匹配当前阶段（地下偶像期就是几十上百的赞，别写成顶流）。\n\n'
+    +'每条严格按这个格式，一行一个，不要别的任何内容：\n'
+    +'[小红书|作者|标题|正文|赞|评论|收藏]\n[评论|评论者ID|评论内容]\n\n直接开始：';
+  var raw=stripWrap(await generate(prompt));   // 先剥思考链/注释，免得里面的示例标记污染解析
+  if(btn){ btn.classList.remove('busy'); btn.textContent='🔄 刷新'; }
+  if(!raw){ alert('刷新失败：拿不到生成接口，检查酒馆助手'); return; }
+
+  /* ⚠️ 必须【整段扫】，不能按行扫 —— AI 写的帖子正文经常是跨多行的（正文里有换行），
+     逐行 exec 的话跨行的 [小红书|…] 永远匹配不上，就会一直报「格式没解析出来」。 */
+  var got=[], x;
+  var rp=RE_POST();
+  while(x=rp.exec(raw)){
+    got.push({at:x.index, author:x[1].trim(), title:x[2].trim(), body:x[3].trim(),
+      avatar:(x[1].trim()===TIANQING_NAME?TIANQING_AVATAR:USER_AVATAR), tag:'动态',
+      likes:(x[4]||'').trim()||'…', comments:(x[5]||'').trim()||0, stars:(x[6]||'').trim()||0, cmts:[]});
+  }
+  if(!got.length){ alert('推荐刷新失败：AI 没按格式返回\\n\\n它回的是：\\n'+raw.slice(0,180)); return; }
+  /* 评论按位置认领：挂到【它前面最近的那条帖子】上 */
+  var rc=RE_CMT();
+  while(x=rc.exec(raw)){
+    var owner=null;
+    for(var i=0;i<got.length;i++){ if(got[i].at < x.index) owner=got[i]; else break; }
+    if(owner) owner.cmts.push({who:x[1].trim(), text:x[2].trim()});
+  }
+  /* 【整批替换】上一批刷新的（或开局的底帖），不碰剧情帖。
+     也【不要】动 seen.post —— 刷新帖不在聊天记录里，写进 seen 反而会把后面同名的剧情帖挡掉。 */
+  got.forEach(function(p){ delete p.at; });
+  feedPosts = got;
+  closePost();                                                     // 详情页可能停在被换掉的那条上，先关掉
+  save(); renderXHS();
+  var bd=$('.sub[data-sp="rec"]'); if(bd) bd.scrollTop=0;
+}
+function trendHTML(ts){ var h=''; ts.forEach(function(t,i){ h+='<div class="tit"><div class="c">'+(i+1)+' · '+esc(t.cat)+'</div><div class="o">'+esc(t.topic)+'</div><div class="n">'+esc(t.cnt)+'</div></div>'; }); return h; }
+function renderTrends(){ $('.tlist').innerHTML=trendHTML(extraTrends.concat(feedTrends)); $('.tlist2').innerHTML=trendHTML(extraArea.concat(feedArea)); }
+var _rf=$('.sub[data-sp="trend"] .rf'); if(_rf) _rf.onclick=function(){ refreshTrends(); };
+var _rf2=$('.qcrf'); if(_rf2) _rf2.onclick=function(){ refreshPosts(); };
+var _pbk=$('.qchd .qcbk'); if(_pbk) _pbk.onclick=function(){ closePost(); };
+var _cs=$('.qcbar .qcsend'); if(_cs) _cs.onclick=function(){ sendComment(); };
+var _ci=$('.qcbar .qcinput'); if(_ci) _ci.onkeydown=function(e){ if(e.key==='Enter'){ e.preventDefault(); sendComment(); } };
+/* 趋势内层：推荐 / 地区 切换 */
+$$('.ttb .t').forEach(function(t){ t.onclick=function(){
+  $$('.ttb .t').forEach(function(x){x.classList.remove('on');}); t.classList.add('on');
+  var isRec=(t.dataset.tt==='rec');
+  $('.tlist').style.display=isRec?'block':'none';
+  $('.tlist2').style.display=isRec?'none':'block';
+  $('.tban .a').textContent=isRec?'全球趋势':'地区趋势';
+  $('.tban .b').textContent=isRec?'最热门的帖子':'你附近正在讨论';
+}; });
+$$('.stb .s').forEach(function(t){ t.onclick=function(){ $$('.stb .s').forEach(function(x){x.classList.remove('on');}); t.classList.add('on'); $$('.sub').forEach(function(p){p.classList.remove('on');}); $('.sub[data-sp="'+t.dataset.sub+'"]').classList.add('on'); }; });
+
+/* ==================== 相册 + 文生图 ====================
+   文生图的 UI 从 gal 搬到了这里（gal 上挂着按钮太丑）。
+
+   ⚠️ 为什么之前点了没反应 —— 是【结构问题】不是代码 bug：
+      用户那套是【油猴脚本】出图：脚本扫聊天消息 DOM 里的 <image>…</image>，自己调 NAI。
+      而我们原来让 AI 把 <image> 写在 <Gal>…</Gal> 【里面】—— gal 正则会把 <Gal> 整块吃掉换成 iframe，
+      油猴脚本【根本看不到那个 <image>】。
+      修法：世界书改成把 <image> 放在 </Gal> 【之后】（和 <UpdateVariable>、[短信|…] 一个待遇）。
+      这样：① 油猴脚本能看到、自动出图  ② 小手机也能从聊天记录里把 prompt 读出来（下面 lastImagePrompt）。
+
+   出图后写 localStorage['tq_gal_cg'] → gal 监听 storage 接住 → 铺成「✨ AI 生成」那张 CG。 */
+var ALB_GEN='✨ 生成';
+ALBUMS[ALB_GEN]=JSON.parse(LSget('tqp.gen')||'null')||[];      // 生成过的图（跨对话保留，是素材不是剧情）
+function saveGen(){ try{ LSset('tqp.gen',JSON.stringify(ALBUMS[ALB_GEN].slice(-24))); }catch(e){} }
+
+/* 从聊天记录里捞【最近一条】AI 消息里的 <image> prompt */
+function lastImagePrompt(){
+  var c=ctx(); if(!c||!c.chat) return null;
+  for(var i=c.chat.length-1;i>=0;i--){ var m=c.chat[i];
+    if(!m||!m.mes||m.is_user) continue;
+    var x=m.mes.match(/<image>\s*image\s*###([\s\S]*?)###\s*<\/image>/i);
+    if(x) return x[1].trim();
+  }
+  return null;
+}
+/* NAI 三段式 → 一行（酒馆自带的「文生图」斜杠命令吃不下分段标签和 centers） */
+function flatPrompt(p){
+  var sc=(p.match(/Scene Composition:([\s\S]*?);/i)||[])[1]||'';
+  var ch=(p.match(/Character 1 Prompt:([\s\S]*?);/i)||[])[1]||'';
+  ch=ch.split('|')[0];                                          // 去掉 |centers:c3（那是 NAI4 的角色站位）
+  var out=[ch.trim(),sc.trim()].filter(Boolean).join(', ');
+  return out||p.replace(/\s+/g,' ').trim();
+}
+/* 环境探测 —— 一次性查清楚这台酒馆到底有什么，别再靠猜 */
+function probe(){
+  var c=ctx(), r=[];
+  r.push(['酒馆上下文', !!c]);
+  r.push(['triggerSlash', typeof W.triggerSlash==='function'||typeof window.triggerSlash==='function']);
+  r.push(['TavernHelper', !!(W.TavernHelper&&W.TavernHelper.triggerSlash)]);
+  r.push(['斜杠命令执行器', !!(c&&c.executeSlashCommandsWithOptions)]);
+  var sd=false; try{ sd=!!(c&&c.extensionSettings&&(c.extensionSettings.sd||c.extensionSettings.stable_diffusion)); }catch(e){}
+  r.push(['酒馆自带文生图扩展', sd]);
+  var tm=false; try{ tm=!!(W.document.querySelector('img.tm-nai,[data-nai],.nai-image')||W.__NAI__||W.naiGenerate); }catch(e){}
+  r.push(['油猴 NAI 脚本(粗测)', tm]);
+  return r;
+}
+/* 调酒馆自带的绘图后端。三条路逐个试 */
+function callSD(prompt){
+  var cmd='/imagine quiet=true '+prompt;
+  var tries=[
+    ['triggerSlash', function(){ var f=W.triggerSlash||window.triggerSlash; return typeof f==='function'?f(cmd):null; }],
+    ['TavernHelper.triggerSlash', function(){ return (W.TavernHelper&&W.TavernHelper.triggerSlash)?W.TavernHelper.triggerSlash(cmd):null; }],
+    ['executeSlashCommandsWithOptions', function(){ var c=ctx(); return (c&&c.executeSlashCommandsWithOptions)?c.executeSlashCommandsWithOptions(cmd):null; }]
+  ];
+  return (function next(i){
+    if(i>=tries.length) return Promise.reject(new Error('三条路都不通'));
+    var out; try{ out=tries[i][1](); }catch(e){ return next(i+1); }
+    if(!out) return next(i+1);
+    return Promise.resolve(out).then(function(res){
+      var u=pickUrl(res);
+      if(u){ console.log('[小手机] 绘图后端 →',tries[i][0]); return u; }
+      return next(i+1);
+    }, function(){ return next(i+1); });
+  })(0);
+}
+/* 各版本返回值形状不一样（字符串 / {pipe} / {result:{imagePath}} / 数组）—— 把图片路径揪出来 */
+function pickUrl(x,d){
+  d=d||0; if(x==null||d>4) return null;
+  if(typeof x==='string'){ var t=x.trim();
+    return /^(https?:|data:image|\/|user\/images|\.\/)/i.test(t)&&/\.(png|jpe?g|webp|gif)(\?|$)/i.test(t)?t:null; }
+  if(typeof x==='object'){
+    var ks=['pipe','result','imagePath','image','url','path','value'];
+    for(var i=0;i<ks.length;i++){ var u=pickUrl(x[ks[i]],d+1); if(u) return u; }
+    if(Array.isArray(x)) for(var j=0;j<x.length;j++){ var v=pickUrl(x[j],d+1); if(v) return v; }
+  }
+  return null;
+}
+/* 把图送去 gal 当 CG */
+function sendToGal(url){ try{ W.localStorage.setItem('tq_gal_cg',url); }catch(e){} }
+
+/* ---- 生成面板 ---- */
+function renderGenPanel(){
+  var p=$('.genp'); if(!p) return;
+  if(curAlb!==ALB_GEN){ p.classList.remove('on'); return; }
+  p.classList.add('on');
+  var prompt=lastImagePrompt();
+  p.innerHTML='';
+  var pv=D.createElement('div'); pv.className='pv'+(prompt?'':' none');
+  pv.textContent = prompt || '这一轮 AI 没给文生图 prompt。\n（世界书让它在高光时刻才给 <image>）';
+  var rw=D.createElement('div'); rw.className='rw';
+  var go=D.createElement('button'); go.className='go'; go.textContent='🎨 生成'; go.disabled=!prompt;
+  var cp=D.createElement('button'); cp.textContent='📋 复制'; cp.disabled=!prompt;
+  var st=D.createElement('div'); st.className='st';
+  var dg=D.createElement('div'); dg.className='dg';
+  dg.textContent='环境：'+probe().map(function(x){return (x[1]?'✓':'✗')+x[0];}).join('  ');
+  rw.appendChild(go); rw.appendChild(cp);
+  p.appendChild(pv); p.appendChild(rw); p.appendChild(st); p.appendChild(dg);
+
+  function say(m,c){ st.textContent=m; st.className='st'+(c?' '+c:''); }
+  cp.onclick=function(){ var t=flatPrompt(prompt);
+    try{ W.navigator.clipboard.writeText(t); }catch(e){ try{ navigator.clipboard.writeText(t); }catch(e2){} }
+    say('已复制。在酒馆输入框发  /imagine  贴上它也能出图。','ok'); };
+  go.onclick=function(){
+    go.disabled=true; say('生成中…');
+    callSD(flatPrompt(prompt)).then(function(url){
+      ALBUMS[ALB_GEN].push({name:'生成 '+new Date().toLocaleTimeString().slice(0,5),url:url}); saveGen();
+      sendToGal(url); go.disabled=false;
+      say('出图了 —— 已经送去 gal 顶掉当前那张 CG','ok');
+      renderAlbTabs(); renderGrid();
+    }).catch(function(e){
+      go.disabled=false;
+      say('调不到酒馆的绘图后端（'+(e&&e.message||e)+'）。\n\n如果你用的是【油猴 NAI 脚本】，它是自己扫消息里的 <image> 出图的，不走这个按钮 —— 装了 v9 卡之后 <image> 会写在 </Gal> 外面，脚本就能看到了，图会直接出在消息里。\n如果你用的是【酒馆自带的文生图扩展】，先去把它配好、单独测一次 /imagine 能不能出图。\n实在不行点「📋 复制」手动发。','err');
+      console.warn('[小手机] 绘图失败',e);
+    });
+  };
+}
+
+/* 相册 */
+var curAlb='背景';
+function renderAlbTabs(){ var h=''; Object.keys(ALBUMS).forEach(function(k){ h+='<div class="a'+(k===curAlb?' on':'')+'" data-k="'+k+'">'+k+'（'+ALBUMS[k].length+'）</div>'; }); $('.atb').innerHTML=h; $$('.atb .a').forEach(function(el){ el.onclick=function(){ curAlb=el.dataset.k; renderAlbTabs(); renderGenPanel(); renderGrid(); }; }); }
+function renderGrid(){ var h=''; ALBUMS[curAlb].forEach(function(it){ h+='<div class="cl" data-u="'+it.url+'" data-n="'+it.name+'"><img src="'+it.url+'"><span>'+it.name+'</span></div>'; }); $('.gr').innerHTML=h;
+  $$('.gr .cl').forEach(function(el){ el.onclick=function(){
+    if(curAlb===ALB_GEN){ sendToGal(el.dataset.u); }            // 生成册里点图 = 送去 gal 当 CG
+    $('.lbi').src=el.dataset.u; $('.cap').textContent=el.dataset.n+(curAlb===ALB_GEN?'（已送去 gal）':''); $('.lbx').classList.add('on'); }; }); }
+$('.lbx .x').onclick=function(){ $('.lbx').classList.remove('on'); };
+$('.lbx').onclick=function(e){ if(e.target===this)this.classList.remove('on'); };
+
+/* ====================================================================
+   ④ 提取正文里的手机内容 + 注入上下文
+   ==================================================================== */
+function scanChat(){
+  var c=ctx(); if(!c||!c.chat) return; var changed=false;
+  c.chat.forEach(function(m){ if(!m.mes||m.is_user) return; var s=m.mes,x;
+    var r1=/\[短信\|天青\|(文字|表情)\|([^\]]+)\]/g; while(x=r1.exec(s)){ var k=x[1]+'|'+x[2].trim(); if(!seen.sms[k]){ seen.sms[k]=1; chatLog.push({me:false,type:(x[1]==='表情'?'sticker':'text'),v:x[2].trim()}); changed=true; } }
+    /* [小红书|作者|标题|正文] 或 [小红书|作者|标题|正文|赞|评论|收藏]（数据可选，AI 按当前名气阶段给） */
+    var r2=RE_POST();
+    while(x=r2.exec(s)){
+      var pk=x[1].trim()+'|'+x[2].trim();
+      if(seen.post[pk]) continue;
+      seen.post[pk]=1;
+      extraPosts.unshift({id:'p'+h32(pk), author:x[1].trim(),title:x[2].trim(),body:x[3].trim(),
+        avatar:(x[1].trim()===TIANQING_NAME?TIANQING_AVATAR:USER_AVATAR),tag:'动态',
+        likes:(x[4]||'').trim()||'…', comments:(x[5]||'').trim()||0, stars:(x[6]||'').trim()||0, cmts:[]});
+      changed=true;
+    }
+    /* [评论|评论者|内容] —— 挂到【它前面最近的那条 [小红书|…]】上。粉丝评论就是这么来的。
+       注意顺序：AI 先写 [小红书|…] 再连着写几条 [评论|…]，所以这个循环必须在上面 r2 之后跑。 */
+    var r2c=RE_CMT();
+    while(x=r2c.exec(s)){
+      var before=s.slice(0,x.index), lastPost=before.lastIndexOf('[小红书|');
+      if(lastPost<0) continue;                                            // 前面没帖子 → 这条评论没主，丢掉
+      var pm=/\[小红书\|([^|]+)\|([^|]+)\|/.exec(s.slice(lastPost));
+      if(!pm) continue;
+      // 用「作者|标题」认领，【不要用 id】—— v10 之前扫进 localStorage 的老帖子根本没有 id 字段，
+      // 用 id 匹配会全部认领失败 → 界面显示「评论 4」（那是标记里的数字）但列表是空的。
+      var pa=pm[1].trim(), pt=pm[2].trim();
+      var ck=pa+'|'+pt+'|'+x[1].trim()+'|'+x[2].trim();
+      if(seen.cmt[ck]) continue;
+      seen.cmt[ck]=1;
+      var tgt=extraPosts.filter(function(p){return p.author===pa && p.title===pt;})[0];
+      if(tgt){ if(!tgt.cmts) tgt.cmts=[]; tgt.cmts.push({who:x[1].trim(), text:x[2].trim()}); changed=true; }
+    }
+    /* 直播：<Gal> 里带 <live>形式|背景|标题</live> = 这一轮是一场直播 → 整段存下来，供直播间 App 回放。
+       只留最近 3 场（新的在前），第 4 场进来就挤掉最旧的。raw 存 <Gal> 整段，gal 引擎回放时直接重新解析它。 */
+    var rl=/<Gal>([\s\S]*?)<\/Gal>/g;
+    while(x=rl.exec(s)){
+      var raw=x[0], lv=raw.match(/<live>([^<]*)<\/live>/); if(!lv) continue;
+      var p=lv[1].split('|'), form=(p[0]||'杂谈').trim(), bg=(p[1]||'宿舍').trim(), title=(p[2]||'').trim();
+      var first=(raw.match(/^\s*「([^」]{1,40})/m)||[])[1]||'';
+      var lk=form+'|'+bg+'|'+title+'|'+first;                       // 去重键：同一场不会被重复扫进来
+      if(seen.live[lk]) continue;
+      seen.live[lk]=1;
+      var mv=readMVU();
+      liveShows.unshift({ id:'lv'+Date.now(), form:form, bg:bg, title:title||(form==='唱歌'?'弹唱回':'深夜电台'),
+        when:'第'+mv.天数+'天 · '+mv.时段, stage:mv.阶段, raw:raw,
+        dm:(raw.match(/<dm>/g)||[]).length, sc:(raw.match(/<sc>/g)||[]).length,
+        peek:(raw.match(/「([^」]{1,50})」/g)||[]).slice(0,2).join(' ').replace(/[「」]/g,'') });
+      if(liveShows.length>3) liveShows.length=3;                    // 只保留最近三场
+      changed=true;
+    }
+    /* [趋势|推荐|词条|说明] → 推荐板块(天青相关)；[趋势|地区|词条|说明] → 地区板块(时政/行业)
+       兼容旧写法 [趋势|词条|说明]（无板块）→ 落到推荐板块 */
+    var r3=/\[趋势\|([^|\]]+)\|([^|\]]+)(?:\|([^\]]+))?\]/g;
+    while(x=r3.exec(s)){
+      var a=x[1].trim(), b=x[2].trim(), c=(x[3]||'').trim();
+      var isArea=false, topic=a, note=b;
+      if(a==='推荐'||a==='地区'){ isArea=(a==='地区'); topic=b; note=c; }   // 三段式
+      if(!topic) continue;
+      var tk=(isArea?'A:':'R:')+topic;
+      if(seen.trend[tk]) continue;
+      seen.trend[tk]=1;
+      var item={cat:isArea?'地区 · 趋势':'热议 · 趋势',topic:topic,cnt:note||'趋势'};
+      if(isArea) extraArea.unshift(item); else extraTrends.unshift(item);
+      changed=true;
+    }
+  });
+  if(changed){ save(); if(curOpen)renderMsgs(); renderContacts(); renderXHS(); renderTrends(); renderLive(); }
+}
+function injectContext(){
+  var c=ctx(); if(!c||typeof c.setExtensionPrompt!=='function') return;
+  var recent=chatLog.filter(function(m){return m.type==='text';}).slice(-8);
+  if(!recent.length){ try{ c.setExtensionPrompt('tq_phone','',1,4); }catch(e){} return; }
+  var lines=recent.map(function(m){ return (m.me?'{{user}}':'天青')+'：'+m.v; }).join('\n');
+  try{ c.setExtensionPrompt('tq_phone','[背景 · 手机短信]\n{{user}}和天青最近在手机上的私聊（作为背景参考，不要在正文复述）：\n'+lines+'\n[结束]',1,4); }catch(e){}
+}
+
+/* 监听酒馆新消息：提取 + 注入 */
+function hook(){
+  var c=ctx(); if(!c) return false;
+  reloadForChat();          // 上下文这时才就绪 —— 拿到 chatId，把命名空间校正过来（模块加载时可能还拿不到）
+  try{ if(c.eventSource&&c.eventTypes){ c.eventSource.on(c.eventTypes.MESSAGE_RECEIVED,function(){ scanChat(); injectContext(); }); c.eventSource.on(c.eventTypes.CHAT_CHANGED,function(){ reloadForChat(); scanChat(); injectContext(); }); return true; } }catch(e){}
+  try{ if(typeof W.eventOn==='function'&&W.tavern_events){ W.eventOn(W.tavern_events.MESSAGE_RECEIVED,function(){ scanChat(); injectContext(); });
+        if(W.tavern_events.CHAT_CHANGED) W.eventOn(W.tavern_events.CHAT_CHANGED,function(){ reloadForChat(); scanChat(); injectContext(); });   // 备用分支原来漏了这条 → 切对话不刷新
+        return true; } }catch(e){}
+  return false;
+}
+
+/* ---- 时钟 / 启动 ---- */
+function tick(){ var wk=['星期日','星期一','星期二','星期三','星期四','星期五','星期六'],d=new Date(),t=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); $$('.clk').forEach(function(e){e.textContent=t;}); var dd=$('.dt'); if(dd)dd.textContent=wk[d.getDay()]+' '+(d.getMonth()+1)+'月'+d.getDate()+'日'; }
+(function preload(){ var u=[HOME_WALLPAPER,TIANQING_AVATAR]; Object.keys(STICKERS).forEach(function(k){u.push(STICKERS[k]);}); ALBUMS['背景'].concat(ALBUMS['CG']).forEach(function(x){u.push(x.url);}); u.forEach(function(x){var i=new Image();i.src=x;}); })();
+
+renderContacts(); renderXHS(); renderTrends(); renderAlbTabs(); renderGrid(); tick(); setInterval(tick,10000);
+if(!hook()){ setTimeout(hook,1500); }   // 有时上下文晚就绪，延迟再挂一次
+scanChat(); injectContext();
+console.log('[天青小手机] 已加载');
+
+/* 兜底安检：0.6s 后打印悬浮球位置；若疑似在可视区外/尺寸为 0，拉回右下角 */
+setTimeout(function(){
+  try{
+    var r=ball.getBoundingClientRect(), W_=W.innerWidth||D.documentElement.clientWidth, H_=W.innerHeight||D.documentElement.clientHeight;
+    console.log('[天青小手机] 悬浮球位置', {left:Math.round(r.left),top:Math.round(r.top),vw:W_,vh:H_,可见:(r.width>0&&r.left>=0&&r.top>=0&&r.right<=W_&&r.bottom<=H_)});
+    if(r.width===0||r.right<8||r.bottom<8||r.left>W_-8||r.top>H_-8){
+      ball.style.left=(W_-70)+'px'; ball.style.top=(H_-170)+'px'; ball.style.right='auto'; ball.style.bottom='auto';
+      console.warn('[天青小手机] 悬浮球疑似在屏幕外/异常，已拉回右下角');
+    }
+  }catch(e){ console.warn('[天青小手机] 安检失败', e); }
+},600);
+
+})();

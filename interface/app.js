@@ -119,8 +119,12 @@
       return;
     }
     var data = window.天青_parse.parseGal(demo);
-    if (window.天青_save && window.天青_save.setLastRaw) {
-      window.天青_save.setLastRaw(demo);
+    if (window.天青_save && window.天青_save.save) {
+      window.天青_save.save({
+        messages: [{ role: 'assistant', content: demo, at: Date.now() }],
+        lastRaw: demo,
+        updatedAt: Date.now(),
+      });
     }
     console.info(
       '[SummerNight Plus] 载入开局剧情',
@@ -165,6 +169,9 @@
 
   function startNewGame() {
     if (window.天青_save) window.天青_save.clear();
+    if (window.天青_phone_line && window.天青_phone_line.resetToInitial) {
+      window.天青_phone_line.resetToInitial();
+    }
     loadDemo();
     if (window.天青_save && window.天青_save.autoSave) {
       window.天青_save.autoSave();
@@ -205,7 +212,7 @@
       var cur = d && d.lastRaw ? String(d.lastRaw) : '';
       if (opening && cur && opening !== cur) {
         raw = opening;
-        nextMsgs = [];
+        nextMsgs = [{ role: 'assistant', content: opening, at: Date.now() }];
       } else {
         toast('已经是最早一轮');
         return false;

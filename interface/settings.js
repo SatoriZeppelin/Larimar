@@ -20,7 +20,7 @@
     autoEnterCg: true,
     cgHideToolbar: true,
     cgHideFab: true,
-    phoneTimeMode: 'real',
+    phoneTimeMode: 'system',
     phoneLayout: 'center',
     phoneSeniority: 'old',
     phoneAppScale: 100,
@@ -241,6 +241,12 @@
       }
       if (subId === 'variable' && window.天青_settings_variable && window.天青_settings_variable.onEnter) {
         window.天青_settings_variable.onEnter();
+      }
+      if (subId === 'image' && window.天青_settings_image && window.天青_settings_image.renderGallery) {
+        window.天青_settings_image.renderGallery();
+      }
+      if (subId === 'phone-sys' && window.天青_settings_phone_sys && window.天青_settings_phone_sys.renderList) {
+        window.天青_settings_phone_sys.renderList();
       }
       if (subId === 'user' && window.天青_settings_user && window.天青_settings_user.onEnter) {
         window.天青_settings_user.onEnter();
@@ -917,6 +923,7 @@
     if (window.天青_settings_variable) window.天青_settings_variable.bind();
     if (window.天青_settings_prompt) window.天青_settings_prompt.bind();
     if (window.天青_settings_image) window.天青_settings_image.bind();
+    if (window.天青_settings_phone_sys) window.天青_settings_phone_sys.bind();
     if (window.天青_settings_user) window.天青_settings_user.bind();
     if (window.天青_settings_character) window.天青_settings_character.bind();
 
@@ -990,8 +997,7 @@
         return ui.cgHideFab !== false;
       },
       getPhoneTimeMode: function () {
-        var ui = loadUi();
-        return ui.phoneTimeMode === 'system' ? 'system' : 'real';
+        return 'system';
       },
       getPhoneLayout: function () {
         var ui = loadUi();

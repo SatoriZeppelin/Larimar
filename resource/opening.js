@@ -99,7 +99,11 @@ window.天青_opening = String.raw`<summernight>
 
     <UpdateVariable>
         <summernight_variables>
-    		变量更新内容
+        _.set('stat_data.时间.天数', 1)
+        _.set('stat_data.时间.具体时间', [16, 0])
+        _.set('stat_data.时间.星期', '一')
+        _.set('stat_data.地点', '校园')
+        _.set('stat_data.名气.阶段', '地下偶像期')
         </summernight_variables>
     </UpdateVariable>
 </summernight>`;

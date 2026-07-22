@@ -817,6 +817,8 @@
       target.closest('#tq-phone') ||
       target.closest('.nav') ||
       target.closest('#choices button') ||
+      target.closest('#choices .choices-manual') ||
+      target.closest('#choices .choices-manual__input') ||
       target.closest('#toast') ||
       target.closest('#tq-confirm') ||
       target.closest('#tq-api-error')
@@ -858,6 +860,45 @@
     }, CHOICES_FADE_MS);
   }
 
+  function submitManualChoice(text) {
+    var t = String(text || '').trim();
+    if (!t) return;
+    if (t.indexOf('「') < 0) t = '「' + t + '」';
+    hideChoices(true);
+    if (typeof onChoice === 'function') onChoice(t);
+  }
+
+  function bindManualChoiceRow(box) {
+    if (!box) return;
+    var row = box.querySelector('.choices-manual');
+    if (!row || row.dataset.bound === '1') return;
+    row.dataset.bound = '1';
+    var input = row.querySelector('.choices-manual__input');
+    var send = row.querySelector('.choices-manual__send');
+    function doSend(e) {
+      if (e) e.stopPropagation();
+      if (!input) return;
+      var v = input.value;
+      if (!String(v || '').trim()) return;
+      submitManualChoice(v);
+    }
+    if (send) {
+      send.addEventListener('click', doSend);
+    }
+    if (input) {
+      input.addEventListener('click', function (e) {
+        e.stopPropagation();
+      });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          doSend(e);
+        }
+      });
+    }
+  }
+
   function showChoices() {
     var box = $('choices');
     if (!box) return;
@@ -878,6 +919,8 @@
     box.appendChild(q);
     data.choices.forEach(function (c) {
       var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'choices-option';
       b.textContent = c;
       b.onclick = function (e) {
         e.stopPropagation();
@@ -886,6 +929,15 @@
       };
       box.appendChild(b);
     });
+
+    var manual = document.createElement('div');
+    manual.className = 'choices-manual';
+    manual.innerHTML =
+      '<input type="text" class="choices-manual__input" placeholder="自由输入回应…" autocomplete="off" />' +
+      '<button type="button" class="choices-manual__send">发送</button>';
+    box.appendChild(manual);
+    bindManualChoiceRow(box);
+
     box.style.display = 'flex';
     box.classList.remove('show');
     void box.offsetWidth;

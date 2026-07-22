@@ -66,7 +66,6 @@
   function push(role, content) {
     var d = load();
     d.messages.push({ role: role, content: content, at: Date.now() });
-    if (d.messages.length > 40) d.messages = d.messages.slice(-40);
     save(d);
     return d;
   }

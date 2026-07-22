@@ -22,13 +22,6 @@
     return Math.max(min, Math.min(max, n));
   }
 
-  function getTimeMode() {
-    if (window.天青_settings && window.天青_settings.getPhoneTimeMode) {
-      return window.天青_settings.getPhoneTimeMode();
-    }
-    return 'real';
-  }
-
   function getPhoneLayout() {
     if (window.天青_settings && window.天青_settings.getPhoneLayout) {
       return window.天青_settings.getPhoneLayout();
@@ -84,20 +77,8 @@
     };
   }
 
-  function readRealClock() {
-    var now = new Date();
-    return {
-      time: pad2(now.getHours()) + ':' + pad2(now.getMinutes()),
-      date: now.getMonth() + 1 + '月' + now.getDate() + '日 ' + weekdayLabel(now),
-    };
-  }
-
-  function weekdayLabel(d) {
-    return '星期' + ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
-  }
-
   function updateClock() {
-    var pack = getTimeMode() === 'system' ? readSystemClock() : readRealClock();
+    var pack = readSystemClock();
     var status = $('tq-phone-status-time');
     var clock = $('tq-phone-clock-time');
     var date = $('tq-phone-clock-date');
@@ -137,14 +118,21 @@
     return list
       .map(function (app) {
         var icon = appsApi.iconHtml(app.id, 'dock-' + app.id);
+        var badgeHtml =
+          app.id === 'line'
+            ? '<span class="tq-phone-app-badge" data-line-app-badge hidden aria-hidden="true"></span>'
+            : '';
         return (
           '<button type="button" class="tq-phone-app" data-app="' +
           app.id +
           '">' +
+          '<span class="tq-phone-app-icon-wrap">' +
           '<span class="tq-phone-app-icon tq-phone-app-icon--' +
           app.id +
           '">' +
           icon +
+          '</span>' +
+          badgeHtml +
           '</span>' +
           '<span class="tq-phone-app-label">' +
           app.label +
@@ -160,6 +148,9 @@
     var list = appsApi.resolveList ? appsApi.resolveList() : appsApi.list || [];
     return list
       .map(function (app) {
+        if (app.id === 'line' && window.天青_phone_line && window.天青_phone_line.sheetHtml) {
+          return window.天青_phone_line.sheetHtml();
+        }
         var icon = appsApi.iconHtml(app.id, 'sheet-' + app.id);
         return (
           '<div class="tq-phone__layer tq-phone__sheet" data-app-sheet="' +
@@ -228,6 +219,12 @@
     applyLayout();
   }
 
+  function setStatusDark(on) {
+    var screen = document.querySelector('#tq-phone .tq-phone__screen');
+    if (!screen) return;
+    screen.classList.toggle('is-status-dark', !!on);
+  }
+
   function goHome() {
     openAppId = '';
     var home = $('tq-phone-home');
@@ -236,8 +233,16 @@
       sheet.classList.remove('is-open');
       sheet.setAttribute('aria-hidden', 'true');
     });
+    setStatusDark(false);
     var bar = $('tq-phone-home-bar');
     if (bar) bar.setAttribute('aria-label', '关闭手机');
+  }
+
+  function handleAppBack() {
+    if (openAppId === 'line' && window.天青_phone_line && window.天青_phone_line.onBack) {
+      if (window.天青_phone_line.onBack()) return true;
+    }
+    return false;
   }
 
   function openApp(appId) {
@@ -254,6 +259,10 @@
     if (sheet) {
       sheet.classList.add('is-open');
       sheet.setAttribute('aria-hidden', 'false');
+    }
+    setStatusDark(true);
+    if (appId === 'line' && window.天青_phone_line && window.天青_phone_line.onOpen) {
+      window.天青_phone_line.onOpen();
     }
     var bar = $('tq-phone-home-bar');
     if (bar) bar.setAttribute('aria-label', '返回主屏幕');
@@ -277,9 +286,28 @@
     return !!(root && root.classList.contains('is-open'));
   }
 
+  function refreshLineBadge(count) {
+    if (count == null && window.天青_phone_line && window.天青_phone_line.getTotalUnread) {
+      count = window.天青_phone_line.getTotalUnread();
+    }
+    count = parseInt(count, 10) || 0;
+    var badge = document.querySelector('.tq-phone-app[data-app="line"] .tq-phone-app-badge');
+    if (!badge) return;
+    if (count < 1) {
+      badge.hidden = true;
+      badge.textContent = '';
+      badge.removeAttribute('aria-label');
+      return;
+    }
+    badge.hidden = false;
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.setAttribute('aria-label', 'LINE 未读 ' + badge.textContent);
+  }
+
   function open() {
     buildDom();
     bind();
+    refreshLineBadge();
     var root = $('tq-phone');
     if (!root || isOpen()) return;
     root.classList.add('is-open');
@@ -322,6 +350,7 @@
         }
         if (e.target.closest('[data-phone-back]')) {
           e.preventDefault();
+          if (handleAppBack()) return;
           goHome();
           return;
         }
@@ -336,8 +365,10 @@
       if (homeBar) {
         homeBar.addEventListener('click', function (e) {
           e.preventDefault();
-          if (openAppId) goHome();
-          else close();
+          if (openAppId) {
+            if (handleAppBack()) return;
+            goHome();
+          } else close();
         });
       }
     }
@@ -348,8 +379,10 @@
         if (!isOpen()) return;
         if (e.key === 'Escape') {
           e.preventDefault();
-          if (openAppId) goHome();
-          else close();
+          if (openAppId) {
+            if (handleAppBack()) return;
+            goHome();
+          } else close();
         }
       });
     }
@@ -359,6 +392,7 @@
     bind: function () {
       buildDom();
       bind();
+      refreshLineBadge();
     },
     open: open,
     close: close,
@@ -368,5 +402,6 @@
     openApp: openApp,
     refreshClock: updateClock,
     applyLayout: applyLayout,
+    refreshLineBadge: refreshLineBadge,
   };
 })();

@@ -63,11 +63,24 @@
       throw new Error('提示词组装模块未加载');
     }
 
+    if (window.天青_tokens && window.天青_tokens.ensureReady) {
+      try {
+        var model =
+          window.天青_api && window.天青_api.loadConfig ? window.天青_api.loadConfig().model : '';
+        await window.天青_tokens.ensureReady(model);
+      } catch (e) {
+        console.warn('[SummerNight Plus] tokenizer 预加载失败，历史裁剪将使用粗估', e);
+      }
+    }
+
     var userLine = userText || '（继续）';
-    var hist = window.天青_save.load().messages || [];
+    var hist =
+      window.天青_prompt_builder && window.天青_prompt_builder.ensureOpeningInHistory
+        ? window.天青_prompt_builder.ensureOpeningInHistory(window.天青_save.load().messages || [])
+        : window.天青_save.load().messages || [];
     var messages = window.天青_prompt_builder.buildChatMessages({
       userText: userText || '（请根据当前状态继续演出下一轮）',
-      history: hist.slice(-16),
+      history: hist,
     });
 
     /* 成功后再写入会话，避免失败污染历史 */
@@ -84,6 +97,13 @@
 
     var data = window.天青_parse.parseGal(raw);
     logAiReply(raw, data);
+
+    if (window.天青_hooks && window.天青_hooks.dispatchFromRaw) {
+      window.天青_hooks.dispatchFromRaw(raw).catch(function (e) {
+        console.warn('[SummerNight Plus] 钩子执行失败', e);
+      });
+    }
+
     return { raw: raw, data: data };
   }
 

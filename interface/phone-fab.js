@@ -309,6 +309,24 @@
     else setDefaultAnchor(fab);
   }
 
+  function refreshUnreadBadge(count) {
+    if (count == null && window.天青_phone_line && window.天青_phone_line.getTotalUnread) {
+      count = window.天青_phone_line.getTotalUnread();
+    }
+    count = parseInt(count, 10) || 0;
+    var badge = document.getElementById('gal-phone-fab-badge');
+    if (!badge) return;
+    if (count < 1) {
+      badge.hidden = true;
+      badge.textContent = '';
+      badge.removeAttribute('aria-label');
+      return;
+    }
+    badge.hidden = false;
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.setAttribute('aria-label', '未读 ' + badge.textContent);
+  }
+
   function bind() {
     var fab = fabEl();
     if (!fab || fab.dataset.bound === '1') return;
@@ -316,6 +334,7 @@
 
     mountIcon();
     applyPositionMode();
+    refreshUnreadBadge();
 
     var dragging = false;
     var moved = false;
@@ -427,6 +446,7 @@
   window.天青_phone_fab = {
     bind: bind,
     applyPositionMode: applyPositionMode,
+    refreshUnreadBadge: refreshUnreadBadge,
     resetPosition: function () {
       var fab = fabEl();
       if (!fab) return;

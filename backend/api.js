@@ -4,7 +4,6 @@
  * 界面只填一个 URL（API / 反向代理）。自动依次尝试：
  * - reverse  按 URL 当反向代理（密钥可空）
  * - direct   直连 URL（需密钥）
- * - cors     经本机默认代理 http://127.0.0.1:8787，上游仍为该 URL
  *
  * 连接时还会自动尝试补全 /v1、/models、/chat/completions 等路径。
  *
@@ -12,7 +11,6 @@
  */
 (function () {
   var KEY = 'tq_plus_api';
-  var LOCAL_PROXY = 'http://127.0.0.1:8787';
   var DEFAULTS = {
     mode: 'auto',
     baseUrl: 'https://api.openai.com/v1',
@@ -94,52 +92,66 @@
     if (item && arr.indexOf(item) < 0) arr.push(item);
   }
 
-  function rootCandidates(input) {
+  /**
+   * 解析用户填写的 API 根：
+   * - 已含 /v1 → 原样保留，后面只拼 /models、/chat/completions
+   * - 已是完整 endpoint → 还原到 …/v1
+   * - 无 /v1 → 保留根路径（拼 endpoint 时再加 /v1/…）
+   */
+  function resolveApiRoot(input) {
     var b = sanitizeEndpointUrl(input);
-    var stripped = stripApiEndpoint(b);
-    var roots = [];
-    /* 先试无 /v1 根，再试带 /v1；绝不在已有 /v1 上再 +/v1 */
-    pushUnique(roots, stripped);
-    pushUnique(roots, stripped + '/v1');
-    if (b && b !== stripped && b !== stripped + '/v1') {
-      pushUnique(roots, collapseTrailingV1(b));
+    if (!b) return '';
+    if (/\/v1\/chat\/completions$/i.test(b)) return b.replace(/\/chat\/completions$/i, '');
+    if (/\/chat\/completions$/i.test(b)) {
+      var noChat = b.replace(/\/chat\/completions$/i, '');
+      return /\/v1$/i.test(noChat) ? noChat : noChat;
     }
-    return roots;
+    if (/\/v1\/models$/i.test(b)) return b.replace(/\/models$/i, '');
+    if (/\/models$/i.test(b)) {
+      var noModels = b.replace(/\/models$/i, '');
+      return noModels;
+    }
+    if (/\/v1$/i.test(b)) return b;
+    return b;
   }
 
   function modelsUrlCandidates(cfg) {
-    if (useLocalProxy(cfg)) {
-      return [LOCAL_PROXY + '/v1/models'];
-    }
     var urls = [];
-    if (cfg.modelsPath) pushUnique(urls, sanitizeEndpointUrl(cfg.modelsPath));
-    rootCandidates(cfg.baseUrl).forEach(function (root) {
-      if (/\/v1$/i.test(root)) {
-        pushUnique(urls, root + '/models');
-      } else {
-        pushUnique(urls, root + '/v1/models');
-        pushUnique(urls, root + '/models');
-      }
-      if (/\/models$/i.test(root)) pushUnique(urls, root);
-    });
+    if (cfg.modelsPath) {
+      pushUnique(urls, sanitizeEndpointUrl(cfg.modelsPath));
+      return urls;
+    }
+    var root = resolveApiRoot(cfg.baseUrl);
+    if (!root) return urls;
+    if (/\/models$/i.test(root)) {
+      pushUnique(urls, root);
+      return urls;
+    }
+    if (/\/v1$/i.test(root)) {
+      pushUnique(urls, root + '/models');
+      return urls;
+    }
+    pushUnique(urls, root + '/v1/models');
     return urls;
   }
 
   function chatUrlCandidates(cfg) {
-    if (useLocalProxy(cfg)) {
-      return [LOCAL_PROXY + '/v1/chat/completions'];
-    }
     var urls = [];
-    if (cfg.chatPath) pushUnique(urls, sanitizeEndpointUrl(cfg.chatPath));
-    rootCandidates(cfg.baseUrl).forEach(function (root) {
-      if (/\/v1$/i.test(root)) {
-        pushUnique(urls, root + '/chat/completions');
-      } else {
-        pushUnique(urls, root + '/v1/chat/completions');
-        pushUnique(urls, root + '/chat/completions');
-      }
-      if (/\/chat\/completions$/i.test(root)) pushUnique(urls, root);
-    });
+    if (cfg.chatPath) {
+      pushUnique(urls, sanitizeEndpointUrl(cfg.chatPath));
+      return urls;
+    }
+    var root = resolveApiRoot(cfg.baseUrl);
+    if (!root) return urls;
+    if (/\/chat\/completions$/i.test(root)) {
+      pushUnique(urls, root);
+      return urls;
+    }
+    if (/\/v1$/i.test(root)) {
+      pushUnique(urls, root + '/chat/completions');
+      return urls;
+    }
+    pushUnique(urls, root + '/v1/chat/completions');
     return urls;
   }
 
@@ -219,17 +231,67 @@
   function makeApiError(status, bodyText, statusText) {
     var full = String(bodyText || statusText || '').trim();
     var pretty = full;
+    var shortMsg = '';
     try {
-      pretty = JSON.stringify(JSON.parse(full), null, 2);
+      var parsed = JSON.parse(full);
+      if (parsed && parsed.error) {
+        var eobj = parsed.error;
+        shortMsg =
+          (typeof eobj === 'string' ? eobj : eobj.message || eobj.code || '') || '';
+        if (eobj && eobj.code && shortMsg && String(shortMsg).indexOf(eobj.code) < 0) {
+          shortMsg = String(eobj.code) + '：' + shortMsg;
+        }
+      } else if (parsed && parsed.message) {
+        shortMsg = String(parsed.message);
+      }
+      pretty = JSON.stringify(parsed, null, 2);
     } catch (e) {
       /* 保持原文 */
     }
-    var err = new Error(pretty || 'API 请求失败');
+    var display = String(shortMsg || pretty || statusText || 'API 请求失败')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 180);
+    var err = new Error(display);
     err.name = 'ApiError';
     err.status = status || 0;
     err.body = pretty || full;
     err.codeLabel = status ? 'HTTP ' + status : '请求错误';
     return err;
+  }
+
+  /**
+   * 部分反向代理在 HTTP 200 下把错误写成「助手正文」
+   * （如 ### Proxy error (HTTP 402 No Keys Available)）
+   */
+  function looksLikeUpstreamErrorContent(text) {
+    var s = String(text || '').trim();
+    if (!s) return false;
+    var head = s.slice(0, 400);
+    var low = head.toLowerCase();
+    if (/proxy\s*error/.test(low)) return true;
+    if (/no\s+keys?\s+avai/.test(low)) return true;
+    if (/http\s*40[123]/.test(low) && /(key|quota|credit|balance|billing|unauthorized|payment)/.test(low)) {
+      return true;
+    }
+    if (/insufficient\s+(quota|credits|balance)/.test(low)) return true;
+    if (/invalid\s+api\s*key|authentication\s*(failed|error)/.test(low)) return true;
+    if (/^#{1,6}\s*\*{0,2}\s*proxy\s*error/i.test(s)) return true;
+    return false;
+  }
+
+  function extractHttpStatusFromText(text) {
+    var m = String(text || '').match(/HTTP\s*(\d{3})/i);
+    if (!m) return 0;
+    return parseInt(m[1], 10) || 0;
+  }
+
+  function rejectIfUpstreamErrorContent(content, httpStatus) {
+    if (!looksLikeUpstreamErrorContent(content)) return;
+    var status = httpStatus || extractHttpStatusFromText(content) || 0;
+    var err = makeApiError(status, content, '上游返回错误内容');
+    err.message = '连接失败：' + String(content || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+    throw err;
   }
 
   function normalizeConfig(cfg) {
@@ -255,6 +317,11 @@
     var allowed = { auto: 1, minimal: 1, low: 1, medium: 1, high: 1, xhigh: 1 };
     c.reasoningEffort = allowed[effort] ? effort : DEFAULTS.reasoningEffort;
     delete c.proxyUrl;
+    delete c.preferCorsProxy;
+    if (c.resolvedMode === 'cors' || c.mode === 'cors') {
+      c.resolvedMode = c.resolvedMode === 'cors' ? '' : c.resolvedMode;
+      if (c.mode === 'cors') c.mode = 'auto';
+    }
     return c;
   }
 
@@ -273,40 +340,38 @@
     return body;
   }
 
-  function useLocalProxy(cfg) {
-    var m = cfg.mode === 'auto' ? cfg.resolvedMode || cfg.mode : cfg.mode;
-    return m === 'cors';
-  }
-
-  function effectiveMode(cfg) {
-    if (cfg.mode === 'auto') return cfg.resolvedMode || 'reverse';
-    return cfg.mode;
-  }
-
   function authHeaders(cfg, opts) {
     var headers = {};
     if (!opts || opts.json !== false) {
       headers['Content-Type'] = 'application/json';
     }
-    var trial = Object.assign({}, cfg, { mode: effectiveMode(cfg) });
-    if (useLocalProxy(trial)) {
-      headers['X-TQ-Upstream'] = cfg.baseUrl;
-      if (cfg.apiKey) headers['X-TQ-Api-Key'] = cfg.apiKey;
-    } else if (cfg.apiKey) {
+    if (cfg.apiKey) {
       headers.Authorization = 'Bearer ' + cfg.apiKey;
     }
     return headers;
   }
 
-  /** 自动模式下依次尝试的模式顺序 */
+  /** 自动模式：reverse →（有密钥时）direct；不再走本机代理 */
   function modeProbeOrder(cfg) {
-    if (cfg.mode && cfg.mode !== 'auto') return [cfg.mode];
-    var order = [];
-    /* 有密钥时也先试反向代理（部分网关不校验/另有鉴权） */
-    order.push('reverse');
-    if (cfg.apiKey) order.push('direct');
-    order.push('cors');
-    return order;
+    if (cfg.mode && cfg.mode !== 'auto') {
+      if (cfg.mode === 'cors') return ['reverse'];
+      return [cfg.mode];
+    }
+    if (cfg.resolvedMode === 'direct') return ['direct'];
+    if (cfg.resolvedMode === 'reverse') return ['reverse'];
+    return ['reverse', 'direct'];
+  }
+
+  /** 上游明确拒绝时不要继续换 URL / 模式狂打 */
+  function isDefinitiveUpstreamError(err) {
+    var status = err && err.status;
+    if (status === 401 || status === 402 || status === 403 || status === 429) return true;
+    var msg = String((err && err.message) || err || '');
+    if (/HTTP\s*40[123]\b/i.test(msg)) return true;
+    if (/HTTP\s*429\b|Too Many Requests/i.test(msg)) return true;
+    if (/No Keys Available|Proxy error/i.test(msg)) return true;
+    if (/upstream_server_error|上游服务未能完成请求/i.test(msg)) return true;
+    return false;
   }
 
   function assertConfig(cfg) {
@@ -350,6 +415,7 @@
         if (out) return out;
       } catch (e) {
         errors.push(url.replace(/^https?:\/\//, '') + ' → ' + String((e && e.message) || e).slice(0, 120));
+        if (isDefinitiveUpstreamError(e)) break;
       }
     }
     throw new Error(errors.slice(0, 5).join('\n') || '所有候选地址均失败');
@@ -378,7 +444,7 @@
         signal: signal,
       });
       if (!got.res.ok) {
-        throw new Error('API ' + got.res.status + ': ' + (got.text || got.res.statusText).slice(0, 160));
+        throw makeApiError(got.res.status, got.text, got.res.statusText);
       }
       var data;
       try {
@@ -428,6 +494,7 @@
         if (trial.stream && res.body && typeof res.body.getReader === 'function') {
           var content = await readChatStream(res, opts.onDelta);
           if (!content) throw makeApiError(res.status, '', 'API 返回空内容');
+          rejectIfUpstreamErrorContent(content, res.status);
           return { url: url, content: content, trial: trial };
         }
 
@@ -440,9 +507,16 @@
         } catch (e) {
           throw makeApiError(res.status, text, '返回非 JSON');
         }
+        if (data && data.error) {
+          var errMsg =
+            (typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error)) ||
+            text;
+          throw makeApiError(res.status, errMsg, 'API error');
+        }
         var full =
           (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
         if (!full) throw makeApiError(res.status, text, 'API 返回空内容');
+        rejectIfUpstreamErrorContent(full, res.status);
         if (opts.onDelta) opts.onDelta(full);
         return { url: url, content: full, trial: trial };
       }
@@ -536,16 +610,17 @@
       try {
         var hit = await chatOnce(trial, opts);
         persistSuccess(cfg, trial, {
-          chatPath: useLocalProxy(trial) ? '' : hit.url,
-          baseUrl: useLocalProxy(trial) ? cfg.baseUrl : inferBaseFromChatUrl(hit.url) || cfg.baseUrl,
+          chatPath: hit.url,
+          baseUrl: inferBaseFromChatUrl(hit.url) || cfg.baseUrl,
         });
         return hit.content;
       } catch (e) {
         if (e && e.name === 'ApiError') lastApiError = e;
         errors.push('[' + mode + '] ' + String((e && e.message) || e).slice(0, 400));
+        if (isDefinitiveUpstreamError(e)) break;
       }
     }
-    if (lastApiError) throw lastApiError;
+    if (lastApiError && isDefinitiveUpstreamError(lastApiError)) throw lastApiError;
     throw new Error(errors.join('\n') || '连接失败');
   }
 
@@ -553,6 +628,7 @@
     var cfg = assertConfig(loadConfig());
     var modes = modeProbeOrder(cfg);
     var errors = [];
+    var lastApiError = null;
 
     for (var i = 0; i < modes.length; i++) {
       var mode = modes[i];
@@ -560,21 +636,24 @@
       var trial = buildTrialConfig(cfg, mode);
       try {
         var hit = await listModelsOnce(trial, signal);
-        var root = useLocalProxy(trial) ? cfg.baseUrl : inferBaseFromModelsUrl(hit.url) || cfg.baseUrl;
+        var root = inferBaseFromModelsUrl(hit.url) || cfg.baseUrl;
         var chatPath = '';
-        if (!useLocalProxy(trial) && root) {
+        if (root) {
           chatPath = /\/v1$/i.test(root) ? root + '/chat/completions' : root + '/v1/chat/completions';
         }
         persistSuccess(cfg, trial, {
-          modelsPath: useLocalProxy(trial) ? '' : hit.url,
+          modelsPath: hit.url,
           chatPath: chatPath,
           baseUrl: root,
         });
         return hit.ids;
       } catch (e) {
+        if (e && e.name === 'ApiError') lastApiError = e;
         errors.push('[' + mode + '] ' + String((e && e.message) || e).slice(0, 180));
+        if (isDefinitiveUpstreamError(e)) break;
       }
     }
+    if (lastApiError && isDefinitiveUpstreamError(lastApiError)) throw lastApiError;
     throw new Error(errors.join('\n') || '连接失败');
   }
 
@@ -594,5 +673,6 @@
     listModels: listModels,
     testMessage: testMessage,
     modeProbeOrder: modeProbeOrder,
+    isDefinitiveUpstreamError: isDefinitiveUpstreamError,
   };
 })();

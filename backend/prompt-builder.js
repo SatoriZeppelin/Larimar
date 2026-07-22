@@ -132,6 +132,11 @@
       .concat(getPresetWorldbookEntries(preset));
   }
 
+  /** LINE 私聊：仅角色设定世界书（不含系统提示词 / 预设内嵌世界书） */
+  function collectLineWorldbookPool() {
+    return getCharacterWorldbookEntries();
+  }
+
   function matchKeys(text, keys, caseSensitive) {
     var src = String(text || '');
     var list = Array.isArray(keys) ? keys : [];
@@ -177,10 +182,13 @@
 
   /**
    * 激活世界书并按 ST position 分桶
+   * @param {string} scanText
+   * @param {object} [preset]
+   * @param {Array} [pool] 可选；不传则用 collectWorldbookPool
    * @returns {{ before, after, anTop, anBottom, atDepth, emTop, emBottom }}
    */
-  function activateWorldbookBuckets(scanText, preset) {
-    var active = collectWorldbookPool(preset).filter(function (e) {
+  function activateWorldbookBuckets(scanText, preset, pool) {
+    var active = (Array.isArray(pool) ? pool : collectWorldbookPool(preset)).filter(function (e) {
       return entryActivated(e, scanText);
     });
     active.sort(sortByOrder);
@@ -227,9 +235,256 @@
     });
   }
 
+  /** token 计数：优先 gpt-tokenizer，未加载时回退粗估 */
+  function estimateTokens(text) {
+    if (window.天青_tokens && typeof window.天青_tokens.countText === 'function') {
+      return window.天青_tokens.countText(text);
+    }
+    return Math.ceil(String(text == null ? '' : text).length / 2);
+  }
+
+  function estimateMessageTokens(msg) {
+    if (window.天青_tokens && typeof window.天青_tokens.countMessage === 'function') {
+      return window.天青_tokens.countMessage(msg);
+    }
+    if (!msg) return 0;
+    return 4 + estimateTokens(msg.content);
+  }
+
+  function estimateMessagesTokens(msgs) {
+    var n = 0;
+    (msgs || []).forEach(function (m) {
+      n += estimateMessageTokens(m);
+    });
+    return n;
+  }
+
+  function getContextLength() {
+    try {
+      if (window.天青_api && window.天青_api.loadConfig) {
+        var cfg = window.天青_api.loadConfig();
+        var n = Number(cfg && cfg.contextLength);
+        if (isFinite(n) && n > 0) return Math.round(n);
+      }
+    } catch (e) {}
+    return 200000;
+  }
+
+  function defaultUserLine(userText) {
+    return String(userText || '').trim() || '（请根据当前状态继续演出下一轮）';
+  }
+
+  function cleanChatTurns(messages) {
+    var out = [];
+    (messages || []).forEach(function (m) {
+      if (!m) return;
+      if (m.role !== 'user' && m.role !== 'assistant') return;
+      var c = String(m.content || '').trim();
+      if (!c) return;
+      out.push({ role: m.role, content: c });
+    });
+    return out;
+  }
+
+  /**
+   * 从最新一条往前累加，超出 budget 时丢弃导致超限的那条及更早内容。
+   * 若全部遍历完仍未超限，则保留全部。
+   * @returns {{ history: Array, userLine: string, picked: number, total: number, budget: number, used: number }}
+   */
+  function selectHistoryByTokenBudget(savedHistory, userText, budget) {
+    var userLine = defaultUserLine(userText);
+    var chain = cleanChatTurns(savedHistory);
+    chain.push({ role: 'user', content: userLine });
+
+    if (!chain.length) {
+      return { history: [], userLine: userLine, picked: 0, total: 0, budget: budget, used: 0 };
+    }
+
+    var picked = [];
+    var used = 0;
+    var hitLimit = false;
+    for (var i = chain.length - 1; i >= 0; i--) {
+      var cost = estimateMessageTokens(chain[i]);
+      if (used + cost > budget) {
+        hitLimit = true;
+        break;
+      }
+      used += cost;
+      picked.unshift(chain[i]);
+    }
+
+    if (!hitLimit) {
+      return {
+        history: chain.slice(0, -1),
+        userLine: userLine,
+        picked: chain.length,
+        total: chain.length,
+        budget: budget,
+        used: used,
+        allIncluded: true,
+      };
+    }
+
+    if (!picked.length) {
+      return {
+        history: chain.slice(0, -1),
+        userLine: userLine,
+        picked: chain.length,
+        total: chain.length,
+        budget: budget,
+        used: estimateMessagesTokens(chain),
+        forcedAll: true,
+      };
+    }
+
+    var histOnly = picked.slice();
+    if (histOnly.length && histOnly[histOnly.length - 1].role === 'user') {
+      histOnly.pop();
+    }
+    return {
+      history: histOnly,
+      userLine: userLine,
+      picked: picked.length,
+      total: chain.length,
+      budget: budget,
+      used: used,
+    };
+  }
+
+  /** appendChatHistory 中除 user/assistant 正文外的注入项 token */
+  function measureHistoryInjectionsTokens(wiBuckets, absolutePrompts, userText) {
+    var msgs = [];
+    appendChatHistory(msgs, [], userText, wiBuckets, absolutePrompts);
+    var userLine = defaultUserLine(userText);
+    var total = estimateMessagesTokens(msgs);
+    total -= estimateMessageTokens({ role: 'user', content: userLine });
+    return Math.max(0, total);
+  }
+
+  function getOpeningRaw() {
+    return (window.天青_opening && String(window.天青_opening)) || '';
+  }
+
+  /** 确保存档历史以开局 assistant 开头 */
+  function ensureOpeningInHistory(messages) {
+    var list = cleanChatTurns(messages);
+    var opening = String(getOpeningRaw() || '').trim();
+    if (!opening) return list;
+    if (list.length && list[0].role === 'assistant' && list[0].content === opening) return list;
+    var has = list.some(function (m) {
+      return m.role === 'assistant' && m.content === opening;
+    });
+    if (!has) list.unshift({ role: 'assistant', content: opening });
+    return list;
+  }
+
+  function applyRelativePresetEntries(messages, relativeEntries, ctx) {
+    ctx = ctx || {};
+    var wi = ctx.wi || {};
+    var stateBlock = ctx.stateBlock || '';
+    var absolutePrompts = ctx.absolutePrompts || [];
+    var history = ctx.history || [];
+    var userText = ctx.userText || '';
+    var includeHistory = !!ctx.includeHistory;
+    var diag = ctx.diag;
+
+    relativeEntries.forEach(function (item) {
+      var id = item.identifier || item.id || '';
+      var structural = isStructuralMarker(item) || isMarkerId(id);
+
+      if (structural) {
+        if (diag && diag.markers) diag.markers.push(id || item.name || '?');
+        if (id === 'worldInfoBefore') {
+          pushJoinedSystem(messages, wi.before, '世界书·角色定义前');
+          if (ctx.flags) ctx.flags.sawWiBefore = true;
+        } else if (id === 'worldInfoAfter') {
+          pushJoinedSystem(messages, wi.after, '世界书·角色定义后');
+          if (stateBlock) messages.push({ role: 'system', content: stateBlock });
+          if (ctx.flags) ctx.flags.sawWiAfter = true;
+        } else if (id === 'personaDescription') {
+          var personaPrompt = getPersonaInjection('prompt');
+          if (personaPrompt) {
+            messages.push({ role: 'system', content: personaPrompt });
+            if (ctx.flags) ctx.flags.personaPromptInjected = true;
+          }
+        } else if (id === 'dialogueExamples') {
+          pushJoinedSystem(messages, wi.emTop, '世界书·示例前');
+          pushJoinedSystem(messages, wi.emBottom, '世界书·示例后');
+        } else if (id === 'chatHistory') {
+          if (includeHistory) {
+            appendChatHistory(messages, history, userText, wi, absolutePrompts);
+          }
+          if (ctx.flags) ctx.flags.chatInserted = true;
+        }
+        return;
+      }
+
+      var content = String(item.content || '').trim();
+      if (!content) {
+        if (diag && diag.skipped) {
+          diag.skipped.push({
+            name: item.name || id,
+            reason: 'empty content',
+          });
+        }
+        return;
+      }
+      messages.push({
+        role: normalizeRole(item.role),
+        content: content,
+      });
+      if (diag && diag.included) {
+        diag.included.push({
+          name: item.name || id,
+          role: normalizeRole(item.role),
+          chars: content.length,
+        });
+      }
+    });
+  }
+
+  function finalizePresetShell(messages, ctx) {
+    ctx = ctx || {};
+    var wi = ctx.wi || {};
+    var stateBlock = ctx.stateBlock || '';
+    var absolutePrompts = ctx.absolutePrompts || [];
+    var history = ctx.history || [];
+    var userText = ctx.userText || '';
+    var flags = ctx.flags || {};
+    var diag = ctx.diag;
+
+    if (!flags.personaPromptInjected) {
+      var fallbackPersona = getPersonaInjection('prompt');
+      if (fallbackPersona) {
+        var insertAt = 0;
+        for (var pi = 0; pi < messages.length; pi++) {
+          if (messages[pi] && messages[pi].role === 'user') {
+            insertAt = pi;
+            break;
+          }
+          insertAt = pi + 1;
+        }
+        messages.splice(insertAt, 0, { role: 'system', content: fallbackPersona });
+        if (diag && diag.included) {
+          diag.included.push({ name: 'persona(fallback)', role: 'system', chars: fallbackPersona.length });
+        }
+      }
+    }
+
+    if (!flags.chatInserted && !ctx.skipHistoryAppend) {
+      if (!flags.sawWiBefore && wi.before && wi.before.length) {
+        pushJoinedSystem(messages, wi.before, '世界书·角色定义前');
+      }
+      if (!flags.sawWiAfter && wi.after && wi.after.length) {
+        pushJoinedSystem(messages, wi.after, '世界书·角色定义后');
+      }
+      if (!flags.sawWiAfter && stateBlock) messages.push({ role: 'system', content: stateBlock });
+      appendChatHistory(messages, history, userText, wi, absolutePrompts);
+    }
+  }
+
   function buildScanText(history, userText) {
     var parts = (history || [])
-      .slice(-12)
       .map(function (m) {
         return m && m.content ? String(m.content) : '';
       });
@@ -635,6 +890,86 @@
     });
   }
 
+  /** LINE：无主线历史，仅本轮 LINE 提示词 + @D / AN 桶 */
+  function appendLineUserTurn(messages, linePrompt, wiBuckets, absolutePrompts) {
+    var chatMsgs = [];
+    pushEachAsRole(chatMsgs, wiBuckets.anTop);
+
+    var depthItems = (wiBuckets.atDepth || []).slice();
+    (absolutePrompts || []).forEach(function (p) {
+      depthItems.push({
+        content: p.content,
+        role: p.role,
+        depth: p.depth != null ? p.depth : 0,
+        order: p.order != null ? p.order : 100,
+        _isPrompt: true,
+      });
+    });
+
+    /* 主线最近 1 次常规 LLM 对话（user + assistant） */
+    getLastMainChatTurn().forEach(function (m) {
+      chatMsgs.push({ role: m.role, content: m.content });
+    });
+
+    chatMsgs.push({
+      role: 'user',
+      content: String(linePrompt || '').trim() || '（请回复 LINE 私聊）',
+    });
+    injectDepthEntries(chatMsgs, depthItems);
+
+    if (wiBuckets.anBottom && wiBuckets.anBottom.length) {
+      var insertAt = Math.max(0, chatMsgs.length - 1);
+      wiBuckets.anBottom
+        .slice()
+        .sort(sortByOrder)
+        .forEach(function (e, i) {
+          var text = formatEntry(e);
+          if (!text) return;
+          chatMsgs.splice(insertAt + i, 0, { role: wiRole(e.role), content: text });
+        });
+    }
+
+    chatMsgs.forEach(function (m) {
+      messages.push(m);
+    });
+  }
+
+  /**
+   * 主线存档中最近 1 次常规对话：优先取末轮 user + assistant；
+   * 若末条为 assistant 且前一条为 user，则取这两条；否则取末 1～2 条有效消息。
+   * @returns {Array<{role:string,content:string}>}
+   */
+  function getLastMainChatTurn() {
+    var hist = [];
+    try {
+      if (window.天青_save && typeof window.天青_save.load === 'function') {
+        hist = (window.天青_save.load().messages || []).slice();
+      }
+    } catch (e) {
+      hist = [];
+    }
+    var cleaned = [];
+    hist.forEach(function (m) {
+      if (!m) return;
+      if (m.role !== 'user' && m.role !== 'assistant') return;
+      var c = String(m.content || '').trim();
+      if (!c) return;
+      cleaned.push({ role: m.role, content: c });
+    });
+    if (!cleaned.length) return [];
+
+    var last = cleaned[cleaned.length - 1];
+    if (last.role === 'assistant' && cleaned.length >= 2) {
+      var prev = cleaned[cleaned.length - 2];
+      if (prev.role === 'user') return [prev, last];
+      return [last];
+    }
+    if (last.role === 'user') return [last];
+    /* 末条是 user 之外的异常：尽量带上前一条 */
+    if (cleaned.length >= 2) return cleaned.slice(-2);
+    return [last];
+  }
+
   /**
    * 组装 Chat Completion messages。
    * 正文来自：预设 / 提示词界面 / 角色世界书 / 用户设定（按插入位置）。
@@ -644,16 +979,15 @@
   function buildChatMessages(opts) {
     opts = opts || {};
     var preset = resolveActivePreset();
-    var history = opts.history || [];
+    var savedHistory = ensureOpeningInHistory(opts.history || []);
     var userText = opts.userText || '';
-    var scan = buildScanText(history, userText);
+    var scan = buildScanText(savedHistory, userText);
     var wi = activateWorldbookBuckets(scan, preset);
     var promptEntries = getOrderedPromptEntries(preset);
 
     var messages = [];
     var absolutePrompts = [];
     var relativeEntries = [];
-    var chatInserted = false;
     var stateBlock = '';
     var diag = {
       presetName: preset && preset.name,
@@ -674,7 +1008,6 @@
       }
     } catch (e) {}
 
-    /* 第一遍：拆出绝对注入条目（@D），其余按相对顺序处理 */
     promptEntries.forEach(function (item) {
       if (!item || item.enabled === false || item.visible === false) {
         if (item) {
@@ -700,94 +1033,91 @@
       relativeEntries.push(item);
     });
 
-    var sawWiBefore = false;
-    var sawWiAfter = false;
-    var personaPromptInjected = false;
-
-    relativeEntries.forEach(function (item) {
-      var id = item.identifier || item.id || '';
-      var structural = isStructuralMarker(item) || isMarkerId(id);
-
-      if (structural) {
-        diag.markers.push(id || item.name || '?');
-        if (id === 'worldInfoBefore') {
-          pushJoinedSystem(messages, wi.before, '世界书·角色定义前');
-          sawWiBefore = true;
-        } else if (id === 'worldInfoAfter') {
-          pushJoinedSystem(messages, wi.after, '世界书·角色定义后');
-          if (stateBlock) messages.push({ role: 'system', content: stateBlock });
-          sawWiAfter = true;
-        } else if (id === 'personaDescription') {
-          var personaPrompt = getPersonaInjection('prompt');
-          if (personaPrompt) {
-            messages.push({ role: 'system', content: personaPrompt });
-            personaPromptInjected = true;
-          }
-        } else if (id === 'dialogueExamples') {
-          pushJoinedSystem(messages, wi.emTop, '世界书·示例前');
-          pushJoinedSystem(messages, wi.emBottom, '世界书·示例后');
-        } else if (id === 'chatHistory') {
-          appendChatHistory(messages, history, userText, wi, absolutePrompts);
-          chatInserted = true;
-        }
-        return;
-      }
-
-      var content = String(item.content || '').trim();
-      if (!content) {
-        diag.skipped.push({
-          name: item.name || id,
-          reason: 'empty content',
-        });
-        return;
-      }
-      messages.push({
-        role: normalizeRole(item.role),
-        content: content,
-      });
-      diag.included.push({
-        name: item.name || id,
-        role: normalizeRole(item.role),
-        chars: content.length,
-      });
+    var shellFlags = {
+      sawWiBefore: false,
+      sawWiAfter: false,
+      personaPromptInjected: false,
+      chatInserted: false,
+    };
+    var shellMessages = [];
+    applyRelativePresetEntries(shellMessages, relativeEntries, {
+      wi: wi,
+      stateBlock: stateBlock,
+      absolutePrompts: absolutePrompts,
+      history: [],
+      userText: '',
+      includeHistory: false,
+      flags: shellFlags,
+      diag: { markers: [], skipped: [], included: [] },
+    });
+    finalizePresetShell(shellMessages, {
+      wi: wi,
+      stateBlock: stateBlock,
+      absolutePrompts: absolutePrompts,
+      history: [],
+      userText: '',
+      flags: shellFlags,
+      diag: null,
+      skipHistoryAppend: true,
     });
 
-    /* 选定「提示词管理器」但 order 里没有 personaDescription marker 时兜底插入 */
-    if (!personaPromptInjected) {
-      var fallbackPersona = getPersonaInjection('prompt');
-      if (fallbackPersona) {
-        var insertAt = 0;
-        for (var pi = 0; pi < messages.length; pi++) {
-          if (messages[pi] && messages[pi].role === 'user') {
-            insertAt = pi;
-            break;
-          }
-          insertAt = pi + 1;
-        }
-        messages.splice(insertAt, 0, { role: 'system', content: fallbackPersona });
-        diag.included.push({ name: 'persona(fallback)', role: 'system', chars: fallbackPersona.length });
-      }
-    }
+    var fixedTokens =
+      estimateMessagesTokens(shellMessages) + measureHistoryInjectionsTokens(wi, absolutePrompts, userText);
+    var contextLength = getContextLength();
+    var historyBudget = Math.max(512, contextLength - fixedTokens);
+    var picked = selectHistoryByTokenBudget(savedHistory, userText, historyBudget);
+    var history = picked.history;
 
-    if (!chatInserted) {
-      if (!sawWiBefore && wi.before.length) {
-        pushJoinedSystem(messages, wi.before, '世界书·角色定义前');
-      }
-      if (!sawWiAfter && wi.after.length) {
-        pushJoinedSystem(messages, wi.after, '世界书·角色定义后');
-      }
-      if (!sawWiAfter && stateBlock) messages.push({ role: 'system', content: stateBlock });
-      appendChatHistory(messages, history, userText, wi, absolutePrompts);
-    }
+    diag.history = {
+      contextLength: contextLength,
+      fixedTokens: fixedTokens,
+      historyBudget: historyBudget,
+      savedTurns: cleanChatTurns(savedHistory).length,
+      pickedTurns: picked.picked,
+      totalTurns: picked.total,
+      usedTokens: picked.used,
+      allIncluded: !!picked.allIncluded,
+      forcedAll: !!picked.forcedAll,
+      tokenizer:
+        window.天青_tokens && window.天青_tokens.resolveEncoding
+          ? window.天青_tokens.resolveEncoding()
+          : 'fallback',
+    };
 
-    /* 若历史为空，保证末尾仍有一条本轮 user（来自选项/继续，不是提示词文案） */
+    messages = [];
+    var buildFlags = {
+      sawWiBefore: false,
+      sawWiAfter: false,
+      personaPromptInjected: false,
+      chatInserted: false,
+    };
+    applyRelativePresetEntries(messages, relativeEntries, {
+      wi: wi,
+      stateBlock: stateBlock,
+      absolutePrompts: absolutePrompts,
+      history: history,
+      userText: userText,
+      includeHistory: true,
+      flags: buildFlags,
+      diag: diag,
+    });
+    finalizePresetShell(messages, {
+      wi: wi,
+      stateBlock: stateBlock,
+      absolutePrompts: absolutePrompts,
+      history: history,
+      userText: userText,
+      flags: buildFlags,
+      diag: diag,
+    });
+
     var hasUser = messages.some(function (m) {
       return m && m.role === 'user';
     });
     if (!hasUser) {
       messages.push({
         role: 'user',
-        content: String(userText || '').trim() || '（请根据当前状态继续演出下一轮）',
+        content: defaultUserLine(userText),
       });
     }
 
@@ -831,6 +1161,235 @@
     });
   }
 
+  /**
+   * LINE 私聊专用组装：
+   * - 系统设置 · 预设（prompt_order / prompts）
+   * - 角色设置 · 角色世界书
+   * - 主线最近 1 次常规 LLM 对话（user + assistant）
+   * - 系统设置 · 手机 · LINE 提示词（作为本轮 user，已填占位符）
+   * 不含：系统设置-提示词、用户人设注入、Gal 状态块、完整主线历史
+   * @param {{ linePrompt: string, scanText?: string }} opts
+   */
+  function buildLineChatMessages(opts) {
+    opts = opts || {};
+    var preset = resolveActivePreset();
+    var linePrompt = String(opts.linePrompt || '').trim();
+    var scan = String(opts.scanText != null ? opts.scanText : linePrompt);
+    var wi = activateWorldbookBuckets(scan, preset, collectLineWorldbookPool());
+    var promptEntries = getOrderedPromptEntries(preset);
+
+    var messages = [];
+    var absolutePrompts = [];
+    var relativeEntries = [];
+    var chatInserted = false;
+    var diag = {
+      mode: 'line',
+      presetName: preset && preset.name,
+      promptTotal: promptEntries.length,
+      included: [],
+      skipped: [],
+      markers: [],
+      absolute: [],
+      mainTurn: getLastMainChatTurn().length,
+      wi: {
+        before: (wi.before && wi.before.length) || 0,
+        after: (wi.after && wi.after.length) || 0,
+        atDepth: (wi.atDepth && wi.atDepth.length) || 0,
+      },
+    };
+
+    promptEntries.forEach(function (item) {
+      if (!item || item.enabled === false || item.visible === false) {
+        if (item) {
+          diag.skipped.push({
+            name: item.name || item.identifier || item.id,
+            reason: item.enabled === false ? 'enabled=false' : 'visible=false',
+          });
+        }
+        return;
+      }
+      if (!isStructuralMarker(item) && !isMarkerId(item.identifier || item.id) && isAbsolutePrompt(item)) {
+        if (String(item.content || '').trim()) {
+          absolutePrompts.push(item);
+          diag.absolute.push(item.name || item.identifier || item.id);
+        } else {
+          diag.skipped.push({
+            name: item.name || item.identifier || item.id,
+            reason: 'absolute but empty content',
+          });
+        }
+        return;
+      }
+      relativeEntries.push(item);
+    });
+
+    var sawWiBefore = false;
+    var sawWiAfter = false;
+
+    relativeEntries.forEach(function (item) {
+      var id = item.identifier || item.id || '';
+      var structural = isStructuralMarker(item) || isMarkerId(id);
+
+      if (structural) {
+        diag.markers.push(id || item.name || '?');
+        if (id === 'worldInfoBefore') {
+          pushJoinedSystem(messages, wi.before, '世界书·角色定义前');
+          sawWiBefore = true;
+        } else if (id === 'worldInfoAfter') {
+          pushJoinedSystem(messages, wi.after, '世界书·角色定义后');
+          sawWiAfter = true;
+        } else if (id === 'dialogueExamples') {
+          pushJoinedSystem(messages, wi.emTop, '世界书·示例前');
+          pushJoinedSystem(messages, wi.emBottom, '世界书·示例后');
+        } else if (id === 'chatHistory') {
+          appendLineUserTurn(messages, linePrompt, wi, absolutePrompts);
+          chatInserted = true;
+        }
+        /* personaDescription / 其它 marker：LINE 模式跳过 */
+        return;
+      }
+
+      var content = String(item.content || '').trim();
+      if (!content) {
+        diag.skipped.push({
+          name: item.name || id,
+          reason: 'empty content',
+        });
+        return;
+      }
+      messages.push({
+        role: normalizeRole(item.role),
+        content: content,
+      });
+      diag.included.push({
+        name: item.name || id,
+        role: normalizeRole(item.role),
+        chars: content.length,
+      });
+    });
+
+    if (!chatInserted) {
+      if (!sawWiBefore && wi.before.length) {
+        pushJoinedSystem(messages, wi.before, '世界书·角色定义前');
+      }
+      if (!sawWiAfter && wi.after.length) {
+        pushJoinedSystem(messages, wi.after, '世界书·角色定义后');
+      }
+      appendLineUserTurn(messages, linePrompt, wi, absolutePrompts);
+    }
+
+    var hasUser = messages.some(function (m) {
+      return m && m.role === 'user';
+    });
+    if (!hasUser) {
+      messages.push({
+        role: 'user',
+        content: linePrompt || '（请回复 LINE 私聊）',
+      });
+    }
+
+    try {
+      console.groupCollapsed(
+        '[SummerNight Plus] LINE 提示词组装 · 预设正文 ' +
+          diag.included.length +
+          ' 条 · messages=' +
+          messages.length,
+      );
+      console.log(diag);
+      console.groupEnd();
+    } catch (e) {}
+
+    var substitute =
+      window.天青_stat_data && typeof window.天青_stat_data.substituteStatDataMacros === 'function'
+        ? window.天青_stat_data.substituteStatDataMacros
+        : null;
+
+    return messages.map(function (m) {
+      var content = m.content;
+      if (substitute && content != null && content !== '') {
+        content = substitute(content);
+      }
+      return { role: m.role, content: content };
+    });
+  }
+
+  /**
+   * LINE 钩子专用组装：
+   * - 系统设置 · 预设（仅正文条目，不含世界书 / chatHistory）
+   * - 主线最近 1 轮（user + assistant）
+   * - 系统设置 · 手机 · LINE 提示词（本轮 user）
+   * @param {{ linePrompt: string }} opts
+   */
+  function buildLineHookChatMessages(opts) {
+    opts = opts || {};
+    var preset = resolveActivePreset();
+    var linePrompt = String(opts.linePrompt || '').trim();
+    var promptEntries = getOrderedPromptEntries(preset);
+    var messages = [];
+    var diag = {
+      mode: 'line-hook',
+      presetName: preset && preset.name,
+      mainTurn: getLastMainChatTurn().length,
+      included: [],
+    };
+
+    promptEntries.forEach(function (item) {
+      if (!item || item.enabled === false || item.visible === false) return;
+      if (!isStructuralMarker(item) && !isMarkerId(item.identifier || item.id) && isAbsolutePrompt(item)) {
+        return;
+      }
+      var id = item.identifier || item.id || '';
+      if (isStructuralMarker(item) || isMarkerId(id)) return;
+
+      var content = String(item.content || '').trim();
+      if (!content) return;
+      messages.push({
+        role: normalizeRole(item.role),
+        content: content,
+      });
+      diag.included.push({
+        name: item.name || id,
+        role: normalizeRole(item.role),
+        chars: content.length,
+      });
+    });
+
+    getLastMainChatTurn().forEach(function (m) {
+      messages.push({ role: m.role, content: m.content });
+    });
+
+    messages.push({
+      role: 'user',
+      content: linePrompt || '（请根据钩子回复 LINE 私聊）',
+    });
+
+    try {
+      console.groupCollapsed(
+        '[SummerNight Plus] LINE 钩子提示词 · 预设 ' +
+          diag.included.length +
+          ' 条 · 主线 ' +
+          diag.mainTurn +
+          ' 条 · messages=' +
+          messages.length,
+      );
+      console.log(diag);
+      console.groupEnd();
+    } catch (e) {}
+
+    var substitute =
+      window.天青_stat_data && typeof window.天青_stat_data.substituteStatDataMacros === 'function'
+        ? window.天青_stat_data.substituteStatDataMacros
+        : null;
+
+    return messages.map(function (m) {
+      var content = m.content;
+      if (substitute && content != null && content !== '') {
+        content = substitute(content);
+      }
+      return { role: m.role, content: content };
+    });
+  }
+
   /** 兼容旧接口：拼成单条 system（调试用） */
   function buildSystemMessage(extraScanText) {
     var msgs = buildChatMessages({
@@ -849,9 +1408,16 @@
 
   window.天青_prompt_builder = {
     buildChatMessages: buildChatMessages,
+    buildLineChatMessages: buildLineChatMessages,
+    buildLineHookChatMessages: buildLineHookChatMessages,
     buildSystemMessage: buildSystemMessage,
     activateWorldbookBuckets: activateWorldbookBuckets,
     collectWorldbookPool: collectWorldbookPool,
+    collectLineWorldbookPool: collectLineWorldbookPool,
+    getLastMainChatTurn: getLastMainChatTurn,
+    selectHistoryByTokenBudget: selectHistoryByTokenBudget,
+    ensureOpeningInHistory: ensureOpeningInHistory,
+    estimateMessageTokens: estimateMessageTokens,
     WI: {
       BEFORE: WI_BEFORE,
       AFTER: WI_AFTER,

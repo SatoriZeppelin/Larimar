@@ -11,7 +11,8 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="interface/stage.css?v=20260720k" />
-    <link rel="stylesheet" href="interface/phone.css?v=20260720h" />
+    <link rel="stylesheet" href="interface/phone.css?v=20260720j" />
+    <link rel="stylesheet" href="interface/phone-line.css?v=20260721k" />
   </head>
   <body>
     <div id="title-screen" class="open" aria-hidden="false">
@@ -121,116 +122,110 @@
       </div>
       <div id="gal-toolbar-dock" class="is-locked" aria-label="游戏工具栏">
         <div id="gal-toolbar">
-          <button
-            type="button"
-            class="gal-tb-btn is-on"
-            id="btn-gal-toolbar-lock"
-            data-gal-tb="lock"
-            title="锁定工具栏（点击解锁，离开后自动隐藏）"
-            aria-label="锁定工具栏"
-            aria-pressed="true"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="34"
-              height="34"
-              aria-hidden="true"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.4"
-              stroke-linecap="round"
-              stroke-linejoin="round"
+          <div class="gal-tb-meta" aria-label="存档与设置">
+            <button
+              type="button"
+              class="gal-tb-btn is-on"
+              id="btn-gal-toolbar-lock"
+              data-gal-tb="lock"
+              title="锁定工具栏（点击解锁，离开后自动隐藏）"
+              aria-label="锁定工具栏"
+              aria-pressed="true"
             >
-              <rect x="5" y="11" width="14" height="10" rx="2"></rect>
-              <path d="M8 11V8a4 4 0 0 1 8 0v3"></path>
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="gal-tb-btn gal-tb-text"
-            id="btn-gal-toolbar-save"
-            data-gal-tb="save"
-            title="存档"
-            aria-label="存档"
-          >
-            SAVE
-          </button>
-          <button
-            type="button"
-            class="gal-tb-btn gal-tb-text"
-            id="btn-gal-toolbar-qsave"
-            data-gal-tb="qsave"
-            title="快速存档"
-            aria-label="快速存档"
-          >
-            Q.SAVE
-          </button>
-          <button
-            type="button"
-            class="gal-tb-btn"
-            id="btn-gal-toolbar-settings"
-            data-gal-tb="settings"
-            title="设置"
-            aria-label="设置"
-          ></button>
-          <button
-            type="button"
-            class="gal-tb-btn"
-            id="btn-gal-toolbar-prevround"
-            data-gal-tb="prevround"
-            title="回到上一轮开头"
-            aria-label="上一轮"
-          ></button>
-          <button
-            type="button"
-            class="gal-tb-btn"
-            id="btn-gal-toolbar-rewind"
-            data-gal-tb="rewind"
-            title="快退到本轮开头"
-            aria-label="快退"
-          ></button>
-          <button
-            type="button"
-            class="gal-tb-btn"
-            id="btn-gal-toolbar-back"
-            data-gal-tb="back"
-            title="后退一句"
-            aria-label="后退"
-          ></button>
-          <button
-            type="button"
-            class="gal-tb-btn"
-            id="btn-gal-toolbar-log"
-            data-gal-tb="log"
-            title="back log"
-            aria-label="back log"
-          ></button>
-          <button
-            type="button"
-            class="gal-tb-btn"
-            id="btn-gal-toolbar-fwd"
-            data-gal-tb="fwd"
-            title="前进一句"
-            aria-label="前进"
-          ></button>
-          <button
-            type="button"
-            class="gal-tb-btn"
-            id="btn-gal-toolbar-fastfwd"
-            data-gal-tb="fastfwd"
-            title="快进到本轮选项"
-            aria-label="快进"
-          ></button>
-          <button
-            type="button"
-            class="gal-tb-btn"
-            id="btn-gal-toolbar-auto"
-            data-gal-tb="auto"
-            title="自动前进"
-            aria-label="自动前进"
-            aria-pressed="false"
-          ></button>
+              <svg
+                viewBox="0 0 24 24"
+                width="34"
+                height="34"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="5" y="11" width="14" height="10" rx="2"></rect>
+                <path d="M8 11V8a4 4 0 0 1 8 0v3"></path>
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="gal-tb-btn gal-tb-text"
+              id="btn-gal-toolbar-save"
+              data-gal-tb="save"
+              title="存档"
+              aria-label="存档"
+            >
+              SAVE
+            </button>
+            <button
+              type="button"
+              class="gal-tb-btn"
+              id="btn-gal-toolbar-settings"
+              data-gal-tb="settings"
+              title="设置"
+              aria-label="设置"
+            ></button>
+          </div>
+          <div class="gal-tb-nav" aria-label="播放控制">
+            <button
+              type="button"
+              class="gal-tb-btn"
+              id="btn-gal-toolbar-prevround"
+              data-gal-tb="prevround"
+              title="回到上一轮开头"
+              aria-label="上一轮"
+            ></button>
+            <button
+              type="button"
+              class="gal-tb-btn"
+              id="btn-gal-toolbar-rewind"
+              data-gal-tb="rewind"
+              title="快退到本轮开头"
+              aria-label="快退"
+            ></button>
+            <button
+              type="button"
+              class="gal-tb-btn"
+              id="btn-gal-toolbar-back"
+              data-gal-tb="back"
+              title="后退一句"
+              aria-label="后退"
+            ></button>
+            <button
+              type="button"
+              class="gal-tb-btn"
+              id="btn-gal-toolbar-log"
+              data-gal-tb="log"
+              title="back log"
+              aria-label="back log"
+            ></button>
+            <button
+              type="button"
+              class="gal-tb-btn"
+              id="btn-gal-toolbar-fwd"
+              data-gal-tb="fwd"
+              title="前进一句"
+              aria-label="前进"
+            ></button>
+            <button
+              type="button"
+              class="gal-tb-btn"
+              id="btn-gal-toolbar-fastfwd"
+              data-gal-tb="fastfwd"
+              title="快进到本轮选项"
+              aria-label="快进"
+            ></button>
+            <button
+              type="button"
+              class="gal-tb-btn"
+              id="btn-gal-toolbar-auto"
+              data-gal-tb="auto"
+              title="自动前进"
+              aria-label="自动前进"
+              aria-pressed="false"
+            ></button>
+          </div>
         </div>
       </div>
       <div id="gal-log-panel" aria-hidden="true" inert>
@@ -252,6 +247,7 @@
       >
         <span class="gal-phone-fab__glass">
           <span class="gal-phone-fab__icon" id="gal-phone-fab-icon" aria-hidden="true"></span>
+          <span class="gal-phone-fab__badge" id="gal-phone-fab-badge" hidden aria-hidden="true"></span>
         </span>
       </button>
       <button type="button" class="nav l" id="navL" title="上一句">‹</button>
@@ -554,14 +550,15 @@
                   <h3 class="settings-l3-title">手机</h3>
                   <div class="settings-l4">
                     <h4 class="settings-l4-title">手机时间</h4>
-                    <div class="tq-radio-group" role="radiogroup" aria-label="手机时间">
+                    <p class="settings-hint">固定使用游戏内时间（时间.具体时间），不跟随现实时钟。</p>
+                    <div class="tq-radio-group" role="radiogroup" aria-label="手机时间" hidden>
                       <label class="tq-radio-opt" for="cfg-phone-time-real">
-                        <input type="radio" name="cfg-phone-time" id="cfg-phone-time-real" value="real" checked />
+                        <input type="radio" name="cfg-phone-time" id="cfg-phone-time-real" value="real" />
                         <span>现实时间</span>
                       </label>
                       <label class="tq-radio-opt" for="cfg-phone-time-system">
-                        <input type="radio" name="cfg-phone-time" id="cfg-phone-time-system" value="system" />
-                        <span>跟随系统</span>
+                        <input type="radio" name="cfg-phone-time" id="cfg-phone-time-system" value="system" checked />
+                        <span>游戏时间</span>
                       </label>
                     </div>
                   </div>
@@ -914,6 +911,9 @@
               </button>
               <button type="button" class="settings-subtab" data-sub="image">
                 <span class="sub-label">图片</span>
+              </button>
+              <button type="button" class="settings-subtab" data-sub="phone-sys">
+                <span class="sub-label">手机</span>
               </button>
               <button type="button" class="settings-subtab" data-sub="t2i">
                 <span class="sub-label">文生图</span>
@@ -1514,6 +1514,18 @@
                   </div>
                 </section>
               </div>
+              <div class="settings-subpane" data-subpane="phone-sys">
+                <section class="settings-l3 settings-phone-sys">
+                  <div class="char-pane-head prompt-pane-head phone-sys-head">
+                    <h3 class="char-pane-title">手机</h3>
+                    <p class="tq-hint phone-sys-hint">各 App 独立生成时使用的提示词模板</p>
+                  </div>
+                  <nav class="phone-app-tabs settings-tabs" id="phone-app-tabs" aria-label="手机 App"></nav>
+                  <div class="preset-panel char-wb-panel phone-prompt-panel">
+                    <div class="phone-prompt-editor char-wb-card phone-prompt-card" id="phone-prompt-editor"></div>
+                  </div>
+                </section>
+              </div>
               <div class="settings-subpane" data-subpane="t2i">
                 <section class="settings-l3">
                   <p class="tq-hint">文生图相关设置将在这里配置</p>
@@ -1702,11 +1714,14 @@
     </div>
 
     <script src="vendor/js-yaml.min.js"></script>
+    <script src="vendor/gpt-tokenizer-cl100k_base.js"></script>
+    <script src="backend/tokens.js"></script>
     <script src="resource/expressions.js"></script>
     <script src="resource/avatars.js"></script>
     <script src="resource/backgrounds.js"></script>
     <script src="resource/cg.js"></script>
     <script src="resource/stickers.js"></script>
+    <script src="resource/sticker-groups.js"></script>
     <script src="resource/tags.js"></script>
     <script src="resource/keys.js"></script>
     <script src="resource/svg.js"></script>
@@ -1726,9 +1741,13 @@
     <script src="backend/regex.js"></script>
     <script src="backend/save.js"></script>
     <script src="backend/chat.js"></script>
+    <script src="backend/hooks.js"></script>
 
     <script src="interface/stage.js"></script>
     <script src="interface/phone-apps.js"></script>
+    <script src="interface/phone-line-room-tools.js"></script>
+    <script src="interface/phone-line.js"></script>
+    <script src="interface/phone-line-generate.js"></script>
     <script src="interface/phone-layout-preview.js"></script>
     <script src="interface/phone.js"></script>
     <script src="interface/phone-fab.js"></script>
@@ -1740,6 +1759,7 @@
     <script src="interface/settings-prompt.js"></script>
     <script src="interface/settings-variable.js"></script>
     <script src="interface/settings-image.js"></script>
+    <script src="interface/settings-phone-sys.js"></script>
     <script src="interface/settings-user.js"></script>
     <script src="interface/settings-character.js"></script>
     <script src="interface/settings.js"></script>

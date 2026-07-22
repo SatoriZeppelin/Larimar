@@ -85,7 +85,15 @@
       card.className = 'img-card';
       card.setAttribute('role', 'listitem');
       card.title = item.name;
+      var groupTag = '';
+      if (currentType === 'sticker' && window.天青_sticker_groups && window.天青_sticker_groups.getGroupName) {
+        var groupName = window.天青_sticker_groups.getGroupName(item.name);
+        if (groupName) {
+          groupTag = '<span class="img-card-group">' + escapeHtml(groupName) + '</span>';
+        }
+      }
       card.innerHTML =
+        groupTag +
         '<span class="img-card-media">' +
         '<img alt="" loading="lazy" decoding="async" src="' +
         escapeHtml(item.url) +

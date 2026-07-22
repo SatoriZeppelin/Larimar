@@ -818,6 +818,53 @@
     }
   }
 
+  var REPLY_IDLE_MS = 10000;
+  var replyTimer = null;
+  var pendingReplyChatId = '';
+
+  function clearReplyTimer() {
+    if (replyTimer) {
+      clearTimeout(replyTimer);
+      replyTimer = null;
+    }
+  }
+
+  function cancelPendingReply() {
+    clearReplyTimer();
+    pendingReplyChatId = '';
+  }
+
+  function isInputIdle() {
+    var input = document.getElementById('tq-line-input');
+    if (!input) return true;
+    return !String(input.value || '').trim();
+  }
+
+  /** 发送后等待空闲再请求天青回复；输入/再发送会重置计时 */
+  function scheduleDmReply(chatId) {
+    if (!chatId || !isActiveDm(chatId)) return;
+    pendingReplyChatId = chatId;
+    clearReplyTimer();
+    replyTimer = setTimeout(function () {
+      replyTimer = null;
+      var id = pendingReplyChatId;
+      if (!id) return;
+      if (!isInputIdle()) {
+        console.info('[LINE] 输入框仍有内容，继续等待空闲');
+        scheduleDmReply(id);
+        return;
+      }
+      pendingReplyChatId = '';
+      console.info('[LINE] 空闲 ' + REPLY_IDLE_MS / 1000 + 's，请求回复');
+      requestDmReply(id);
+    }, REPLY_IDLE_MS);
+  }
+
+  function bumpReplyTimerOnInput() {
+    if (!pendingReplyChatId) return;
+    scheduleDmReply(pendingReplyChatId);
+  }
+
   function sendMessage() {
     var input = document.getElementById('tq-line-input');
     if (!input || !activeChatId) return;
@@ -828,7 +875,7 @@
       return target.text === text;
     });
     input.value = '';
-    requestDmReply(chatId);
+    scheduleDmReply(chatId);
   }
 
   function sendSticker(name) {
@@ -840,7 +887,7 @@
       return target.type === 'sticker' && target.sticker === name;
     });
     setStickerPanelOpen(false);
-    requestDmReply(chatId);
+    scheduleDmReply(chatId);
   }
 
   function isActiveDm(chatId) {
@@ -889,6 +936,7 @@
 
   /** 重置为开局默认聊天（列表 + 天青两条默认消息） */
   function resetToInitial() {
+    cancelPendingReply();
     saveStore(JSON.parse(JSON.stringify(defaultStore())));
     activeChatId = '';
     setStickerPanelOpen(false);
@@ -982,8 +1030,12 @@
         if (e.key === 'Enter') {
           e.preventDefault();
           sendMessage();
+          return;
         }
+        bumpReplyTimerOnInput();
       });
+      input.addEventListener('input', bumpReplyTimerOnInput);
+      input.addEventListener('compositionend', bumpReplyTimerOnInput);
     }
   }
 

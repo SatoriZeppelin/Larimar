@@ -369,6 +369,39 @@
                     </div>
 
                     <div class="settings-l4">
+                      <h4 class="settings-l4-title">相对高度位置</h4>
+                      <div class="tq-slider" data-slider="dlg-pos-y">
+                        <div class="tq-range-wrap">
+                          <input
+                            type="range"
+                            class="tq-range"
+                            id="cfg-dlg-pos-y"
+                            min="0"
+                            max="10"
+                            step="1"
+                            value="0"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          class="tq-slider-num"
+                          id="cfg-dlg-pos-y-num"
+                          inputmode="numeric"
+                          value="0"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="settings-l4">
+                      <label class="tq-check-row" for="cfg-dlg-dynamic-height">
+                        <input type="checkbox" id="cfg-dlg-dynamic-height" />
+                        <span class="tq-check-box" aria-hidden="true"></span>
+                        <span class="tq-check-label">对话框动态高度</span>
+                      </label>
+                      <p class="tq-hint">启用后，对话框高度将跟随文本高度而变化</p>
+                    </div>
+
+                    <div class="settings-l4">
                       <h4 class="settings-l4-title">磨砂强度</h4>
                       <div class="tq-slider" data-slider="dlg-blur">
                         <div class="tq-range-wrap">
@@ -833,6 +866,16 @@
             <nav class="settings-subnav" id="character-subnav" aria-label="角色设置二级目录"></nav>
             <div class="settings-subcontent" id="character-subcontent">
               <div class="char-pane-head">
+                <button
+                  type="button"
+                  class="tq-preset-btn char-tool-btn char-nav-back"
+                  id="btn-char-nav-back"
+                  title="返回角色列表"
+                  aria-label="返回角色列表"
+                >
+                  <span aria-hidden="true">‹</span>
+                  <span>角色列表</span>
+                </button>
                 <h3 class="char-pane-title" id="char-pane-title">天青</h3>
                 <div class="char-pane-actions">
                   <button type="button" class="tq-preset-btn char-tool-btn" id="btn-char-wb-add">
@@ -1545,7 +1588,7 @@
                     type="button"
                     class="tq-reset-btn tq-debug-export-btn"
                     id="btn-debug-export-seed"
-                    title="导出 seed（角色世界书、提示词、变量库、基础变量）"
+                    title="导出设置（排除用户设定、API密钥/模型、预设、正则）"
                   >
                     <span class="tq-reset-label">导出设置</span>
                     <span class="tq-reset-icon" id="btn-debug-export-seed-icon" aria-hidden="true"></span>

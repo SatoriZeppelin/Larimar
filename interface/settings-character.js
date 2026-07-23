@@ -5,7 +5,7 @@
 (function () {
   var KEY = 'tq_plus_character_tabs';
   var SEED_KEY = 'tq_plus_tianqing_wb_seed';
-  var SEED_VER = 'tianqing-default-wb-v2';
+  var SEED_VER = 'tianqing-default-wb-v3';
   var DEFAULT_COLOR = '#2a6f9e';
   var LONG_MS = 500;
   var MOVE_PX = 10;
@@ -769,8 +769,7 @@
       var levels = Math.floor(cols / 4);
       html += '<div class="char-wb-guide-line">';
       for (var lv = 1; lv <= levels; lv++) {
-        html +=
-          '<span class="char-wb-guide-bar" style="left:' + lv * 4 + 'ch"></span>';
+        html += '<span class="char-wb-guide-bar" style="left:' + lv * 4 + 'ch"></span>';
       }
       html += '</div>';
     }
@@ -822,9 +821,7 @@
       if (contentEditorSaveHook) {
         contentEditorSaveHook(contentEditorTarget);
       } else {
-        var card = contentEditorTarget.closest
-          ? contentEditorTarget.closest('.char-wb-card')
-          : null;
+        var card = contentEditorTarget.closest ? contentEditorTarget.closest('.char-wb-card') : null;
         if (card) syncEntryFromBody(card);
       }
     }
@@ -878,9 +875,10 @@
         refreshContentEditorGuides();
       });
     }
-    if (closeBtn) closeBtn.addEventListener('click', function () {
-      closeContentEditor(true);
-    });
+    if (closeBtn)
+      closeBtn.addEventListener('click', function () {
+        closeContentEditor(true);
+      });
     if (modal) {
       modal.addEventListener('click', function (e) {
         if (e.target === modal) closeContentEditor(true);
@@ -1178,12 +1176,8 @@
       return;
     }
     if (act === 'delete') {
-      var label =
-        (entry && (entry.comment || (entry.key && entry.key[0]))) || '该条目';
-      var ask =
-        window.天青_settings && window.天青_settings.confirm
-          ? window.天青_settings.confirm
-          : null;
+      var label = (entry && (entry.comment || (entry.key && entry.key[0]))) || '该条目';
+      var ask = window.天青_settings && window.天青_settings.confirm ? window.天青_settings.confirm : null;
       var run = function () {
         tab.entries = entries.filter(function (item, i) {
           return entryUid(item, i) !== String(row.dataset.id);
@@ -1209,6 +1203,18 @@
     if (!nav || !store) return;
     var svg = window.天青_svg;
     nav.innerHTML = '';
+
+    var hideBar = document.createElement('div');
+    hideBar.className = 'char-nav-mobile-bar';
+    var hideBtn = document.createElement('button');
+    hideBtn.type = 'button';
+    hideBtn.className = 'char-nav-hide';
+    hideBtn.id = 'btn-char-nav-hide';
+    hideBtn.title = '收起角色列表';
+    hideBtn.setAttribute('aria-label', '收起角色列表，查看世界书配置');
+    hideBtn.innerHTML = '<span aria-hidden="true">‹</span><span>收起列表</span>';
+    hideBar.appendChild(hideBtn);
+    nav.appendChild(hideBar);
 
     store.tabs.forEach(function (tab) {
       var on = tab.enabled !== false;
@@ -1284,6 +1290,45 @@
     store.activeId = id;
     saveStore();
     renderNav();
+    if (isCharMobile()) setCharMobileMode('detail');
+  }
+
+  var CHAR_MOBILE_MQ = '(max-width: 720px)';
+
+  function isCharMobile() {
+    return !!(window.matchMedia && window.matchMedia(CHAR_MOBILE_MQ).matches);
+  }
+
+  function getCharPane() {
+    return $('pane-character');
+  }
+
+  /** @param {'list'|'detail'|null} mode */
+  function setCharMobileMode(mode) {
+    var pane = getCharPane();
+    if (!pane) return;
+    if (!isCharMobile() || !mode) {
+      pane.classList.remove('is-char-mobile-list', 'is-char-mobile-detail');
+      return;
+    }
+    pane.classList.toggle('is-char-mobile-list', mode === 'list');
+    pane.classList.toggle('is-char-mobile-detail', mode === 'detail');
+  }
+
+  function syncCharMobileLayout() {
+    var pane = getCharPane();
+    if (!pane) return;
+    if (!isCharMobile()) {
+      pane.classList.remove('is-char-mobile-list', 'is-char-mobile-detail');
+      return;
+    }
+    if (pane.classList.contains('is-char-mobile-detail')) setCharMobileMode('detail');
+    else setCharMobileMode('list');
+  }
+
+  function onPaneEnter() {
+    syncCharMobileLayout();
+    if (isCharMobile()) setCharMobileMode('list');
   }
 
   function setTabEnabled(id, enabled) {
@@ -1308,6 +1353,7 @@
     store.activeId = tab.id;
     saveStore();
     renderNav();
+    if (isCharMobile()) setCharMobileMode('detail');
     toast('已新增「' + tab.name + '」');
   }
 
@@ -1334,10 +1380,7 @@
       toast('默认角色不可删除');
       return;
     }
-    var ask =
-      window.天青_settings && window.天青_settings.confirm
-        ? window.天青_settings.confirm
-        : null;
+    var ask = window.天青_settings && window.天青_settings.confirm ? window.天青_settings.confirm : null;
     var run = function () {
       var idx = findIndex(tab.id);
       if (idx < 0) return;
@@ -1716,6 +1759,23 @@
     }
 
     renderNav();
+    syncCharMobileLayout();
+
+    var navBack = $('btn-char-nav-back');
+    if (navBack && !navBack.dataset.bound) {
+      navBack.dataset.bound = '1';
+      navBack.addEventListener('click', function (e) {
+        e.preventDefault();
+        setCharMobileMode('list');
+      });
+    }
+
+    if (!window.__tq_char_mobile_resize) {
+      window.__tq_char_mobile_resize = true;
+      window.addEventListener('resize', function () {
+        syncCharMobileLayout();
+      });
+    }
 
     var helpBtn = $('btn-char-help');
     var helpModal = $('char-help-modal');
@@ -1792,6 +1852,11 @@
     if (nav) {
       nav.addEventListener('click', function (e) {
         if (e.target.closest && e.target.closest('.char-subtab-grip')) return;
+        if (e.target.closest && e.target.closest('#btn-char-nav-hide')) {
+          e.preventDefault();
+          if (isCharMobile()) setCharMobileMode('detail');
+          return;
+        }
         var sw = e.target.closest ? e.target.closest('.char-subtab-switch') : null;
         if (sw) {
           e.preventDefault();
@@ -1868,6 +1933,7 @@
     renderNav: renderNav,
     renderEntryList: renderEntryList,
     openContentEditor: openContentEditor,
+    onPaneEnter: onPaneEnter,
     getStore: function () {
       return store;
     },

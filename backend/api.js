@@ -11,17 +11,18 @@
  */
 (function () {
   var KEY = 'tq_plus_api';
+  /* 与 resource/seed.json 的 api 对齐（不含密钥/模型） */
   var DEFAULTS = {
     mode: 'auto',
-    baseUrl: 'https://api.openai.com/v1',
+    baseUrl: 'https://api.tokenfactory.nebius.com/v1',
     apiKey: '',
     model: 'gpt-4o-mini',
-    temperature: 0.9,
+    temperature: 1,
     maxTokens: 4096,
-    contextLength: 200000,
+    contextLength: 1999872,
     frequencyPenalty: 0,
     presencePenalty: 0,
-    topP: 1,
+    topP: 0.99,
     /** auto | minimal | low | medium | high | xhigh */
     reasoningEffort: 'xhigh',
     chatPath: '',
@@ -30,9 +31,9 @@
     resolvedMode: '',
     stream: false,
     /** 流式收包时是否边收边演（完整句上台） */
-    streamDisplay: true,
+    streamDisplay: false,
     /** 启动时自动连接上次保存的 URL */
-    autoConnect: false,
+    autoConnect: true,
   };
 
   function loadConfig() {

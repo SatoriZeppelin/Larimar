@@ -1050,7 +1050,7 @@ html.tq-cg-hide-toolbar #stage.is-cg-view #gal-toolbar-dock {
   position: absolute;
   left: 18px;
   right: 18px;
-  bottom: 18px;
+  bottom: calc(var(--dlg-bottom-base, 18px) + var(--dlg-pos-y, 0) * 1%);
   z-index: 20;
   height: 25%;
   box-sizing: border-box;
@@ -1064,6 +1064,39 @@ html.tq-cg-hide-toolbar #stage.is-cg-view #gal-toolbar-dock {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* 动态高度：高度 = 文本区（发言人+正文）+ 工具栏预留；左下角留给「点击继续」 */
+html.tq-dlg-dynamic-height #dialogue {
+  height: auto;
+  max-height: min(72%, 72vh);
+  padding-bottom: calc(36px + var(--dlg-dynamic-toolbar-h, 48px));
+}
+
+html.tq-dlg-dynamic-height #dialogue.is-dynamic-capped {
+  height: min(72%, 72vh);
+}
+
+html.tq-dlg-dynamic-height #dlg-body {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+html.tq-dlg-dynamic-height #dialogue:not(.is-dynamic-capped) #text {
+  flex: none;
+  overflow: visible;
+  min-height: 0;
+}
+
+html.tq-dlg-dynamic-height #dialogue.is-dynamic-capped #dlg-body {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+html.tq-dlg-dynamic-height #dialogue.is-dynamic-capped #text {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 #dlg-body {
@@ -1126,9 +1159,11 @@ html.tq-cg-hide-toolbar #stage.is-cg-view #gal-toolbar-dock {
   position: absolute;
   left: 16px;
   bottom: 10px;
+  z-index: 2;
   font-size: 11.5px;
   color: rgba(255, 255, 255, 0.6);
   pointer-events: none;
+  white-space: nowrap;
 }
 
 #btn-gear {
@@ -1325,15 +1360,26 @@ html.tq-cg-hide-toolbar #stage.is-cg-view #gal-toolbar-dock {
   #dialogue {
     left: 10px;
     right: 10px;
-    bottom: calc(8px + var(--gal-tb-strip) + env(safe-area-inset-bottom, 0px));
+    --dlg-bottom-base: calc(8px + env(safe-area-inset-bottom, 0px));
     height: min(30vh, 34%);
-    padding: 14px 12px 30px;
+    /* 底部：提示行 + 叠在上面的双层工具栏 */
+    padding: 14px 12px calc(28px + var(--gal-tb-strip));
+  }
+
+  html.tq-dlg-dynamic-height #dialogue {
+    height: auto;
+    max-height: min(72%, 72vh);
+    padding-bottom: calc(28px + var(--dlg-dynamic-toolbar-h, var(--gal-tb-strip)));
+  }
+
+  html.tq-dlg-dynamic-height #dialogue.is-dynamic-capped {
+    height: min(72%, 72vh);
   }
 
   #hint {
     left: 10px;
     right: auto;
-    bottom: 6px;
+    bottom: 8px;
     max-width: 72%;
     font-size: 10.5px;
     white-space: nowrap;
@@ -1472,7 +1518,7 @@ html.tq-cg-hide-toolbar #stage.is-cg-view #gal-toolbar-dock {
   #dialogue {
     left: 8px;
     right: 8px;
-    padding: 12px 10px 28px;
+    padding: 12px 10px calc(12px + var(--gal-tb-strip));
   }
 
   #hint {
@@ -2628,6 +2674,10 @@ html.tq-cg-hide-fab #stage.is-cg-view .gal-phone-fab {
   box-sizing: border-box;
 }
 
+#settings-panel .char-nav-back {
+  display: none;
+}
+
 #settings-panel .char-pane-title {
   margin: 0;
   flex: 1 1 auto;
@@ -3114,6 +3164,98 @@ html.tq-cg-hide-fab #stage.is-cg-view .gal-phone-fab {
 
 #settings-panel #pane-character.active {
   min-height: 0;
+}
+
+/* 窄屏专用控件：宽屏隐藏 */
+#settings-panel .char-nav-back,
+#settings-panel .char-nav-mobile-bar {
+  display: none;
+}
+
+/* 窄屏角色设置：列表 / 配置 主从切换（仅角色页） */
+@media (max-width: 720px) {
+  #settings-panel #pane-character #character-subnav {
+    z-index: 6;
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
+  }
+
+  #settings-panel #pane-character .char-nav-mobile-bar {
+    display: flex;
+    flex-shrink: 0;
+    margin: 0 0 8px;
+  }
+
+  #settings-panel #pane-character .char-nav-hide {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    min-height: 34px;
+    padding: 6px 8px;
+    border: 1.5px solid var(--set-blue);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--set-blue);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+
+  #settings-panel #pane-character .char-nav-hide:active {
+    transform: translateY(1px);
+  }
+
+  /* 列表模式：只显示二级角色菜单 */
+  #settings-panel #pane-character.is-char-mobile-list #character-subnav {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: none;
+    border-right: none;
+    transform: none;
+  }
+
+  #settings-panel #pane-character.is-char-mobile-list #character-subcontent {
+    display: none !important;
+  }
+
+  /* 配置模式：二级菜单滑出左侧，内容全宽 */
+  #settings-panel #pane-character.is-char-mobile-detail #character-subnav {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: min(82%, 220px);
+    max-width: 220px;
+    transform: translateX(-105%);
+    box-shadow: none;
+    pointer-events: none;
+  }
+
+  #settings-panel #pane-character.is-char-mobile-detail #character-subcontent {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #settings-panel #pane-character.is-char-mobile-detail .char-nav-back {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 2px;
+    margin: 0 8px 0 0;
+    min-height: 34px;
+    padding: 6px 10px;
+  }
+
+  #settings-panel #pane-character.is-char-mobile-detail .char-pane-head {
+    flex-wrap: wrap;
+    align-items: center;
+  }
 }
 
 #settings-panel .char-help-fab {
@@ -4952,6 +5094,60 @@ html.tq-cg-hide-fab #stage.is-cg-view .gal-phone-fab {
   gap: 6px;
 }
 
+/* 窄屏角色世界书：标题至少留出约 10 字；操作钮改到下一行 */
+@media (max-width: 720px) {
+  #settings-panel #pane-character .char-wb-card .regex-card-top {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    column-gap: 6px;
+  }
+
+  #settings-panel #pane-character .char-wb-card .regex-card-hit {
+    flex: 1 1 0;
+    min-width: 12ch;
+    gap: 6px;
+  }
+
+  #settings-panel #pane-character .char-wb-card .regex-card-main {
+    min-width: 10ch;
+  }
+
+  #settings-panel #pane-character .char-wb-card .regex-card-title {
+    flex: 1 1 10ch;
+    min-width: 10ch;
+  }
+
+  #settings-panel #pane-character .char-wb-card .regex-place {
+    max-width: 4.5em;
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+  #settings-panel #pane-character .char-wb-card .regex-card-side {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    gap: 4px;
+    padding-left: 26px;
+    box-sizing: border-box;
+  }
+
+  /* 上移/下移靠拖动手柄即可，窄屏隐藏以腾地方 */
+  #settings-panel #pane-character .char-wb-card .preset-move {
+    display: none;
+  }
+
+  #settings-panel #pane-character .char-wb-card .preset-icon-btn,
+  #settings-panel #pane-character .char-wb-card .char-wb-delete-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  #settings-panel #pane-character .char-wb-card .preset-switch {
+    transform: scale(0.92);
+    transform-origin: center right;
+  }
+}
+
 #settings-panel .regex-card-body {
   display: flex;
   flex-direction: column;
@@ -6563,6 +6759,36 @@ html.tq-cg-hide-fab #stage.is-cg-view .gal-phone-fab {
   #settings-panel .phone-layout-options {
     grid-template-columns: 1fr;
   }
+
+  #settings-panel .gal-settings-split {
+    grid-template-columns: 1fr;
+  }
+
+  /* 系统设置 · API：左右半栏改为上下堆叠，内容区可纵向滑动 */
+  #settings-panel .settings-api {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 18px;
+  }
+
+  #settings-panel .settings-api-col {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #settings-panel .settings-pane.no-subnav > .settings-subcontent {
+    flex-direction: column;
+  }
+
+  #settings-panel .settings-pane.no-subnav > .settings-subcontent > .settings-l3,
+  #settings-panel .settings-pane.no-subnav > .settings-subcontent > .settings-block {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #settings-panel .settings-pane[data-pane='system'] > .settings-subcontent {
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 #settings-panel .phone-fab-preview-stage {
@@ -6589,8 +6815,8 @@ html.tq-cg-hide-fab #stage.is-cg-view .gal-phone-fab {
 }
 
 @media (max-width: 900px) {
-  #settings-panel .gal-settings-split {
-    grid-template-columns: 1fr;
+  #settings-panel .phone-fab-preview-stage {
+    min-height: 120px;
   }
 }
 

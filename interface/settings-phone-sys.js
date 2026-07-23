@@ -12,28 +12,31 @@
     { id: 'twitch', label: 'Twitch' },
   ];
 
-  var LINE_PROMPT_VER = 4;
+  var LINE_PROMPT_VER = 5;
   var LINE_PROMPT_VER_KEY = 'tq_plus_phone_prompt_line_ver';
 
   var DEFAULT_PROMPTS = {
     line:
       '[ LINE 私聊回复]\n' +
-      '你现在是天青，在 LINE 上回复制作人{{user}}的私聊。天青是透明直球、心口如一的偶像，喜欢直接表达。\n\n' +
+      '你现在是天青，在 LINE 上回复制作人（{{user}}）的私聊。天青是透明直球、心口如一的偶像，喜欢直接表达。\n' +
+      '\n' +
       '[ 回复格式 ]文字和表情包可以混合使用，但一行只允许存在一种形式：\n' +
-      '  - 文字：直接写出口语化的短信内容（不要动作/旁白/括号/markdown）\n' +
+      '  - 文字：直接写出口语化的短信内容（不要动作/旁白/括号/markdown），但注意不可过于繁琐和过于跳跃性的在多个话题来回跳跃\n' +
       '  - 表情包：在单独一行启用，包含以下字段: 不知道、不行、举白旗、从墙边探头、从纸箱里探头、低落、叹气、害怕或哭泣、少女祈祷中、开心、得意、思考、点赞、生气、疑问\n' +
-      '  - 格式统一为：<天青|回复|小时:分钟>\n\n' +
-      '[ 回复须知 ]:\n' +
-      '  - 综合目前与{{user}}的交流，现实的情况等，综合确定天青发送的消息\n' +
-      '  - 一次发送控制在6条消息以内（包括表情）\n\n' +
+      '  - 格式统一为：<天青|回复|小时:分钟>\n' +
+      '  - 表情为慎重使用的文化符号，切勿隔一行使用一个，正常一段对话只可使用1-2次\n' +
+      '  - 控制每次回复的信息为6句以内（不含表情）\n' +
+      '\n' +
       '  example:\n' +
       '    <line_message>\n' +
       '        <天青|普~罗~丢~色~|17:20>\n' +
       '        <天青|生气|17:20> #此处的生气调用生气表情包\n' +
       '        <天青|为什么不回我！|17:21>\n' +
-      '    </line_message>\n\n' +
+      '    </line_message>\n' +
+      '\n' +
       '[最近的对话]\n' +
-      '{{line_recent_message}}\n\n' +
+      '{{line_recent_message}}\n' +
+      '\n' +
       '直接输出天青的回复：',
     twitter:
       '[独立任务 · Twitter/X 动态，忽略之前的角色扮演格式]\n' +
@@ -89,12 +92,28 @@
       s.indexOf('[ LINE 私聊回复]') === 0 &&
       s.indexOf('制作人（{{user}}）') >= 0 &&
       s.indexOf('[ 回复须知 ]') < 0 &&
-      s.indexOf('小时:分钟') >= 0
+      s.indexOf('小时:分钟') >= 0 &&
+      s.indexOf('不可过于繁琐') < 0
+    );
+  }
+
+  /** v4：含「回复须知」、尚未含 v5 约束句 */
+  function isBundledLinePromptV4(text) {
+    var s = String(text || '');
+    return (
+      s.indexOf('[ LINE 私聊回复]') === 0 &&
+      (s.indexOf('[ 回复须知 ]') >= 0 || s.indexOf('制作人{{user}}') >= 0) &&
+      s.indexOf('不可过于繁琐') < 0
     );
   }
 
   function shouldMigrateLinePrompt(text) {
-    return isLegacyLinePrompt(text) || isBundledLinePromptV2(text) || isBundledLinePromptV3(text);
+    return (
+      isLegacyLinePrompt(text) ||
+      isBundledLinePromptV2(text) ||
+      isBundledLinePromptV3(text) ||
+      isBundledLinePromptV4(text)
+    );
   }
 
   function migrateLinePrompt(data) {

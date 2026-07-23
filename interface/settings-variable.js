@@ -9,7 +9,7 @@
   var KEY = 'tq_plus_variables';
   var VIEW_KEY = 'tq_plus_variables_view';
   var SEED_KEY = 'tq_plus_variables_seed';
-  var SEED_VER = 'variables-default-v4';
+  var SEED_VER = 'variables-default-v5';
   var data = {};
   var meta = {}; /* pathKey -> { varName, comment } */
   var view = 'json';

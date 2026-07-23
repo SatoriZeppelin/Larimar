@@ -6,7 +6,7 @@
 (function () {
   var KEY = 'tq_plus_system_prompts';
   var SEED_KEY = 'tq_plus_prompt_wb_seed';
-  var SEED_VER = 'prompt-default-wb-v3';
+  var SEED_VER = 'prompt-default-wb-v4';
   var STAT_DATA_UID = 'tq_locked_stat_data';
   var store = { entries: [] };
   var expandedId = null;

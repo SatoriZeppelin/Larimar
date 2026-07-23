@@ -186,6 +186,7 @@
 
   function onTypeDone() {
     typing = false;
+    refreshDlgHeight();
     if (autoPlay) scheduleAuto();
   }
 
@@ -194,14 +195,70 @@
     clearAutoTimer();
     typing = true;
     el.textContent = '';
+    refreshDlgHeight();
     var i = 0;
     typer = setInterval(function () {
       el.textContent = str.slice(0, ++i);
+      refreshDlgHeight();
       if (i >= str.length) {
         clearInterval(typer);
         onTypeDone();
       }
     }, 22);
+  }
+
+  function isDlgDynamicHeight() {
+    if (window.天青_settings && window.天青_settings.isDlgDynamicHeight) {
+      return !!window.天青_settings.isDlgDynamicHeight();
+    }
+    return document.documentElement.classList.contains('tq-dlg-dynamic-height');
+  }
+
+  function measureToolbarHeight() {
+    var bar = $('gal-toolbar');
+    if (bar && bar.offsetHeight > 0) return bar.offsetHeight;
+    var dock = $('gal-toolbar-dock');
+    if (dock && dock.offsetHeight > 0) return Math.min(dock.offsetHeight, 120);
+    var stage = $('stage');
+    if (stage) {
+      var strip = window.getComputedStyle(stage).getPropertyValue('--gal-tb-strip').trim();
+      var n = parseFloat(strip);
+      if (!isNaN(n) && n > 0) return n;
+    }
+    return 48;
+  }
+
+  /** 动态高度：对话框 = 文本区（发言人+正文）+ 工具栏高度 */
+  function refreshDlgHeight() {
+    var dlg = $('dialogue');
+    if (!dlg) return;
+    var root = document.documentElement.style;
+    if (!isDlgDynamicHeight()) {
+      dlg.classList.remove('is-dynamic-capped');
+      dlg.style.height = '';
+      root.removeProperty('--dlg-dynamic-toolbar-h');
+      return;
+    }
+
+    var toolbarH = measureToolbarHeight();
+    root.setProperty('--dlg-dynamic-toolbar-h', Math.round(toolbarH) + 'px');
+
+    var stage = $('stage');
+    if (!stage) return;
+
+    dlg.classList.remove('is-dynamic-capped');
+    dlg.style.height = 'auto';
+
+    var natural = dlg.offsetHeight;
+    var maxH = Math.floor(stage.clientHeight * 0.72);
+    if (maxH < 120) maxH = 120;
+
+    if (natural > maxH) {
+      dlg.classList.add('is-dynamic-capped');
+      dlg.style.height = maxH + 'px';
+    } else {
+      dlg.style.height = '';
+    }
   }
 
   function moduleCgName(mod) {
@@ -510,6 +567,7 @@
         typing = false;
         textEl.textContent = mod.text || '';
         if (body) body.classList.remove('is-fading');
+        refreshDlgHeight();
       } else {
         if (body) body.classList.remove('is-fading');
         typeOut(textEl, mod.text);
@@ -520,6 +578,7 @@
       dlgToken++;
       if (body) body.classList.remove('is-fading');
       startContent();
+      refreshDlgHeight();
       return;
     }
 
@@ -530,6 +589,7 @@
     setTimeout(function () {
       if (token !== dlgToken) return;
       startContent();
+      refreshDlgHeight();
     }, DLG_FADE_MS);
   }
 
@@ -667,6 +727,7 @@
         applySpeaker(data.modules[idx]);
         $('text').textContent = data.modules[idx].text;
       }
+      refreshDlgHeight();
       if (autoPlay) scheduleAuto();
       return;
     }
@@ -1195,6 +1256,13 @@
     paintBG({ instant: true });
     syncCgToggle();
     if (window.天青_phone_fab && window.天青_phone_fab.bind) window.天青_phone_fab.bind();
+    refreshDlgHeight();
+    if (!window.__tq_dlg_height_resize) {
+      window.__tq_dlg_height_resize = true;
+      window.addEventListener('resize', function () {
+        refreshDlgHeight();
+      });
+    }
   }
 
   window.天青_stage = {
@@ -1228,5 +1296,6 @@
       return cgViewMode;
     },
     currentCgName: currentCgName,
+    refreshDlgHeight: refreshDlgHeight,
   };
 })();

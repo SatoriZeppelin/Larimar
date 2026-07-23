@@ -38,7 +38,7 @@ window.天青_default_variables = {
     },
     "时间\u0000星期": {
       "varName": "时间.星期",
-      "comment": "一|二|三|四|五|六|日"
+      "comment": "包含日一二三四五六"
     }
   }
 };

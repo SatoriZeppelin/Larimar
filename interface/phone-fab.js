@@ -310,8 +310,12 @@
   }
 
   function refreshUnreadBadge(count) {
-    if (count == null && window.天青_phone_line && window.天青_phone_line.getTotalUnread) {
-      count = window.天青_phone_line.getTotalUnread();
+    if (count == null) {
+      if (window.天青_phone && window.天青_phone.getPhoneUnreadTotal) {
+        count = window.天青_phone.getPhoneUnreadTotal();
+      } else if (window.天青_phone_line && window.天青_phone_line.getTotalUnread) {
+        count = window.天青_phone_line.getTotalUnread();
+      }
     }
     count = parseInt(count, 10) || 0;
     var badge = document.getElementById('gal-phone-fab-badge');

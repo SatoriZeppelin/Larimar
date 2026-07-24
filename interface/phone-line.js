@@ -9,6 +9,7 @@
   var bound = false;
   var stickerPanelOpen = false;
   var stickerTab = 'recent';
+  var inboundEpoch = 0;
 
   var USER_AVATAR =
     'data:image/svg+xml;charset=utf-8,' +
@@ -40,8 +41,8 @@
             signature: 'ただ君に晴れ',
           },
           messages: [
-            { me: false, text: '制作人～今天也辛苦啦！', day: 1, h: 7, m: 55 },
-            { me: false, text: '晚上有空的话，要不要听我练歌？🎤', day: 1, h: 7, m: 57 },
+            { me: false, text: '制作人～今天也辛苦啦！', day: 1, h: 7, m: 55, mainMsgIndex: 0 },
+            { me: false, text: '晚上有空的话，要不要听我练歌？🎤', day: 1, h: 7, m: 57, mainMsgIndex: 0 },
           ],
         },
         group: {
@@ -182,9 +183,12 @@
     setBadgeEl(document.getElementById('tq-line-header-badge'), total);
     if (window.天青_phone && window.天青_phone.refreshLineBadge) {
       window.天青_phone.refreshLineBadge(total);
-    }
-    if (window.天青_phone_fab && window.天青_phone_fab.refreshUnreadBadge) {
-      window.天青_phone_fab.refreshUnreadBadge(total);
+    } else if (window.天青_phone_fab && window.天青_phone_fab.refreshUnreadBadge) {
+      var fabTotal = total;
+      if (window.天青_phone_twitter && window.天青_phone_twitter.getUnreadCount) {
+        fabTotal += parseInt(window.天青_phone_twitter.getUnreadCount(), 10) || 0;
+      }
+      window.天青_phone_fab.refreshUnreadBadge(fabTotal);
     }
   }
 
@@ -199,16 +203,73 @@
     refreshBadges();
   }
 
+  function getCurrentMainAsstIndex() {
+    if (window.天青_phone && typeof window.天青_phone.getCurrentMainAsstIndex === 'function') {
+      return window.天青_phone.getCurrentMainAsstIndex();
+    }
+    try {
+      if (!window.天青_save || !window.天青_save.load) return -1;
+      var msgs = (window.天青_save.load().messages || []);
+      for (var i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i] && msgs[i].role === 'assistant') return i;
+      }
+    } catch (e) {}
+    return -1;
+  }
+
+  function stampMainMsgIndex(msg, bindIndex) {
+    if (!msg || typeof msg !== 'object') return msg;
+    if (typeof bindIndex === 'number') msg.mainMsgIndex = bindIndex;
+    else if (typeof msg.mainMsgIndex !== 'number') msg.mainMsgIndex = getCurrentMainAsstIndex();
+    return msg;
+  }
+
+  function msgBelongsToMain(msg, maxIdx) {
+    if (!msg) return false;
+    var idx = msg.mainMsgIndex;
+    if (typeof idx !== 'number') idx = 0;
+    return idx <= maxIdx;
+  }
+
+  function trimToMainMsgIndex(maxIdx) {
+    inboundEpoch += 1;
+    maxIdx = typeof maxIdx === 'number' ? maxIdx : -1;
+    var store = loadStore();
+    var changed = false;
+    Object.keys(store.chats || {}).forEach(function (id) {
+      var chat = store.chats[id];
+      if (!chat || !Array.isArray(chat.messages)) return;
+      var next = chat.messages.filter(function (m) {
+        return msgBelongsToMain(m, maxIdx);
+      });
+      if (next.length !== chat.messages.length) {
+        chat.messages = next;
+        changed = true;
+        if (store.lastReadIndex && typeof store.lastReadIndex[id] === 'number') {
+          store.lastReadIndex[id] = Math.min(store.lastReadIndex[id], next.length - 1);
+        }
+      }
+    });
+    if (changed) {
+      saveStore(store);
+      refreshBadges();
+      if (view === 'room' && activeChatId) renderRoom();
+      renderList();
+    }
+    return changed;
+  }
+
   function onInboundMessage(chatId) {
     if (isViewingChat(chatId)) markChatRead(chatId);
     else refreshBadges();
   }
 
-  function pushInboundMessage(chatId, msg) {
+  function pushInboundMessage(chatId, msg, bindIndex) {
     var store = loadStore();
     var chat = store.chats && store.chats[chatId];
     if (!chat || chat.type === 'group') return;
     chat.messages = chat.messages || [];
+    stampMainMsgIndex(msg, bindIndex);
     chat.messages.push(msg);
     saveStore(store);
     onInboundMessage(chatId);
@@ -216,12 +277,15 @@
     renderList();
   }
 
-  function appendInboundMessages(chatId, items) {
+  function appendInboundMessages(chatId, items, bindIndex) {
     if (!items || !items.length) return;
+    var epoch = inboundEpoch;
+    var bind = typeof bindIndex === 'number' ? bindIndex : getCurrentMainAsstIndex();
     items.forEach(function (msg, i) {
       setTimeout(function (m) {
         return function () {
-          pushInboundMessage(chatId, m);
+          if (epoch !== inboundEpoch) return;
+          pushInboundMessage(chatId, m, bind);
         };
       }(msg), i * 420);
     });
@@ -499,20 +563,57 @@
     return '<div class="tq-line__bubble">' + esc(m.text) + '</div>';
   }
 
-  function outboundLeadHtml(m) {
+  function checkSvgSingle() {
+    return (
+      '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+      '<path d="M6.5 12.5l3.2 3.2L17.5 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg>'
+    );
+  }
+
+  function checkSvgDouble() {
+    return (
+      '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+      '<path d="M3.2 12.5l3 3L13.5 8" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M9.2 12.5l3 3L19.5 8" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg>'
+    );
+  }
+
+  /** 己方消息展示状态：sending | sent | read */
+  function outboundStatus(m, messages, index) {
+    if (!m || !m.me) return '';
+    if (m.sendStatus === 'sending') return 'sending';
+    if (m.sendStatus === 'read') return 'read';
+    /* 其后已有对方消息 → 视为已读（兼容旧数据） */
+    var list = messages || [];
+    for (var i = (index | 0) + 1; i < list.length; i++) {
+      if (list[i] && !list[i].me) return 'read';
+    }
+    return 'sent';
+  }
+
+  function outboundLeadHtml(m, messages, index) {
     if (!m.me) return '';
-    var sending = m.sendStatus === 'sending';
+    var status = outboundStatus(m, messages, index);
     var html = '<span class="tq-line__send-lead">';
-    if (sending) {
+    if (status === 'sending') {
       html +=
         '<span class="tq-line__send-status is-sending" aria-label="发送中">' +
         '<span class="tq-line__send-spinner"></span></span>';
+    } else if (status === 'read') {
+      html +=
+        '<span class="tq-line__send-status is-read" aria-label="已读">' +
+        checkSvgDouble() +
+        '</span>' +
+        '<span class="tq-line__msg-time tq-line__msg-time--outbound">' +
+        esc(formatClock(m)) +
+        '</span>';
     } else {
       html +=
         '<span class="tq-line__send-status is-sent" aria-label="已发送">' +
-        '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-        '<path d="M6.5 12.5l3.2 3.2L17.5 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>' +
-        '</svg></span>' +
+        checkSvgSingle() +
+        '</span>' +
         '<span class="tq-line__msg-time tq-line__msg-time--outbound">' +
         esc(formatClock(m)) +
         '</span>';
@@ -531,15 +632,17 @@
     );
   }
 
-  function msgRowHtml(m) {
+  function msgRowHtml(m, messages, index) {
     var bubble = bubbleHtml(m);
-    if (m.me) return outboundLeadHtml(m) + bubble;
+    if (m.me) return outboundLeadHtml(m, messages, index) + bubble;
     return bubble + msgMetaHtml(m);
   }
 
   function finalizeOutboundSend(chatId, msgIndex, verify) {
+    var epoch = inboundEpoch;
     var delay = Math.round(Math.random() * 1000);
     setTimeout(function () {
+      if (epoch !== inboundEpoch) return;
       var nextStore = loadStore();
       var nextChat = nextStore.chats[chatId];
       if (!nextChat || !nextChat.messages[msgIndex]) return;
@@ -568,6 +671,7 @@
     msg.me = true;
     msg.sendStatus = 'sending';
     msg.day = g.day;
+    stampMainMsgIndex(msg);
     chat.messages.push(msg);
     var msgIndex = chat.messages.length - 1;
     saveStore(store);
@@ -781,7 +885,7 @@
         '<div class="tq-line__bubble-col">' +
         nameHtml +
         '<div class="tq-line__bubble-row">' +
-        msgRowHtml(m) +
+        msgRowHtml(m, chat.messages, msgIndex) +
         '</div></div></div>';
     });
     msgs.innerHTML = html;
@@ -896,8 +1000,31 @@
     return !!(chat && chat.type !== 'group');
   }
 
+  /** 触发对方回复时：己方未读消息 → 已读（双钩） */
+  function markOutboundRead(chatId) {
+    if (!chatId) return false;
+    var store = loadStore();
+    var chat = store.chats && store.chats[chatId];
+    if (!chat || !Array.isArray(chat.messages)) return false;
+    var changed = false;
+    chat.messages.forEach(function (m) {
+      if (!m || !m.me) return;
+      if (m.sendStatus === 'read') return;
+      /* sending / sent / 缺省 → read */
+      m.sendStatus = 'read';
+      changed = true;
+    });
+    if (changed) {
+      saveStore(store);
+      if (activeChatId === chatId && view === 'room') renderRoom();
+      renderList();
+    }
+    return changed;
+  }
+
   function requestDmReply(chatId) {
     if (!isActiveDm(chatId)) return;
+    markOutboundRead(chatId);
     var gen = window.天青_phone_line_generate;
     if (!gen || typeof gen.generateDmReply !== 'function') {
       console.warn('[LINE] 生成模块未加载');
@@ -1052,6 +1179,8 @@
     getTotalUnread: getTotalUnread,
     refreshBadges: refreshBadges,
     appendInboundMessages: appendInboundMessages,
+    trimToMainMsgIndex: trimToMainMsgIndex,
+    getCurrentMainAsstIndex: getCurrentMainAsstIndex,
     /** 私聊 · 填充 {{line_recent_message}}（最近 20 条，双方） */
     buildLineRecentMessage: buildLineRecentMessage,
     LINE_RECENT_LIMIT: LINE_RECENT_LIMIT,

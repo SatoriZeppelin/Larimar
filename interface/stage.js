@@ -47,10 +47,6 @@
   function cgLibrary() {
     return window.天青_cg || {};
   }
-  function timeBand() {
-    return window.天青_TIME_BAND || {};
-  }
-
   function textClassForWho(who) {
     var name = String(who || '').trim();
     if (!name) return '';
@@ -76,9 +72,14 @@
 
   function paintBG(opts) {
     var instant = !!(opts && opts.instant);
-    var st = (window.天青_state && window.天青_state.get()) || {};
-    var band = timeBand()[st.时段] || '白日';
-    var loc = st.地点 || '校园';
+    var loc =
+      window.天青_state && window.天青_state.getLocation
+        ? window.天青_state.getLocation()
+        : '校园';
+    var band =
+      window.天青_state && window.天青_state.getTimeBand
+        ? window.天青_state.getTimeBand()
+        : '白日';
     var key = loc + '·' + band;
     var map = backgrounds();
     var url = map[key] || map[loc + '·白日'] || map[loc + '·黄昏'] || map[loc + '·夜晚'];
@@ -548,8 +549,8 @@
 
   function applyLineBg(mod) {
     if (!mod || !mod.bgId) return;
-    if (window.天青_state && window.天青_state.set) {
-      window.天青_state.set({ 地点: mod.bgId });
+    if (window.天青_state && window.天青_state.setLocation) {
+      window.天青_state.setLocation(mod.bgId);
     }
     paintBG();
   }

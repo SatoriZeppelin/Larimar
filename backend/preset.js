@@ -818,9 +818,7 @@
       return window.天青_prompt_builder.buildSystemMessage(extraScanText);
     }
     var p = load();
-    var stateBlock =
-      window.天青_state && window.天青_state.promptBlock ? window.天青_state.promptBlock() : '';
-    var wb = activateWorldbook((extraScanText || '') + '\n' + stateBlock, p);
+    var wb = activateWorldbook(extraScanText || '', p);
     var chunks = [];
 
     if (Array.isArray(p.prompts) && p.prompts.length) {
@@ -840,7 +838,6 @@
     }
 
     if (wb) chunks.push('【世界书】\n' + wb);
-    if (stateBlock) chunks.push(stateBlock);
     return chunks.filter(Boolean).join('\n\n');
   }
 

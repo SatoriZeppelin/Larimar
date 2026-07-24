@@ -21,6 +21,15 @@
     return gen.generateFromHook(chatId || DEFAULT_LINE_CHAT, hookText);
   }
 
+  async function runTwitterHook(hookText) {
+    var gen = window.天青_phone_twitter_generate;
+    if (!gen || typeof gen.generateFromHook !== 'function') {
+      console.warn('[hooks] Twitter 生成模块未就绪');
+      return null;
+    }
+    return gen.generateFromHook(hookText);
+  }
+
   /**
    * 解析 AI 原文中的钩子并异步执行（不阻塞主线）
    * @param {string} raw
@@ -36,6 +45,9 @@
       if (h.app === 'line') {
         console.info('[hooks] LINE 钩子', h.text);
         results.push(await runLineHook(h.text));
+      } else if (h.app === 'twitter') {
+        console.info('[hooks] Twitter 钩子', h.text);
+        results.push(await runTwitterHook(h.text));
       } else {
         console.info('[hooks] 未实现的 App 钩子:', h.app, h.text);
       }

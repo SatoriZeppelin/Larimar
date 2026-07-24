@@ -121,7 +121,9 @@
         var badgeHtml =
           app.id === 'line'
             ? '<span class="tq-phone-app-badge" data-line-app-badge hidden aria-hidden="true"></span>'
-            : '';
+            : app.id === 'twitter'
+              ? '<span class="tq-phone-app-badge" data-twitter-app-badge hidden aria-hidden="true"></span>'
+              : '';
         return (
           '<button type="button" class="tq-phone-app" data-app="' +
           app.id +
@@ -150,6 +152,9 @@
       .map(function (app) {
         if (app.id === 'line' && window.天青_phone_line && window.天青_phone_line.sheetHtml) {
           return window.天青_phone_line.sheetHtml();
+        }
+        if (app.id === 'twitter' && window.天青_phone_twitter && window.天青_phone_twitter.sheetHtml) {
+          return window.天青_phone_twitter.sheetHtml();
         }
         var icon = appsApi.iconHtml(app.id, 'sheet-' + app.id);
         return (
@@ -242,6 +247,9 @@
     if (openAppId === 'line' && window.天青_phone_line && window.天青_phone_line.onBack) {
       if (window.天青_phone_line.onBack()) return true;
     }
+    if (openAppId === 'twitter' && window.天青_phone_twitter && window.天青_phone_twitter.onBack) {
+      if (window.天青_phone_twitter.onBack()) return true;
+    }
     return false;
   }
 
@@ -263,6 +271,9 @@
     setStatusDark(true);
     if (appId === 'line' && window.天青_phone_line && window.天青_phone_line.onOpen) {
       window.天青_phone_line.onOpen();
+    }
+    if (appId === 'twitter' && window.天青_phone_twitter && window.天青_phone_twitter.onOpen) {
+      window.天青_phone_twitter.onOpen();
     }
     var bar = $('tq-phone-home-bar');
     if (bar) bar.setAttribute('aria-label', '返回主屏幕');
@@ -286,13 +297,21 @@
     return !!(root && root.classList.contains('is-open'));
   }
 
-  function refreshLineBadge(count) {
-    if (count == null && window.天青_phone_line && window.天青_phone_line.getTotalUnread) {
-      count = window.天青_phone_line.getTotalUnread();
+  function getPhoneUnreadTotal() {
+    var n = 0;
+    if (window.天青_phone_line && window.天青_phone_line.getTotalUnread) {
+      n += parseInt(window.天青_phone_line.getTotalUnread(), 10) || 0;
     }
-    count = parseInt(count, 10) || 0;
-    var badge = document.querySelector('.tq-phone-app[data-app="line"] .tq-phone-app-badge');
+    if (window.天青_phone_twitter && window.天青_phone_twitter.getUnreadCount) {
+      n += parseInt(window.天青_phone_twitter.getUnreadCount(), 10) || 0;
+    }
+    return n;
+  }
+
+  function setAppBadge(selector, count, label) {
+    var badge = document.querySelector(selector);
     if (!badge) return;
+    count = parseInt(count, 10) || 0;
     if (count < 1) {
       badge.hidden = true;
       badge.textContent = '';
@@ -301,13 +320,40 @@
     }
     badge.hidden = false;
     badge.textContent = count > 99 ? '99+' : String(count);
-    badge.setAttribute('aria-label', 'LINE 未读 ' + badge.textContent);
+    badge.setAttribute('aria-label', (label || '未读') + ' ' + badge.textContent);
+  }
+
+  function refreshLineBadge(count) {
+    if (count == null && window.天青_phone_line && window.天青_phone_line.getTotalUnread) {
+      count = window.天青_phone_line.getTotalUnread();
+    }
+    setAppBadge('.tq-phone-app[data-app="line"] .tq-phone-app-badge', count, 'LINE 未读');
+    refreshFabUnread();
+  }
+
+  function refreshTwitterBadge(count) {
+    if (count == null && window.天青_phone_twitter && window.天青_phone_twitter.getUnreadCount) {
+      count = window.天青_phone_twitter.getUnreadCount();
+    }
+    setAppBadge('.tq-phone-app[data-app="twitter"] .tq-phone-app-badge', count, 'Twitter 未读');
+    refreshFabUnread();
+  }
+
+  function refreshFabUnread() {
+    if (window.天青_phone_fab && window.天青_phone_fab.refreshUnreadBadge) {
+      window.天青_phone_fab.refreshUnreadBadge(getPhoneUnreadTotal());
+    }
+  }
+
+  function refreshAllUnreadBadges() {
+    refreshLineBadge();
+    refreshTwitterBadge();
   }
 
   function open() {
     buildDom();
     bind();
-    refreshLineBadge();
+    refreshAllUnreadBadges();
     var root = $('tq-phone');
     if (!root || isOpen()) return;
     root.classList.add('is-open');
@@ -392,7 +438,13 @@
     bind: function () {
       buildDom();
       bind();
-      refreshLineBadge();
+      if (window.天青_phone_twitter && window.天青_phone_twitter.bind) {
+        window.天青_phone_twitter.bind();
+      }
+      if (window.天青_phone_line && window.天青_phone_line.refreshBadges) {
+        window.天青_phone_line.refreshBadges();
+      }
+      refreshAllUnreadBadges();
     },
     open: open,
     close: close,
@@ -403,5 +455,31 @@
     refreshClock: updateClock,
     applyLayout: applyLayout,
     refreshLineBadge: refreshLineBadge,
+    refreshTwitterBadge: refreshTwitterBadge,
+    refreshAllUnreadBadges: refreshAllUnreadBadges,
+    getPhoneUnreadTotal: getPhoneUnreadTotal,
+    getCurrentMainAsstIndex: getCurrentMainAsstIndex,
+    trimPhoneToMainMsgIndex: trimPhoneToMainMsgIndex,
   };
+
+  function getCurrentMainAsstIndex() {
+    try {
+      if (!window.天青_save || !window.天青_save.load) return -1;
+      var msgs = (window.天青_save.load().messages || []);
+      for (var i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i] && msgs[i].role === 'assistant') return i;
+      }
+    } catch (e) {}
+    return -1;
+  }
+
+  function trimPhoneToMainMsgIndex(maxIdx) {
+    maxIdx = typeof maxIdx === 'number' ? maxIdx : -1;
+    if (window.天青_phone_line && typeof window.天青_phone_line.trimToMainMsgIndex === 'function') {
+      window.天青_phone_line.trimToMainMsgIndex(maxIdx);
+    }
+    if (window.天青_phone_twitter && typeof window.天青_phone_twitter.trimToMainMsgIndex === 'function') {
+      window.天青_phone_twitter.trimToMainMsgIndex(maxIdx);
+    }
+  }
 })();

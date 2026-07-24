@@ -3,17 +3,15 @@
  * 对外：window.天青_chat
  */
 (function () {
-  function logAiReply(raw, data) {
+  function logAiReply(raw, data, meta) {
+    meta = meta || {};
+    var source = meta.source || '主线';
     var lines = Array.isArray(data && data.modules) ? data.modules.length : 0;
     var choices = Array.isArray(data && data.choices) ? data.choices.length : 0;
-    var title =
-      '[SummerNight Plus] AI 回复' +
-      ' · format=' +
-      ((data && data.format) || '?') +
-      ' · lines=' +
-      lines +
-      ' · choices=' +
-      choices;
+    var title = '[SummerNight Plus] AI 回复 · ' + source;
+    if (data && data.format) title += ' · format=' + data.format;
+    if (data && data.modules) title += ' · lines=' + lines + ' · choices=' + choices;
+    if (meta.summary) title += ' · ' + meta.summary;
     if (data && data.snapshot) title += ' · snapshot';
 
     /* 分组折叠：一眼能看清完整原文与解析摘要 */
@@ -29,23 +27,29 @@
         console.info('—— branches ——');
         console.log(data.choices);
       }
-      console.info('—— 解析 modules（摘要）——');
-      console.log(
-        (data.modules || []).map(function (m, i) {
-          if (!m) return i + ': (empty)';
-          if (m.type === 'line') {
-            return (
-              i +
-              ': [' +
-              (m.who || '') +
-              (m.expr && m.expr !== '-' ? '|' + m.expr : '') +
-              '] ' +
-              String(m.text || '').slice(0, 80)
-            );
-          }
-          return i + ': ' + m.type + ' ' + JSON.stringify(m).slice(0, 80);
-        }),
-      );
+      if (data && Array.isArray(data.modules)) {
+        console.info('—— 解析 modules（摘要）——');
+        console.log(
+          (data.modules || []).map(function (m, i) {
+            if (!m) return i + ': (empty)';
+            if (m.type === 'line') {
+              return (
+                i +
+                ': [' +
+                (m.who || '') +
+                (m.expr && m.expr !== '-' ? '|' + m.expr : '') +
+                '] ' +
+                String(m.text || '').slice(0, 80)
+              );
+            }
+            return i + ': ' + m.type + ' ' + JSON.stringify(m).slice(0, 80);
+          }),
+        );
+      }
+      if (meta.detail != null) {
+        console.info('—— 解析结果 ——');
+        console.log(meta.detail);
+      }
       console.groupEnd();
       return;
     }
@@ -96,7 +100,7 @@
     window.天青_save.setLastRaw(raw);
 
     var data = window.天青_parse.parseGal(raw);
-    logAiReply(raw, data);
+    logAiReply(raw, data, { source: '主线' });
 
     if (window.天青_hooks && window.天青_hooks.dispatchFromRaw) {
       window.天青_hooks.dispatchFromRaw(raw).catch(function (e) {
@@ -114,5 +118,6 @@
   window.天青_chat = {
     generate: generate,
     continueWith: continueWith,
+    logAiReply: logAiReply,
   };
 })();

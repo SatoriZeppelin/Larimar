@@ -489,11 +489,6 @@
         return m && m.content ? String(m.content) : '';
       });
     parts.push(String(userText || ''));
-    if (window.天青_state && window.天青_state.promptBlock) {
-      try {
-        parts.push(String(window.天青_state.promptBlock() || ''));
-      } catch (e) {}
-    }
     return parts.join('\n');
   }
 
@@ -890,9 +885,16 @@
     });
   }
 
-  /** LINE：无主线历史，仅本轮 LINE 提示词 + @D / AN 桶 */
+  /** LINE：无完整主线历史；本轮 LINE 提示词 + 主线最近 1 轮 + @D / AN / 用户人设 */
   function appendLineUserTurn(messages, linePrompt, wiBuckets, absolutePrompts) {
     var chatMsgs = [];
+
+    /* 用户设定 → 作者注顶部 */
+    var personaAnTop = getPersonaInjection('an_top');
+    if (personaAnTop) {
+      chatMsgs.unshift({ role: 'system', content: personaAnTop });
+    }
+
     pushEachAsRole(chatMsgs, wiBuckets.anTop);
 
     var depthItems = (wiBuckets.atDepth || []).slice();
@@ -906,8 +908,12 @@
       });
     });
 
-    /* 主线最近 1 次常规 LLM 对话（user + assistant） */
-    getLastMainChatTurn().forEach(function (m) {
+    /* 用户设定 → 聊天特定深度 */
+    var personaDepth = getPersonaDepthInjection();
+    if (personaDepth) depthItems.push(personaDepth);
+
+    /* 主线最近 1 次常规 LLM 对话 → 总结性消息 */
+    getLastMainChatTurnSummary().forEach(function (m) {
       chatMsgs.push({ role: m.role, content: m.content });
     });
 
@@ -927,6 +933,13 @@
           if (!text) return;
           chatMsgs.splice(insertAt + i, 0, { role: wiRole(e.role), content: text });
         });
+    }
+
+    /* 用户设定 → 作者注底部（紧贴最新 user 之前） */
+    var personaAnBottom = getPersonaInjection('an_bottom');
+    if (personaAnBottom) {
+      var anInsert = Math.max(0, chatMsgs.length - 1);
+      chatMsgs.splice(anInsert, 0, { role: 'system', content: personaAnBottom });
     }
 
     chatMsgs.forEach(function (m) {
@@ -971,6 +984,53 @@
   }
 
   /**
+   * 从主线消息正文提取总结性文案（优先快照，其次正文摘要）
+   * @param {string} content
+   * @param {{maxLen?: number}} [opts]
+   */
+  function extractMainTurnSummary(content, opts) {
+    opts = opts || {};
+    var maxLen = opts.maxLen != null ? opts.maxLen : 280;
+    var text = String(content || '');
+    if (!text.trim()) return '';
+
+    var snap = text.match(/<summernight_snapshots\b[^>]*>([\s\S]*?)<\/summernight_snapshots>/i);
+    if (snap && String(snap[1] || '').trim()) {
+      return String(snap[1]).replace(/\s+/g, ' ').trim();
+    }
+
+    var main = text.match(/<summernight_maintext\b[^>]*>([\s\S]*?)<\/summernight_maintext>/i);
+    if (main && String(main[1] || '').trim()) {
+      text = String(main[1]);
+    }
+
+    var plain = text
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!plain) return '';
+    if (plain.length > maxLen) plain = plain.slice(0, maxLen) + '…';
+    return plain;
+  }
+
+  /**
+   * LINE 用：主线最近 1 轮改为总结性消息（避免塞入整段 summernight XML）
+   * @returns {Array<{role:string,content:string}>}
+   */
+  function getLastMainChatTurnSummary() {
+    return getLastMainChatTurn().map(function (m) {
+      var summary = extractMainTurnSummary(m.content);
+      if (!summary) {
+        return { role: m.role, content: '（本轮暂无摘要）' };
+      }
+      if (m.role === 'assistant') {
+        return { role: 'assistant', content: '[本轮剧情摘要]\n' + summary };
+      }
+      return { role: 'user', content: summary };
+    });
+  }
+
+  /**
    * 组装 Chat Completion messages。
    * 正文来自：预设 / 提示词界面 / 角色世界书 / 用户设定（按插入位置）。
    * @param {{ userText?: string, history?: Array<{role:string,content:string}> }} opts
@@ -1002,11 +1062,6 @@
         atDepth: (wi.atDepth && wi.atDepth.length) || 0,
       },
     };
-    try {
-      if (window.天青_state && window.天青_state.promptBlock) {
-        stateBlock = String(window.天青_state.promptBlock() || '').trim();
-      }
-    } catch (e) {}
 
     promptEntries.forEach(function (item) {
       if (!item || item.enabled === false || item.visible === false) {
@@ -1165,9 +1220,10 @@
    * LINE 私聊专用组装：
    * - 系统设置 · 预设（prompt_order / prompts）
    * - 角色设置 · 角色世界书
-   * - 主线最近 1 次常规 LLM 对话（user + assistant）
-   * - 系统设置 · 手机 · LINE 提示词（作为本轮 user，已填占位符）
-   * 不含：系统设置-提示词、用户人设注入、Gal 状态块、完整主线历史
+   * - 用户设定（人设，按插入位置）
+   * - 主线最近 1 次常规 LLM 对话（总结性消息，非全文）
+   * - 系统设置 · 手机 · LINE 提示词（作为本轮 user，已填占位符；含当前游戏时间）
+   * 不含：系统设置-提示词、Gal 状态块、完整主线历史
    * @param {{ linePrompt: string, scanText?: string }} opts
    */
   function buildLineChatMessages(opts) {
@@ -1182,6 +1238,7 @@
     var absolutePrompts = [];
     var relativeEntries = [];
     var chatInserted = false;
+    var personaPromptInjected = false;
     var diag = {
       mode: 'line',
       presetName: preset && preset.name,
@@ -1190,7 +1247,7 @@
       skipped: [],
       markers: [],
       absolute: [],
-      mainTurn: getLastMainChatTurn().length,
+      mainTurn: getLastMainChatTurnSummary().length,
       wi: {
         before: (wi.before && wi.before.length) || 0,
         after: (wi.after && wi.after.length) || 0,
@@ -1244,8 +1301,18 @@
         } else if (id === 'chatHistory') {
           appendLineUserTurn(messages, linePrompt, wi, absolutePrompts);
           chatInserted = true;
+        } else if (id === 'personaDescription') {
+          var personaPrompt = getPersonaInjection('prompt');
+          if (personaPrompt) {
+            messages.push({ role: 'system', content: personaPrompt });
+            personaPromptInjected = true;
+            diag.included.push({
+              name: 'personaDescription',
+              role: 'system',
+              chars: personaPrompt.length,
+            });
+          }
         }
-        /* personaDescription / 其它 marker：LINE 模式跳过 */
         return;
       }
 
@@ -1276,6 +1343,26 @@
         pushJoinedSystem(messages, wi.after, '世界书·角色定义后');
       }
       appendLineUserTurn(messages, linePrompt, wi, absolutePrompts);
+    }
+
+    if (!personaPromptInjected) {
+      var fallbackPersona = getPersonaInjection('prompt');
+      if (fallbackPersona) {
+        var insertAt = 0;
+        for (var pi = 0; pi < messages.length; pi++) {
+          if (messages[pi] && messages[pi].role === 'user') {
+            insertAt = pi;
+            break;
+          }
+          insertAt = pi + 1;
+        }
+        messages.splice(insertAt, 0, { role: 'system', content: fallbackPersona });
+        diag.included.push({
+          name: 'persona(fallback)',
+          role: 'system',
+          chars: fallbackPersona.length,
+        });
+      }
     }
 
     var hasUser = messages.some(function (m) {
@@ -1316,8 +1403,9 @@
   /**
    * LINE 钩子专用组装：
    * - 系统设置 · 预设（仅正文条目，不含世界书 / chatHistory）
-   * - 主线最近 1 轮（user + assistant）
-   * - 系统设置 · 手机 · LINE 提示词（本轮 user）
+   * - 用户设定（人设）
+   * - 主线最近 1 轮（总结性消息）
+   * - 系统设置 · 手机 · LINE 提示词（本轮 user，含当前游戏时间）
    * @param {{ linePrompt: string }} opts
    */
   function buildLineHookChatMessages(opts) {
@@ -1326,10 +1414,11 @@
     var linePrompt = String(opts.linePrompt || '').trim();
     var promptEntries = getOrderedPromptEntries(preset);
     var messages = [];
+    var personaPromptInjected = false;
     var diag = {
       mode: 'line-hook',
       presetName: preset && preset.name,
-      mainTurn: getLastMainChatTurn().length,
+      mainTurn: getLastMainChatTurnSummary().length,
       included: [],
     };
 
@@ -1339,7 +1428,21 @@
         return;
       }
       var id = item.identifier || item.id || '';
-      if (isStructuralMarker(item) || isMarkerId(id)) return;
+      if (isStructuralMarker(item) || isMarkerId(id)) {
+        if (id === 'personaDescription') {
+          var personaAtMarker = getPersonaInjection('prompt');
+          if (personaAtMarker) {
+            messages.push({ role: 'system', content: personaAtMarker });
+            personaPromptInjected = true;
+            diag.included.push({
+              name: 'personaDescription',
+              role: 'system',
+              chars: personaAtMarker.length,
+            });
+          }
+        }
+        return;
+      }
 
       var content = String(item.content || '').trim();
       if (!content) return;
@@ -1354,15 +1457,41 @@
       });
     });
 
-    getLastMainChatTurn().forEach(function (m) {
+    if (!personaPromptInjected) {
+      var fallbackPersona = getPersonaInjection('prompt');
+      if (fallbackPersona) {
+        messages.push({ role: 'system', content: fallbackPersona });
+        diag.included.push({
+          name: 'persona(fallback)',
+          role: 'system',
+          chars: fallbackPersona.length,
+        });
+      }
+    }
+
+    /* an_top / depth / an_bottom 与主线一致（钩子无世界书桶时仅人设） */
+    var personaAnTop = getPersonaInjection('an_top');
+    if (personaAnTop) messages.push({ role: 'system', content: personaAnTop });
+
+    getLastMainChatTurnSummary().forEach(function (m) {
       messages.push({ role: m.role, content: m.content });
     });
 
-    messages.push({
+    var personaDepth = getPersonaDepthInjection();
+    var hookUser = {
       role: 'user',
       content: linePrompt || '（请根据钩子回复 LINE 私聊）',
-    });
+    };
+    messages.push(hookUser);
+    if (personaDepth) {
+      injectDepthEntries(messages, [personaDepth]);
+    }
 
+    var personaAnBottom = getPersonaInjection('an_bottom');
+    if (personaAnBottom) {
+      var anInsert = Math.max(0, messages.length - 1);
+      messages.splice(anInsert, 0, { role: 'system', content: personaAnBottom });
+    }
     try {
       console.groupCollapsed(
         '[SummerNight Plus] LINE 钩子提示词 · 预设 ' +
@@ -1406,15 +1535,26 @@
       .join('\n\n');
   }
 
+  /** Twitter 钩子：组装方式与 LINE 钩子相同，仅替换手机 App 提示词内容 */
+  function buildTwitterHookChatMessages(opts) {
+    opts = opts || {};
+    return buildLineHookChatMessages({
+      linePrompt: opts.twitterPrompt || opts.linePrompt || '',
+    });
+  }
+
   window.天青_prompt_builder = {
     buildChatMessages: buildChatMessages,
     buildLineChatMessages: buildLineChatMessages,
     buildLineHookChatMessages: buildLineHookChatMessages,
+    buildTwitterHookChatMessages: buildTwitterHookChatMessages,
     buildSystemMessage: buildSystemMessage,
     activateWorldbookBuckets: activateWorldbookBuckets,
     collectWorldbookPool: collectWorldbookPool,
     collectLineWorldbookPool: collectLineWorldbookPool,
     getLastMainChatTurn: getLastMainChatTurn,
+    getLastMainChatTurnSummary: getLastMainChatTurnSummary,
+    extractMainTurnSummary: extractMainTurnSummary,
     selectHistoryByTokenBudget: selectHistoryByTokenBudget,
     ensureOpeningInHistory: ensureOpeningInHistory,
     estimateMessageTokens: estimateMessageTokens,

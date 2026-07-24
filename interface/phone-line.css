@@ -796,11 +796,13 @@
   color: rgba(35, 55, 75, 0.55);
 }
 
-.tq-line__send-status.is-sent {
+.tq-line__send-status.is-sent,
+.tq-line__send-status.is-read {
   color: rgba(35, 55, 75, 0.72);
 }
 
-.tq-line__send-status.is-sent svg {
+.tq-line__send-status.is-sent svg,
+.tq-line__send-status.is-read svg {
   width: 14px;
   height: 14px;
   display: block;

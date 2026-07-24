@@ -14,6 +14,8 @@
 
   var LINE_PROMPT_VER = 5;
   var LINE_PROMPT_VER_KEY = 'tq_plus_phone_prompt_line_ver';
+  var TWITTER_PROMPT_VER = 2;
+  var TWITTER_PROMPT_VER_KEY = 'tq_plus_phone_prompt_twitter_ver';
 
   var DEFAULT_PROMPTS = {
     line:
@@ -39,8 +41,36 @@
       '\n' +
       '直接输出天青的回复：',
     twitter:
-      '[独立任务 · Twitter/X 动态，忽略之前的角色扮演格式]\n' +
-      '（在此编写 Twitter 相关生成提示词。可用占位符：{{user}}、{{recent}}、{{message}} 等）\n',
+      '[ Twitter / X 动态生成]\n' +
+      '根据本回合钩子，生成与天青（Larimar）相关的 Twitter/X 内容，风格贴近真实社交平台。\n' +
+      '可同时输出多个账号发帖（官方、粉丝、路人等），评论只保留最精华的几条（每帖不超过7条）。\n' +
+      '回复人数须 ≥ 列出的评论条数。tag 数量与措辞贴合发帖者性格。\n' +
+      '\n' +
+      '[ 输出格式 ]\n' +
+      '<twitter_message>\n' +
+      '    <twitter_account>\n' +
+      '        账号名称|账号ID|小时:分钟|查看人数\n' +
+      '        <twitter_context>正文</twitter_context>\n' +
+      '        <twitter_tag>#tag1 #tag2 |转推人数|喜欢人数|回复人数</twitter_tag>\n' +
+      '        评论账号|评论账号ID|评论\n' +
+      '    </twitter_account>\n' +
+      '</twitter_message>\n' +
+      '\n' +
+      'example:\n' +
+      '<twitter_message>\n' +
+      '    <twitter_account>\n' +
+      '        Larimar|larimar_official|16:20|12k\n' +
+      '        <twitter_context>排练结束～嗓子有点哑，但今天副歌那段抓到感觉了！制作人听了会不会夸我？ 💙</twitter_context>\n' +
+      '        <twitter_tag>#排练日常 #新曲制作中 #海纹石蓝 |126|892|48</twitter_tag>\n' +
+      '        海纹石收藏家|larimar_fan01|夸！！副歌那段真的会单曲循环！\n' +
+      '        小夏|natsu_live|天青老师请收下我的膝盖（不是\n' +
+      '    </twitter_account>\n' +
+      '</twitter_message>\n' +
+      '\n' +
+      '[本回合钩子]\n' +
+      '{{hook}}\n' +
+      '\n' +
+      '直接输出 <twitter_message>：',
     agency:
       '[独立任务 · 事务所界面，忽略之前的角色扮演格式]\n' +
       '（在此编写事务所相关生成提示词。可用占位符：{{user}} 等）\n',
@@ -128,14 +158,45 @@
     return data;
   }
 
+  function shouldMigrateTwitterPrompt(text) {
+    var s = String(text || '');
+    return (
+      !s ||
+      s.indexOf('<twitter_message>') < 0 ||
+      s.indexOf('[独立任务 · Twitter') === 0 ||
+      s.indexOf('{{hook}}') < 0
+    );
+  }
+
+  function migrateTwitterPrompt(data) {
+    try {
+      var ver = parseInt(localStorage.getItem(TWITTER_PROMPT_VER_KEY) || '0', 10);
+      if (ver >= TWITTER_PROMPT_VER) return data;
+      if (data.prompts && shouldMigrateTwitterPrompt(data.prompts.twitter)) {
+        data.prompts.twitter = DEFAULT_PROMPTS.twitter;
+      }
+      localStorage.setItem(TWITTER_PROMPT_VER_KEY, String(TWITTER_PROMPT_VER));
+    } catch (e) {}
+    return data;
+  }
+
+  function normalizeStore(o) {
+    if (!o || typeof o !== 'object') return defaultStore();
+    if (!o.prompts || typeof o.prompts !== 'object') o.prompts = {};
+    /* 丢弃旧版总提示词 / 总时间 / 空闲秒数字段 */
+    delete o.globalPrompt;
+    delete o.timePrompt;
+    delete o.replyIdleSec;
+    migrateLinePrompt(o);
+    migrateTwitterPrompt(o);
+    return o;
+  }
+
   function loadStore() {
     try {
       var raw = localStorage.getItem(KEY);
       if (!raw) return defaultStore();
-      var o = JSON.parse(raw);
-      if (!o || typeof o !== 'object') return defaultStore();
-      if (!o.prompts || typeof o.prompts !== 'object') o.prompts = {};
-      return migrateLinePrompt(o);
+      return normalizeStore(JSON.parse(raw));
     } catch (e) {
       return defaultStore();
     }
@@ -156,6 +217,12 @@
         changed = true;
       }
     });
+    if (store.globalPrompt != null || store.timePrompt != null || store.replyIdleSec != null) {
+      delete store.globalPrompt;
+      delete store.timePrompt;
+      delete store.replyIdleSec;
+      changed = true;
+    }
     if (changed) saveStore();
   }
 
@@ -247,6 +314,7 @@
   }
 
   function renderList() {
+    ensureDefaults();
     renderTabs();
     renderEditor();
   }

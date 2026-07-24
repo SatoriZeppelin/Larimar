@@ -172,6 +172,9 @@
     if (window.天青_phone_line && window.天青_phone_line.resetToInitial) {
       window.天青_phone_line.resetToInitial();
     }
+    if (window.天青_phone_twitter && window.天青_phone_twitter.resetToInitial) {
+      window.天青_phone_twitter.resetToInitial();
+    }
     loadDemo();
     if (window.天青_save && window.天青_save.autoSave) {
       window.天青_save.autoSave();
@@ -238,6 +241,17 @@
       lastRaw: raw,
       updatedAt: Date.now(),
     });
+
+    if (window.天青_phone && typeof window.天青_phone.trimPhoneToMainMsgIndex === 'function') {
+      var keepAsst = -1;
+      for (var j = nextMsgs.length - 1; j >= 0; j--) {
+        if (nextMsgs[j] && nextMsgs[j].role === 'assistant') {
+          keepAsst = j;
+          break;
+        }
+      }
+      window.天青_phone.trimPhoneToMainMsgIndex(keepAsst);
+    }
 
     window.天青_stage.loadGal(data, {
       onChoice: function (c) {

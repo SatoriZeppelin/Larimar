@@ -15,6 +15,19 @@
     console.info('[LINE]', msg);
   }
 
+  function logPhoneAiReply(source, raw, summary, detail) {
+    if (window.天青_chat && typeof window.天青_chat.logAiReply === 'function') {
+      window.天青_chat.logAiReply(raw, null, {
+        source: source,
+        summary: summary || '',
+        detail: detail,
+      });
+      return;
+    }
+    console.info('[SummerNight Plus] AI 回复 · ' + source + (summary ? ' · ' + summary : ''));
+    console.log(String(raw == null ? '' : raw));
+  }
+
   function stickerNameSet() {
     if (STICKER_NAMES) return STICKER_NAMES;
     var map = {};
@@ -50,7 +63,22 @@
     return window.天青_phone_line || null;
   }
 
-  /** 填充 LINE 提示词占位符（仅私聊） */
+  function pad2(n) {
+    n = parseInt(n, 10);
+    if (isNaN(n)) n = 0;
+    return n < 10 ? '0' + n : String(n);
+  }
+
+  /** 当前游戏时间文案：第N天 星期X HH:MM */
+  function formatGameTimeLabel() {
+    var g = lineApiReadGame();
+    var parts = ['第' + g.day + '天'];
+    if (g.weekday) parts.push(g.weekday);
+    parts.push(pad2(g.h) + ':' + pad2(g.m));
+    return parts.join(' ');
+  }
+
+  /** 填充 LINE 提示词占位符（仅私聊）；并确保带上当前游戏时间 */
   function fillLinePrompt(chat, opts) {
     opts = opts || {};
     var hookText = String(opts.hook || '').trim();
@@ -67,12 +95,19 @@
         ? lineApi.buildLineRecentMessage(chat)
         : '（暂无对话）';
     var user = resolveUserName();
+    var timeLabel = formatGameTimeLabel();
+    var hasTimeMacro = /\{\{\s*(time|game_time|line_time)\s*\}\}/i.test(tpl);
     var out = String(tpl)
       .replace(/\{\{\s*line_recent_message\s*\}\}/g, recent)
       .replace(/\{\{\s*user\s*\}\}/g, user)
-      .replace(/\{\{\s*hook\s*\}\}/g, hookText);
+      .replace(/\{\{\s*hook\s*\}\}/g, hookText)
+      .replace(/\{\{\s*(time|game_time|line_time)\s*\}\}/gi, timeLabel);
     if (hookText && out.indexOf(hookText) < 0 && !/\{\{\s*hook\s*\}\}/.test(tpl)) {
       out = out.trim() + '\n\n[本回合钩子]\n' + hookText;
+    }
+    /* 模板未写时间宏时，自动前置当前游戏时间 */
+    if (!hasTimeMacro) {
+      out = '[当前游戏时间]\n' + timeLabel + '\n\n' + out.trim();
     }
     return out;
   }
@@ -142,10 +177,30 @@
     return { day: 1, h: 16, m: 0 };
   }
 
-  function appendInboundMessages(chatId, items) {
+  function appendInboundMessages(chatId, items, bindIndex) {
     var lineApi = getLineApi();
     if (!lineApi || !lineApi.appendInboundMessages) return;
-    lineApi.appendInboundMessages(chatId, items);
+    lineApi.appendInboundMessages(chatId, items, bindIndex);
+  }
+
+  function getBindIndex() {
+    if (window.天青_phone && typeof window.天青_phone.getCurrentMainAsstIndex === 'function') {
+      return window.天青_phone.getCurrentMainAsstIndex();
+    }
+    if (window.天青_phone_line && typeof window.天青_phone_line.getCurrentMainAsstIndex === 'function') {
+      return window.天青_phone_line.getCurrentMainAsstIndex();
+    }
+    return -1;
+  }
+
+  function bindIndexStillValid(bindIndex) {
+    try {
+      if (!window.天青_save || !window.天青_save.load) return false;
+      var msgs = window.天青_save.load().messages || [];
+      return !!(msgs[bindIndex] && msgs[bindIndex].role === 'assistant');
+    } catch (e) {
+      return false;
+    }
   }
 
   /**
@@ -184,6 +239,7 @@
       return null;
     }
 
+    var bindIndex = getBindIndex();
     var filled = fillLinePrompt(chat);
     if (!filled) {
       toast('LINE 提示词为空');
@@ -203,6 +259,11 @@
       }
       var g = lineApiReadGame();
       var items = parseLineMessage(raw, g.day);
+      logPhoneAiReply('LINE', raw, 'items=' + items.length, items);
+      if (!bindIndexStillValid(bindIndex)) {
+        console.info('[LINE] 主线已回退，丢弃本轮结果');
+        return { raw: raw, items: [], discarded: true };
+      }
       if (!items.length) {
         console.warn('[LINE] 未解析到 <line_message> 条目', raw);
         toast('天青没有回上来…');
@@ -216,7 +277,7 @@
         }
         if (it.day == null) it.day = g.day;
       });
-      appendInboundMessages(chatId, items);
+      appendInboundMessages(chatId, items, bindIndex);
       return { raw: raw, items: items };
     } catch (err) {
       console.error('[LINE] 生成失败', err);
@@ -260,6 +321,8 @@
       return null;
     }
 
+    var bindIndex = getBindIndex();
+
     if (window.天青_tokens && window.天青_tokens.ensureReady) {
       try {
         var model =
@@ -288,6 +351,11 @@
       }
       var g = lineApiReadGame();
       var items = parseLineMessage(raw, g.day);
+      logPhoneAiReply('LINE 钩子', raw, 'items=' + items.length, items);
+      if (!bindIndexStillValid(bindIndex)) {
+        console.info('[LINE] 钩子：主线已回退，丢弃本轮结果');
+        return { raw: raw, items: [], discarded: true };
+      }
       if (!items.length) {
         console.warn('[LINE] 钩子：未解析到 <line_message>', raw);
         return { raw: raw, items: [] };
@@ -299,7 +367,7 @@
         }
         if (it.day == null) it.day = g.day;
       });
-      appendInboundMessages(chatId, items);
+      appendInboundMessages(chatId, items, bindIndex);
       return { raw: raw, items: items };
     } catch (err) {
       console.error('[LINE] 钩子生成失败', err);

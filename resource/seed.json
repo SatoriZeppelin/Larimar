@@ -35,7 +35,9 @@
     "phoneFabOpacity": 47,
     "phoneFabBlur": 18,
     "phoneFabPositionMode": "snap",
-    "disableTitleVideo": true
+    "disableTitleVideo": true,
+    "stFormPresetWb": true,
+    "stDetailPresetPrompt": false
   },
   "characterWorldbooks": [
     {
@@ -444,7 +446,7 @@
     }
   },
   "api": {
-    "mode": "auto",
+    "mode": "direct",
     "baseUrl": "https://api.tokenfactory.nebius.com/v1",
     "temperature": 1,
     "maxTokens": 4096,
@@ -455,7 +457,7 @@
     "reasoningEffort": "xhigh",
     "chatPath": "https://api.tokenfactory.nebius.com/v1/chat/completions",
     "modelsPath": "https://api.tokenfactory.nebius.com/v1/models",
-    "resolvedMode": "reverse",
+    "resolvedMode": "direct",
     "stream": false,
     "streamDisplay": false,
     "autoConnect": true

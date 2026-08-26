@@ -1,10 +1,11 @@
 /**
- * 开局演示剧情（summernight 格式）
+ * 开局剧情列表（summernight 格式）
  * 背景：<背景|图片ID|名称>
  * CG 区间：<CG|名字> … </CG>（标记不进文本）
- * 对外：window.天青_opening
+ * 对外：window.天青_openings / window.天青_opening / window.天青_opening_api
  */
-window.天青_opening = String.raw`<summernight>
+(function () {
+  var RAW_SCHOOL_GATE = String.raw`<summernight>
     <summernight_maintext>
         <背景|校园|校门口>
         <旁白|三月末的风还带着凉意，校门口的银杏树刚冒出嫩黄的新叶。>
@@ -107,3 +108,315 @@ window.天青_opening = String.raw`<summernight>
         </summernight_variables>
     </UpdateVariable>
 </summernight>`;
+
+  window.天青_openings_defaults = [
+    {
+      id: 'school-gate',
+      title: '校门口',
+      subtitle: '三月末 · 接天青放学',
+      coverBgId: '校园',
+      coverExpr: '完全胜利',
+      raw: RAW_SCHOOL_GATE,
+    },
+    {
+      id: 'opening-2',
+      title: '开局二',
+      subtitle: '占位 · 敬请期待',
+      coverBgId: '公园',
+      coverExpr: '微笑',
+      placeholder: true,
+      raw: '',
+    },
+    {
+      id: 'opening-3',
+      title: '开局三',
+      subtitle: '占位 · 敬请期待',
+      coverBgId: '海边',
+      coverExpr: '星星眼',
+      placeholder: true,
+      raw: '',
+    },
+    {
+      id: 'opening-4',
+      title: '开局四',
+      subtitle: '占位 · 敬请期待',
+      coverBgId: '教室',
+      coverExpr: '思考',
+      placeholder: true,
+      raw: '',
+    },
+    {
+      id: 'opening-5',
+      title: '开局五',
+      subtitle: '占位 · 敬请期待',
+      coverBgId: '咖啡馆',
+      coverExpr: '害羞',
+      placeholder: true,
+      raw: '',
+    },
+    {
+      id: 'opening-6',
+      title: '开局六',
+      subtitle: '占位 · 敬请期待',
+      coverBgId: '宿舍',
+      coverExpr: '卖萌',
+      placeholder: true,
+      raw: '',
+    },
+    {
+      id: 'opening-7',
+      title: '开局七',
+      subtitle: '占位 · 敬请期待',
+      coverBgId: '商业街',
+      coverExpr: '高兴',
+      placeholder: true,
+      raw: '',
+    },
+  ];
+
+  var STORE_KEY = 'tq_plus_openings';
+
+  function resolveBgUrl(bgId) {
+    if (!bgId) return '';
+    var map = window.天青_backgrounds || {};
+    var band =
+      window.天青_state && window.天青_state.getTimeBand
+        ? window.天青_state.getTimeBand()
+        : '白日';
+    var bands = [band, '白日', '黄昏', '夜晚'];
+    for (var i = 0; i < bands.length; i++) {
+      var u = map[bgId + '·' + bands[i]];
+      if (u) return u;
+    }
+    return '';
+  }
+
+  /**
+   * 从开局正文提取最上层封面：
+   * - 地点：首个 <背景|地点|…>
+   * - 表情：首个非旁白/背景的 <角色|表情|正文>
+   */
+  function extractCoverFromRaw(raw) {
+    var text = String(raw || '');
+    var coverBgId = '';
+    var coverExpr = '';
+    var bgM = text.match(/<\s*背景\s*\|\s*([^|>\n]+)\s*(?:\|[^>]*)?>/);
+    if (bgM) coverBgId = String(bgM[1] || '').trim();
+
+    var re = /<\s*([^|>\n\/]+)\s*\|\s*([^|>\n]+)\s*\|\s*([^>]*)>/g;
+    var m;
+    while ((m = re.exec(text))) {
+      var who = String(m[1] || '').trim();
+      var expr = String(m[2] || '').trim();
+      if (!who || !expr || expr === '-') continue;
+      if (who === '背景' || who === '旁白' || who === '旁白。') continue;
+      if (/^cg$/i.test(who)) continue;
+      coverExpr = expr;
+      break;
+    }
+    return { coverBgId: coverBgId, coverExpr: coverExpr };
+  }
+
+  function applyCoverFromRaw(op) {
+    if (!op) return op;
+    var extracted = extractCoverFromRaw(op.raw);
+    if (extracted.coverBgId) op.coverBgId = extracted.coverBgId;
+    if (extracted.coverExpr) op.coverExpr = extracted.coverExpr;
+    return op;
+  }
+
+  function cloneOpening(op) {
+    if (!op || typeof op !== 'object') return null;
+    return applyCoverFromRaw({
+      id: String(op.id || ''),
+      title: String(op.title || ''),
+      subtitle: String(op.subtitle || ''),
+      coverBgId: String(op.coverBgId || ''),
+      coverExpr: String(op.coverExpr || ''),
+      coverUrl: op.coverUrl ? String(op.coverUrl) : '',
+      placeholder: !!op.placeholder,
+      raw: String(op.raw || ''),
+    });
+  }
+
+  function cloneList(list) {
+    return (list || []).map(cloneOpening).filter(Boolean);
+  }
+
+  function normalizeList(list) {
+    var out = [];
+    var seen = Object.create(null);
+    (list || []).forEach(function (op, i) {
+      var item = cloneOpening(op);
+      if (!item) return;
+      if (!item.id) item.id = 'opening-' + Date.now() + '-' + i;
+      var base = item.id;
+      var n = 1;
+      while (seen[item.id]) {
+        item.id = base + '-' + n;
+        n += 1;
+      }
+      seen[item.id] = true;
+      if (!item.title) item.title = '开局 ' + (out.length + 1);
+      out.push(item);
+    });
+    return out;
+  }
+
+  function loadStored() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      var list = Array.isArray(data) ? data : data && data.list;
+      if (!Array.isArray(list) || !list.length) return null;
+      return normalizeList(list);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(
+        STORE_KEY,
+        JSON.stringify({ version: 1, list: cloneList(window.天青_openings) }),
+      );
+    } catch (e) {}
+  }
+
+  var stored = loadStored();
+  window.天青_openings = stored || cloneList(window.天青_openings_defaults);
+
+  /** 兼容旧代码：默认开局正文 */
+  window.天青_opening =
+    (window.天青_openings[0] && window.天青_openings[0].raw) || RAW_SCHOOL_GATE;
+
+  function syncCompatRaw() {
+    var first = window.天青_openings[0];
+    window.天青_opening = (first && first.raw) || RAW_SCHOOL_GATE;
+  }
+
+  function findIndex(id) {
+    var list = window.天青_openings || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].id === id) return i;
+    }
+    return -1;
+  }
+
+  window.天青_opening_api = {
+    list: function () {
+      return cloneList(window.天青_openings);
+    },
+    get: function (id) {
+      var list = window.天青_openings || [];
+      if (id) {
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && list[i].id === id) return cloneOpening(list[i]);
+        }
+      }
+      return list[0] ? cloneOpening(list[0]) : null;
+    },
+    getRaw: function (id) {
+      var op = this.get(id);
+      if (op && op.raw) return String(op.raw);
+      return String(window.天青_opening || '');
+    },
+    coverUrl: function (op) {
+      if (!op) return '';
+      if (op.coverUrl) return String(op.coverUrl);
+      var o = cloneOpening(op);
+      return resolveBgUrl((o && o.coverBgId) || '校园');
+    },
+    spriteUrl: function (op) {
+      if (!op) return '';
+      var o = cloneOpening(op);
+      var expr = (o && o.coverExpr) || '';
+      if (!expr) return '';
+      var map = window.天青_expressions || {};
+      return map[expr] || '';
+    },
+    extractCover: extractCoverFromRaw,
+    placeOptions: function () {
+      var map = window.天青_backgrounds || {};
+      var set = Object.create(null);
+      Object.keys(map).forEach(function (k) {
+        var place = String(k).split('·')[0];
+        if (place) set[place] = true;
+      });
+      return Object.keys(set).sort();
+    },
+    exprOptions: function () {
+      var map = window.天青_expressions || {};
+      return Object.keys(map).sort();
+    },
+    replaceAll: function (list) {
+      var next = normalizeList(list);
+      if (!next.length) return false;
+      window.天青_openings = next;
+      syncCompatRaw();
+      persist();
+      return true;
+    },
+    add: function (partial) {
+      var list = window.天青_openings || [];
+      var item = cloneOpening(
+        partial || {
+          title: '新开局',
+          subtitle: '占位 · 敬请期待',
+          placeholder: true,
+          raw: '',
+        },
+      );
+      if (!item.id) item.id = 'opening-' + Date.now();
+      if (!item.title) item.title = '开局 ' + (list.length + 1);
+      list.push(item);
+      window.天青_openings = list;
+      syncCompatRaw();
+      persist();
+      return cloneOpening(item);
+    },
+    update: function (id, patch) {
+      var i = findIndex(id);
+      if (i < 0) return null;
+      var cur = window.天青_openings[i];
+      var next = cloneOpening(Object.assign({}, cur, patch || {}, { id: cur.id }));
+      window.天青_openings[i] = next;
+      syncCompatRaw();
+      persist();
+      return cloneOpening(next);
+    },
+    remove: function (id) {
+      var list = window.天青_openings || [];
+      if (list.length <= 1) return false;
+      var i = findIndex(id);
+      if (i < 0) return false;
+      list.splice(i, 1);
+      window.天青_openings = list;
+      syncCompatRaw();
+      persist();
+      return true;
+    },
+    move: function (id, dir) {
+      var list = window.天青_openings || [];
+      var i = findIndex(id);
+      if (i < 0) return false;
+      var j = i + (dir < 0 ? -1 : 1);
+      if (j < 0 || j >= list.length) return false;
+      var tmp = list[i];
+      list[i] = list[j];
+      list[j] = tmp;
+      window.天青_openings = list;
+      syncCompatRaw();
+      persist();
+      return true;
+    },
+    resetDefaults: function () {
+      window.天青_openings = cloneList(window.天青_openings_defaults);
+      syncCompatRaw();
+      persist();
+      return this.list();
+    },
+  };
+})();

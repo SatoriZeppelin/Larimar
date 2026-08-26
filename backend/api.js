@@ -1,11 +1,11 @@
 /**
  * OpenAI 兼容 Chat Completions 客户端
  *
- * 界面只填一个 URL（API / 反向代理）。自动依次尝试：
- * - reverse  按 URL 当反向代理（密钥可空）
- * - direct   直连 URL（需密钥）
- *
- * 连接时还会自动尝试补全 /v1、/models、/chat/completions 等路径。
+ * 仅支持浏览器直连 API（需填写密钥）。
+ * 连接时按两种常见根地址探测路径：
+ * - 以 /v1 结尾：只拼 /models、/chat/completions（不再叠 /v1）
+ * - 无 /v1（如 …/proxy/openai）：依次试 /v1/… 与不带 /v1 的 …/models、…/chat/completions
+ * 已移除反向代理 / 本机 CORS 代理能力（CORS 站不能靠改路径直连）。
  *
  * 对外：window.天青_api
  */
@@ -13,7 +13,7 @@
   var KEY = 'tq_plus_api';
   /* 与 resource/seed.json 的 api 对齐（不含密钥/模型） */
   var DEFAULTS = {
-    mode: 'auto',
+    mode: 'direct',
     baseUrl: 'https://api.tokenfactory.nebius.com/v1',
     apiKey: '',
     model: 'gpt-4o-mini',
@@ -27,8 +27,7 @@
     reasoningEffort: 'xhigh',
     chatPath: '',
     modelsPath: '',
-    /** 自动探测成功后锁定的实际模式 */
-    resolvedMode: '',
+    resolvedMode: 'direct',
     stream: false,
     /** 流式收包时是否边收边演（完整句上台） */
     streamDisplay: false,
@@ -42,10 +41,7 @@
       if (!raw) return Object.assign({}, DEFAULTS);
       var parsed = JSON.parse(raw);
       var cfg = Object.assign({}, DEFAULTS, parsed);
-      /* 旧版曾单独存 proxyUrl，现已并入单一 URL，忽略之 */
-      delete cfg.proxyUrl;
-      if (!cfg.mode) cfg.mode = 'auto';
-      return cfg;
+      return normalizeConfig(cfg);
     } catch (e) {
       return Object.assign({}, DEFAULTS);
     }
@@ -94,33 +90,37 @@
   }
 
   /**
-   * 解析用户填写的 API 根：
-   * - 已含 /v1 → 原样保留，后面只拼 /models、/chat/completions
-   * - 已是完整 endpoint → 还原到 …/v1
-   * - 无 /v1 → 保留根路径（拼 endpoint 时再加 /v1/…）
+   * 解析用户填写的 API 根（去掉完整 endpoint 后缀，保留 /v1 若原本就有）：
+   * - …/v1/chat/completions → …/v1
+   * - …/chat/completions → …（代理根，如 …/proxy/openai）
+   * - …/v1 → …/v1
    */
   function resolveApiRoot(input) {
     var b = sanitizeEndpointUrl(input);
     if (!b) return '';
     if (/\/v1\/chat\/completions$/i.test(b)) return b.replace(/\/chat\/completions$/i, '');
-    if (/\/chat\/completions$/i.test(b)) {
-      var noChat = b.replace(/\/chat\/completions$/i, '');
-      return /\/v1$/i.test(noChat) ? noChat : noChat;
-    }
+    if (/\/chat\/completions$/i.test(b)) return b.replace(/\/chat\/completions$/i, '');
     if (/\/v1\/models$/i.test(b)) return b.replace(/\/models$/i, '');
-    if (/\/models$/i.test(b)) {
-      var noModels = b.replace(/\/models$/i, '');
-      return noModels;
-    }
+    if (/\/models$/i.test(b)) return b.replace(/\/models$/i, '');
     if (/\/v1$/i.test(b)) return b;
     return b;
   }
 
+  /** 根是否已是 OpenAI 风格的 …/v1 */
+  function rootEndsWithV1(root) {
+    return /\/v1$/i.test(root || '');
+  }
+
+  /**
+   * models 候选：
+   * 1) 已记住的 modelsPath（优先）
+   * 2) …/v1 → …/v1/models
+   * 3) 无 /v1 → …/v1/models，再试 …/models（兼容 /proxy/openai）
+   */
   function modelsUrlCandidates(cfg) {
     var urls = [];
     if (cfg.modelsPath) {
       pushUnique(urls, sanitizeEndpointUrl(cfg.modelsPath));
-      return urls;
     }
     var root = resolveApiRoot(cfg.baseUrl);
     if (!root) return urls;
@@ -128,19 +128,25 @@
       pushUnique(urls, root);
       return urls;
     }
-    if (/\/v1$/i.test(root)) {
+    if (rootEndsWithV1(root)) {
       pushUnique(urls, root + '/models');
       return urls;
     }
     pushUnique(urls, root + '/v1/models');
+    pushUnique(urls, root + '/models');
     return urls;
   }
 
+  /**
+   * chat 候选：
+   * 1) 已记住的 chatPath（优先）
+   * 2) …/v1 → …/v1/chat/completions（不再叠 /v1）
+   * 3) 无 /v1 → …/v1/chat/completions，再试 …/chat/completions
+   */
   function chatUrlCandidates(cfg) {
     var urls = [];
     if (cfg.chatPath) {
       pushUnique(urls, sanitizeEndpointUrl(cfg.chatPath));
-      return urls;
     }
     var root = resolveApiRoot(cfg.baseUrl);
     if (!root) return urls;
@@ -148,11 +154,12 @@
       pushUnique(urls, root);
       return urls;
     }
-    if (/\/v1$/i.test(root)) {
+    if (rootEndsWithV1(root)) {
       pushUnique(urls, root + '/chat/completions');
       return urls;
     }
     pushUnique(urls, root + '/v1/chat/completions');
+    pushUnique(urls, root + '/chat/completions');
     return urls;
   }
 
@@ -160,14 +167,14 @@
     var u = sanitizeEndpointUrl(url);
     if (/\/v1\/models$/i.test(u)) return u.replace(/\/models$/i, '');
     if (/\/models$/i.test(u)) return u.replace(/\/models$/i, '');
-    return collapseTrailingV1(u);
+    return rootEndsWithV1(u) ? u : normalizeBase(u);
   }
 
   function inferBaseFromChatUrl(url) {
     var u = sanitizeEndpointUrl(url);
     if (/\/v1\/chat\/completions$/i.test(u)) return u.replace(/\/chat\/completions$/i, '');
     if (/\/chat\/completions$/i.test(u)) return u.replace(/\/chat\/completions$/i, '');
-    return collapseTrailingV1(u);
+    return rootEndsWithV1(u) ? u : normalizeBase(u);
   }
 
   function clampNum(n, min, max, fallback) {
@@ -237,8 +244,7 @@
       var parsed = JSON.parse(full);
       if (parsed && parsed.error) {
         var eobj = parsed.error;
-        shortMsg =
-          (typeof eobj === 'string' ? eobj : eobj.message || eobj.code || '') || '';
+        shortMsg = (typeof eobj === 'string' ? eobj : eobj.message || eobj.code || '') || '';
         if (eobj && eobj.code && shortMsg && String(shortMsg).indexOf(eobj.code) < 0) {
           shortMsg = String(eobj.code) + '：' + shortMsg;
         }
@@ -291,18 +297,24 @@
     if (!looksLikeUpstreamErrorContent(content)) return;
     var status = httpStatus || extractHttpStatusFromText(content) || 0;
     var err = makeApiError(status, content, '上游返回错误内容');
-    err.message = '连接失败：' + String(content || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+    err.message =
+      '连接失败：' +
+      String(content || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 160);
     throw err;
   }
 
   function normalizeConfig(cfg) {
     var c = Object.assign({}, DEFAULTS, cfg || {});
-    c.mode = c.mode || 'auto';
+    /* 仅保留直连；旧版 reverse / cors / auto / proxyUrl 一律丢弃 */
+    c.mode = 'direct';
+    c.resolvedMode = 'direct';
     c.baseUrl = sanitizeEndpointUrl(c.baseUrl);
     c.apiKey = String(c.apiKey || '').trim();
     c.chatPath = sanitizeEndpointUrl(c.chatPath || '');
     c.modelsPath = sanitizeEndpointUrl(c.modelsPath || '');
-    c.resolvedMode = c.resolvedMode || '';
     c.autoConnect = !!c.autoConnect;
     c.stream = !!c.stream;
     c.streamDisplay = c.streamDisplay !== false;
@@ -319,10 +331,6 @@
     c.reasoningEffort = allowed[effort] ? effort : DEFAULTS.reasoningEffort;
     delete c.proxyUrl;
     delete c.preferCorsProxy;
-    if (c.resolvedMode === 'cors' || c.mode === 'cors') {
-      c.resolvedMode = c.resolvedMode === 'cors' ? '' : c.resolvedMode;
-      if (c.mode === 'cors') c.mode = 'auto';
-    }
     return c;
   }
 
@@ -352,15 +360,9 @@
     return headers;
   }
 
-  /** 自动模式：reverse →（有密钥时）direct；不再走本机代理 */
-  function modeProbeOrder(cfg) {
-    if (cfg.mode && cfg.mode !== 'auto') {
-      if (cfg.mode === 'cors') return ['reverse'];
-      return [cfg.mode];
-    }
-    if (cfg.resolvedMode === 'direct') return ['direct'];
-    if (cfg.resolvedMode === 'reverse') return ['reverse'];
-    return ['reverse', 'direct'];
+  /** 仅直连 */
+  function modeProbeOrder() {
+    return ['direct'];
   }
 
   /** 上游明确拒绝时不要继续换 URL / 模式狂打 */
@@ -380,8 +382,8 @@
     if (!cfg.baseUrl) {
       throw new Error('请先填写 URL');
     }
-    if (cfg.mode === 'direct' && !cfg.apiKey) {
-      throw new Error('直连模式请填写密钥');
+    if (!cfg.apiKey) {
+      throw new Error('请填写密钥');
     }
     return cfg;
   }
@@ -510,8 +512,7 @@
         }
         if (data && data.error) {
           var errMsg =
-            (typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error)) ||
-            text;
+            (typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error)) || text;
           throw makeApiError(res.status, errMsg, 'API error');
         }
         var full =
@@ -559,8 +560,8 @@
 
   function persistSuccess(cfg, trial, patch) {
     var next = Object.assign({}, cfg, trial, patch || {});
-    next.mode = cfg.mode === 'auto' ? 'auto' : trial.mode;
-    next.resolvedMode = trial.mode;
+    next.mode = 'direct';
+    next.resolvedMode = 'direct';
     saveConfig(normalizeConfig(next));
     return next;
   }
@@ -592,9 +593,6 @@
    */
   async function chat(opts) {
     var cfg = assertConfig(loadConfig());
-    var modes = modeProbeOrder(cfg);
-    var errors = [];
-    var lastApiError = null;
 
     logChatCompletionRequest(opts, {
       model: cfg.model,
@@ -604,58 +602,48 @@
       stream: !!cfg.stream,
     });
 
-    for (var i = 0; i < modes.length; i++) {
-      var mode = modes[i];
-      if (mode === 'direct' && !cfg.apiKey) continue;
-      var trial = buildTrialConfig(cfg, mode);
-      try {
-        var hit = await chatOnce(trial, opts);
-        persistSuccess(cfg, trial, {
-          chatPath: hit.url,
-          baseUrl: inferBaseFromChatUrl(hit.url) || cfg.baseUrl,
-        });
-        return hit.content;
-      } catch (e) {
-        if (e && e.name === 'ApiError') lastApiError = e;
-        errors.push('[' + mode + '] ' + String((e && e.message) || e).slice(0, 400));
-        if (isDefinitiveUpstreamError(e)) break;
-      }
+    var trial = buildTrialConfig(cfg, 'direct');
+    try {
+      var hit = await chatOnce(trial, opts);
+      persistSuccess(cfg, trial, {
+        chatPath: hit.url,
+        baseUrl: inferBaseFromChatUrl(hit.url) || cfg.baseUrl,
+      });
+      return hit.content;
+    } catch (e) {
+      throw e;
     }
-    if (lastApiError && isDefinitiveUpstreamError(lastApiError)) throw lastApiError;
-    throw new Error(errors.join('\n') || '连接失败');
   }
 
   async function listModels(signal) {
     var cfg = assertConfig(loadConfig());
-    var modes = modeProbeOrder(cfg);
-    var errors = [];
-    var lastApiError = null;
-
-    for (var i = 0; i < modes.length; i++) {
-      var mode = modes[i];
-      if (mode === 'direct' && !cfg.apiKey) continue;
-      var trial = buildTrialConfig(cfg, mode);
-      try {
-        var hit = await listModelsOnce(trial, signal);
-        var root = inferBaseFromModelsUrl(hit.url) || cfg.baseUrl;
-        var chatPath = '';
-        if (root) {
-          chatPath = /\/v1$/i.test(root) ? root + '/chat/completions' : root + '/v1/chat/completions';
+    var trial = buildTrialConfig(cfg, 'direct');
+    try {
+      var hit = await listModelsOnce(trial, signal);
+      var root = inferBaseFromModelsUrl(hit.url) || cfg.baseUrl;
+      var chatPath = '';
+      if (root) {
+        var modelsUrl = sanitizeEndpointUrl(hit.url);
+        if (rootEndsWithV1(root)) {
+          /* …/v1 → …/v1/chat/completions */
+          chatPath = root + '/chat/completions';
+        } else if (/\/v1\//i.test(modelsUrl)) {
+          /* 成功走了 …/v1/models */
+          chatPath = root + '/v1/chat/completions';
+        } else {
+          /* 成功走了无 v1 的 …/models（如 …/proxy/openai/models） */
+          chatPath = root + '/chat/completions';
         }
-        persistSuccess(cfg, trial, {
-          modelsPath: hit.url,
-          chatPath: chatPath,
-          baseUrl: root,
-        });
-        return hit.ids;
-      } catch (e) {
-        if (e && e.name === 'ApiError') lastApiError = e;
-        errors.push('[' + mode + '] ' + String((e && e.message) || e).slice(0, 180));
-        if (isDefinitiveUpstreamError(e)) break;
       }
+      persistSuccess(cfg, trial, {
+        modelsPath: hit.url,
+        chatPath: chatPath,
+        baseUrl: root,
+      });
+      return hit.ids;
+    } catch (e) {
+      throw e;
     }
-    if (lastApiError && isDefinitiveUpstreamError(lastApiError)) throw lastApiError;
-    throw new Error(errors.join('\n') || '连接失败');
   }
 
   async function testMessage(signal) {

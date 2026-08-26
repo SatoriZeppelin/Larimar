@@ -3,9 +3,53 @@
  */
 (function () {
   var busy = false;
+  var appBusy = false;
+  var appLabel = '';
+  var genEl = null;
+
+  function genRoot() {
+    if (!genEl) genEl = document.getElementById('gal-generating');
+    return genEl;
+  }
+
+  function refreshGeneratingUi() {
+    var el = genRoot();
+    if (!el) return;
+    var labelEl = el.querySelector('.gal-gen-label');
+    var on = !!(busy || appBusy);
+    var text = busy ? '正在生成正文' : appBusy ? appLabel || '正在生成' : '正在生成正文';
+    if (labelEl) labelEl.textContent = text;
+    if (on) {
+      el.removeAttribute('hidden');
+      el.classList.add('is-on');
+    } else {
+      el.classList.remove('is-on');
+      el.setAttribute('hidden', '');
+    }
+  }
 
   function setBusy(v) {
-    busy = v;
+    busy = !!v;
+    refreshGeneratingUi();
+  }
+
+  /**
+   * 手机 APP 次生生成进度（主线结束后显示）
+   * @param {{ active?: boolean, index?: number, total?: number, appName?: string }|null} opts
+   */
+  function setAppGenerating(opts) {
+    if (!opts || !opts.active) {
+      appBusy = false;
+      appLabel = '';
+      refreshGeneratingUi();
+      return;
+    }
+    var total = Math.max(1, parseInt(opts.total, 10) || 1);
+    var index = Math.max(1, parseInt(opts.index, 10) || 1);
+    var name = String(opts.appName || 'APP').trim() || 'APP';
+    appBusy = true;
+    appLabel = '正在生成' + name + index + '/' + total;
+    refreshGeneratingUi();
   }
 
   function toast(msg) {
@@ -108,22 +152,32 @@
     }
   }
 
-  function openingRaw() {
+  function openingRaw(openingId) {
+    if (window.天青_opening_api && window.天青_opening_api.getRaw) {
+      return window.天青_opening_api.getRaw(openingId);
+    }
     return (window.天青_opening && String(window.天青_opening)) || '';
   }
 
-  function loadDemo() {
-    var demo = openingRaw();
+  function loadDemo(openingId) {
+    var demo = openingRaw(openingId);
     if (!demo) {
       console.warn('[SummerNight Plus] 开局剧情未加载');
       return;
     }
+    var picked =
+      window.天青_opening_api && window.天青_opening_api.get
+        ? window.天青_opening_api.get(openingId)
+        : null;
+    if (picked && picked.raw) window.天青_opening = picked.raw;
     var data = window.天青_parse.parseGal(demo);
     if (window.天青_save && window.天青_save.save) {
       window.天青_save.save({
         messages: [{ role: 'assistant', content: demo, at: Date.now() }],
         lastRaw: demo,
         updatedAt: Date.now(),
+        galIdx: 0,
+        openingId: (picked && picked.id) || '',
       });
     }
     console.info(
@@ -151,10 +205,13 @@
             return m && (m.type === 'line' || m.type === 'cg');
           });
         if (hasLine) {
+          var startIndex = d && typeof d.galIdx === 'number' ? d.galIdx : 0;
           window.天青_stage.loadGal(data, {
             onChoice: function (c) {
               runGenerate(c);
             },
+            startIndex: startIndex,
+            instant: true,
           });
           return true;
         }
@@ -167,7 +224,7 @@
     return false;
   }
 
-  function startNewGame() {
+  function startNewGame(openingId) {
     if (window.天青_save) window.天青_save.clear();
     if (window.天青_phone_line && window.天青_phone_line.resetToInitial) {
       window.天青_phone_line.resetToInitial();
@@ -175,7 +232,7 @@
     if (window.天青_phone_twitter && window.天青_phone_twitter.resetToInitial) {
       window.天青_phone_twitter.resetToInitial();
     }
-    loadDemo();
+    loadDemo(openingId);
     if (window.天青_save && window.天青_save.autoSave) {
       window.天青_save.autoSave();
     }
@@ -240,6 +297,7 @@
       messages: nextMsgs,
       lastRaw: raw,
       updatedAt: Date.now(),
+      galIdx: 0,
     });
 
     if (window.天青_phone && typeof window.天青_phone.trimPhoneToMainMsgIndex === 'function') {
@@ -265,7 +323,16 @@
     return true;
   }
 
-  function boot() {
+  async function boot() {
+    /* 先检查 / 补齐本地缓存资源，避免进游戏后立绘切换卡顿 */
+    if (window.天青_asset_preload && window.天青_asset_preload.runBootPreload) {
+      try {
+        await window.天青_asset_preload.runBootPreload();
+      } catch (e) {
+        console.warn('[SummerNight Plus] 启动预加载异常', e);
+      }
+    }
+
     window.天青_stage.init();
     window.天青_settings_boot();
     if (window.天青_phone && window.天青_phone.bind) window.天青_phone.bind();
@@ -280,8 +347,12 @@
       startNewGame: startNewGame,
       enterFromSave: enterFromSave,
       rewindPrevRound: rewindPrevRound,
+      setAppGenerating: setAppGenerating,
       isBusy: function () {
         return busy;
+      },
+      isAppGenerating: function () {
+        return appBusy;
       },
     };
 
@@ -290,7 +361,9 @@
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
+    document.addEventListener('DOMContentLoaded', function () {
+      boot();
+    });
   } else {
     boot();
   }

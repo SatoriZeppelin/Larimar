@@ -1,0 +1,13 @@
+{
+  "name": "tq-local-proxy",
+  "private": true,
+  "version": "1.0.0",
+  "description": "SummerNight Plus 本地 CORS 中转",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}

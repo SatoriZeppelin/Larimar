@@ -10,7 +10,25 @@
   var PAGE_SIZE = 12;
 
   function emptyData() {
-    return { messages: [], lastRaw: '', updatedAt: 0 };
+    return { messages: [], lastRaw: '', updatedAt: 0, galIdx: 0 };
+  }
+
+  function normalizeGalIdx(n) {
+    var v = Math.floor(Number(n));
+    if (isNaN(v) || v < 0) return 0;
+    return v;
+  }
+
+  /** 拷贝存档正文（含剧本句索引 galIdx） */
+  function clonePayload(payload, opts) {
+    var src = payload || emptyData();
+    var bump = !opts || opts.bumpTime !== false;
+    return {
+      messages: Array.isArray(src.messages) ? src.messages.slice() : [],
+      lastRaw: src.lastRaw || '',
+      updatedAt: bump ? Date.now() : src.updatedAt || 0,
+      galIdx: normalizeGalIdx(src.galIdx),
+    };
   }
 
   function emptySlot(index) {
@@ -24,11 +42,7 @@
       empty: false,
       label: s.label || '存档 ' + (index + 1),
       updatedAt: s.updatedAt || 0,
-      data: {
-        messages: Array.isArray(s.data.messages) ? s.data.messages : [],
-        lastRaw: s.data.lastRaw || '',
-        updatedAt: s.data.updatedAt || s.updatedAt || 0,
-      },
+      data: clonePayload(s.data, { bumpTime: false }),
     };
   }
 
@@ -40,6 +54,7 @@
       if (!d || typeof d !== 'object') return emptyData();
       if (!Array.isArray(d.messages)) d.messages = [];
       if (d.lastRaw == null) d.lastRaw = '';
+      d.galIdx = normalizeGalIdx(d.galIdx);
       return d;
     } catch (e) {
       return emptyData();
@@ -48,8 +63,7 @@
 
   function save(data) {
     try {
-      var d = data || emptyData();
-      d.updatedAt = Date.now();
+      var d = clonePayload(data || emptyData());
       localStorage.setItem(KEY, JSON.stringify(d));
     } catch (e) {}
   }
@@ -75,6 +89,16 @@
     d.lastRaw = raw || '';
     save(d);
     return d;
+  }
+
+  /** 只更新当前进度的句索引（不刷新 updatedAt） */
+  function setGalIdx(n) {
+    var d = load();
+    d.galIdx = normalizeGalIdx(n);
+    try {
+      localStorage.setItem(KEY, JSON.stringify(d));
+    } catch (e) {}
+    return d.galIdx;
   }
 
   /** 读取全部槽位（稀疏数组形式，长度按已用最大序号扩展） */
@@ -115,11 +139,7 @@
           empty: false,
           label: s.label || '',
           updatedAt: s.updatedAt || 0,
-          data: {
-            messages: Array.isArray(s.data.messages) ? s.data.messages : [],
-            lastRaw: s.data.lastRaw || '',
-            updatedAt: s.data.updatedAt || s.updatedAt || 0,
-          },
+          data: clonePayload(s.data, { bumpTime: false }),
         });
       }
       localStorage.setItem(SLOTS_KEY, JSON.stringify({ version: 2, slots: packed }));
@@ -170,17 +190,13 @@
   function writeSlot(index, data, label) {
     var i = Math.max(0, Math.floor(Number(index) || 0));
     var slots = ensureCapacity(i + 2);
-    var payload = data || load();
+    var payload = clonePayload(data || load());
     slots[i] = {
       index: i,
       empty: false,
       label: label || '存档 ' + (i + 1),
-      updatedAt: Date.now(),
-      data: {
-        messages: Array.isArray(payload.messages) ? payload.messages.slice() : [],
-        lastRaw: payload.lastRaw || '',
-        updatedAt: Date.now(),
-      },
+      updatedAt: payload.updatedAt,
+      data: payload,
     };
     /* 写完后再多留一个空槽 */
     if (slots.length < i + 2) slots.push(emptySlot(slots.length));
@@ -205,11 +221,7 @@
   function applySlotToCurrent(index) {
     var slot = readSlot(index);
     if (!slot || slot.empty || !slot.data) return null;
-    var data = {
-      messages: Array.isArray(slot.data.messages) ? slot.data.messages.slice() : [],
-      lastRaw: slot.data.lastRaw || '',
-      updatedAt: Date.now(),
-    };
+    var data = clonePayload(slot.data);
     save(data);
     return data;
   }
@@ -234,12 +246,7 @@
   }
 
   function quickSave(data) {
-    var payload = data || load();
-    var d = {
-      messages: Array.isArray(payload.messages) ? payload.messages.slice() : [],
-      lastRaw: payload.lastRaw || '',
-      updatedAt: Date.now(),
-    };
+    var d = clonePayload(data || load());
     try {
       localStorage.setItem(QUICK_KEY, JSON.stringify(d));
     } catch (e) {}
@@ -252,11 +259,7 @@
       if (!raw) return null;
       var d = JSON.parse(raw);
       if (!d || typeof d !== 'object') return null;
-      return {
-        messages: Array.isArray(d.messages) ? d.messages : [],
-        lastRaw: d.lastRaw || '',
-        updatedAt: d.updatedAt || 0,
-      };
+      return clonePayload(d, { bumpTime: false });
     } catch (e) {
       return null;
     }
@@ -275,11 +278,7 @@
   function applyQuickToCurrent() {
     var data = quickLoad();
     if (!data) return null;
-    var out = {
-      messages: data.messages.slice(),
-      lastRaw: data.lastRaw || '',
-      updatedAt: Date.now(),
-    };
+    var out = clonePayload(data);
     save(out);
     return out;
   }
@@ -313,6 +312,7 @@
     hasProgress: hasProgress,
     push: push,
     setLastRaw: setLastRaw,
+    setGalIdx: setGalIdx,
     loadSlots: loadSlots,
     ensureCapacity: ensureCapacity,
     pageCount: pageCount,

@@ -23,7 +23,7 @@
   }
 
   function modeLabel(m) {
-    return { auto: '自动', direct: '直连', reverse: '反向代理' }[m] || m;
+    return { direct: '直连' }[m] || '直连';
   }
 
   function normalizeCmp(u) {
@@ -115,7 +115,8 @@
     var streamDisplayEl = $('cfg-api-stream-display');
     var reasoning = $('cfg-api-reasoning');
     var cfg = Object.assign({}, cur, {
-      mode: 'auto',
+      mode: 'direct',
+      resolvedMode: 'direct',
       baseUrl: baseUrl,
       apiKey: (($('cfg-api-key') || {}).value || '').trim(),
       model: (($('cfg-api-model') || {}).value || '').trim() || cur.model,
@@ -133,10 +134,8 @@
     if (normalizeCmp(cur.baseUrl) !== normalizeCmp(baseUrl)) {
       cfg.chatPath = '';
       cfg.modelsPath = '';
-      cfg.resolvedMode = '';
     }
     if (api() && api().normalizeConfig) cfg = api().normalizeConfig(cfg);
-    cfg.mode = 'auto';
     return cfg;
   }
 

@@ -33,6 +33,9 @@
     phoneFabBlur: 18,
     phoneFabPositionMode: 'snap',
     disableTitleVideo: true,
+    /* 勾选「预设和提示词详细信息显示」时为详细卡片；未勾选为紧凑列表 */
+    stFormPresetWb: true,
+    stDetailPresetPrompt: false,
   };
 
   function $(id) {
@@ -254,7 +257,18 @@
       if (subId === 'user' && window.天青_settings_user && window.天青_settings_user.onEnter) {
         window.天青_settings_user.onEnter();
       }
+      if (subId === 'opening' && window.天青_settings_opening && window.天青_settings_opening.onEnter) {
+        window.天青_settings_opening.onEnter();
+      }
       if (subId === 'gal') syncKeyLabels();
+      var activeSub = paneRoot.querySelector('.settings-subtab.active');
+      if (activeSub && activeSub.scrollIntoView) {
+        try {
+          activeSub.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+        } catch (e) {
+          activeSub.scrollIntoView(false);
+        }
+      }
     }
 
     var content = paneRoot.querySelector(':scope > .settings-subcontent');
@@ -308,7 +322,15 @@
         if (raw.dlgBgAlpha == null) raw.dlgBgAlpha = Math.round(raw.dlgOpacity * 100);
         raw.dlgOpacity = 100;
       }
+      /* 兼容：旧版曾把勾选与紧凑列表直接绑定 */
+      if (raw.stDetailPresetPrompt == null && raw.stFormPresetWb != null) {
+        raw.stDetailPresetPrompt = !raw.stFormPresetWb;
+      }
       var ui = Object.assign({}, UI_DEFAULTS, raw);
+      if (ui.stDetailPresetPrompt == null) {
+        ui.stDetailPresetPrompt = !UI_DEFAULTS.stFormPresetWb;
+      }
+      ui.stFormPresetWb = !ui.stDetailPresetPrompt;
       ui.dlgPosY = clampInt(ui.dlgPosY, 0, 10);
       return ui;
     } catch (e) {
@@ -356,6 +378,7 @@
     var cgHideFab = $('cfg-cg-hide-fab');
     var disableTitleVideo = $('cfg-disable-title-video');
     var dlgDynamicHeight = $('cfg-dlg-dynamic-height');
+    var stFormPresetWb = $('cfg-st-form-preset-wb');
     return {
       dlgOpacity: clampInt(($('cfg-dlg-opacity') || {}).value, 0, 100),
       dlgPosY: clampInt(($('cfg-dlg-pos-y') || {}).value, 0, 10),
@@ -385,6 +408,8 @@
       disableTitleVideo: disableTitleVideo
         ? !!disableTitleVideo.checked
         : UI_DEFAULTS.disableTitleVideo,
+      stDetailPresetPrompt: stFormPresetWb ? !!stFormPresetWb.checked : !UI_DEFAULTS.stFormPresetWb,
+      stFormPresetWb: stFormPresetWb ? !stFormPresetWb.checked : UI_DEFAULTS.stFormPresetWb,
     };
   }
 
@@ -462,6 +487,8 @@
     if (phoneFabColor) phoneFabColor.value = ui.phoneFabColor || UI_DEFAULTS.phoneFabColor;
     if (disableTitleVideo) disableTitleVideo.checked = !!ui.disableTitleVideo;
     if (dlgDynamicHeight) dlgDynamicHeight.checked = !!ui.dlgDynamicHeight;
+    var stFormPresetWb = $('cfg-st-form-preset-wb');
+    if (stFormPresetWb) stFormPresetWb.checked = ui.stDetailPresetPrompt === true;
   }
 
   function syncKeyLabels() {
@@ -500,6 +527,10 @@
     document.documentElement.classList.toggle('title-video-off', !!ui.disableTitleVideo);
     document.documentElement.classList.toggle('tq-cg-hide-toolbar', ui.cgHideToolbar !== false);
     document.documentElement.classList.toggle('tq-cg-hide-fab', ui.cgHideFab !== false);
+    var settingsPanel = $('settings-panel');
+    if (settingsPanel) {
+      settingsPanel.classList.toggle('is-st-form', ui.stFormPresetWb !== false);
+    }
     applyPhoneFabUi(ui);
     applyPhoneAppScale(ui);
     fillUiDom(ui);
@@ -803,10 +834,12 @@
       });
     }
 
-    ['cfg-cg-hide-toolbar', 'cfg-cg-hide-fab', 'cfg-dlg-dynamic-height'].forEach(function (id) {
-      var el = $(id);
-      if (el) el.addEventListener('change', commitUi);
-    });
+    ['cfg-cg-hide-toolbar', 'cfg-cg-hide-fab', 'cfg-dlg-dynamic-height', 'cfg-st-form-preset-wb'].forEach(
+      function (id) {
+        var el = $(id);
+        if (el) el.addEventListener('change', commitUi);
+      },
+    );
 
     var disableTitleVideo = $('cfg-disable-title-video');
     if (disableTitleVideo) {
@@ -984,6 +1017,7 @@
     if (window.天青_settings_image) window.天青_settings_image.bind();
     if (window.天青_settings_phone_sys) window.天青_settings_phone_sys.bind();
     if (window.天青_settings_user) window.天青_settings_user.bind();
+    if (window.天青_settings_opening) window.天青_settings_opening.bind();
     if (window.天青_settings_character) window.天青_settings_character.bind();
 
     var gear = $('btn-gear');

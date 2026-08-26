@@ -102,50 +102,82 @@
     lastBgUrl = url;
   }
 
+  /**
+   * 切换立绘；Promise 在新立绘已显示（或无需切换）后 resolve。
+   * 台词打字机应等此 Promise，保证「先换立绘再出字」。
+   */
   function setSprite(expr) {
-    if (cgActive) {
-      $('sprites').style.display = 'none';
-      return;
-    }
-    $('sprites').style.display = 'block';
-    var map = expressionMap();
-    if (!expr || expr === '-' || !map[expr]) return;
-    if (expr === lastExpr) return;
-    lastExpr = expr;
-    var url = map[expr];
-    var img = back.querySelector('img');
-    var token = ++spriteToken;
+    return new Promise(function (resolve) {
+      if (cgActive) {
+        $('sprites').style.display = 'none';
+        resolve();
+        return;
+      }
+      $('sprites').style.display = 'block';
+      var map = expressionMap();
+      if (!expr || expr === '-' || !map[expr]) {
+        resolve();
+        return;
+      }
+      if (expr === lastExpr) {
+        resolve();
+        return;
+      }
+      lastExpr = expr;
+      var url = map[expr];
+      var img = back.querySelector('img');
+      var token = ++spriteToken;
+      var settled = false;
+      var timer = setTimeout(function () {
+        finishReveal();
+      }, 3000);
 
-    function reveal() {
-      if (token !== spriteToken) return;
-      back.className = 'layer show';
-      front.className = 'layer';
-      var t = front;
-      front = back;
-      back = t;
-    }
+      function finishReveal() {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (token === spriteToken) {
+          back.className = 'layer show';
+          front.className = 'layer';
+          var t = front;
+          front = back;
+          back = t;
+        }
+        resolve();
+      }
 
-    if (img.getAttribute('src') === url && img.complete) {
-      reveal();
-      return;
-    }
+      function onReady() {
+        img.onload = null;
+        img.onerror = null;
+        if (token !== spriteToken) {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve();
+          }
+          return;
+        }
+        if (img.decode) {
+          img.decode().then(finishReveal).catch(finishReveal);
+        } else {
+          finishReveal();
+        }
+      }
 
-    img.onload = function () {
-      img.onload = null;
-      img.onerror = null;
-      reveal();
-    };
-    img.onerror = function () {
-      img.onload = null;
-      img.onerror = null;
-      reveal();
-    };
-    img.src = url;
-    if (img.complete) {
-      img.onload = null;
-      img.onerror = null;
-      reveal();
-    }
+      if (img.getAttribute('src') === url && img.complete) {
+        onReady();
+        return;
+      }
+
+      img.onload = onReady;
+      img.onerror = function () {
+        img.onload = null;
+        img.onerror = null;
+        finishReveal();
+      };
+      img.src = url;
+      if (img.complete) onReady();
+    });
   }
 
   /** 预加载本轮用到的表情，避免台词打完网络图才到 */
@@ -157,6 +189,20 @@
       var e = m.expr;
       if (!e || e === '-' || !map[e] || seen[e]) return;
       seen[e] = true;
+      var img = new Image();
+      img.decoding = 'async';
+      img.src = map[e];
+    });
+  }
+
+  /** 预加载下一句立绘，减少翻页等待 */
+  function preloadNearbyExprs() {
+    var map = expressionMap();
+    [idx + 1, idx + 2].forEach(function (i) {
+      var m = data.modules && data.modules[i];
+      if (!m || m.type !== 'line') return;
+      var e = m.expr;
+      if (!e || e === '-' || !map[e]) return;
       var img = new Image();
       img.decoding = 'async';
       img.src = map[e];
@@ -185,22 +231,47 @@
     }, AUTO_DELAY_MS);
   }
 
+  function clearDlgHeightReserve() {
+    var dlg = $('dialogue');
+    if (dlg) dlg.style.minHeight = '';
+  }
+
   function onTypeDone() {
     typing = false;
+    clearDlgHeightReserve();
     refreshDlgHeight();
     if (autoPlay) scheduleAuto();
   }
 
+  /**
+   * 动态高度下：先按全文量高并 min-height 占位，再清空打字。
+   * 避免从 0 行逐渐涨到 1/2 行导致对话框上下抽搐。
+   */
   function typeOut(el, str) {
     clearInterval(typer);
     clearAutoTimer();
     typing = true;
+    str = str == null ? '' : String(str);
+    clearDlgHeightReserve();
+
+    var dlg = $('dialogue');
+    if (isDlgDynamicHeight() && dlg) {
+      el.textContent = str;
+      refreshDlgHeight();
+      var reserve = dlg.offsetHeight;
+      if (reserve > 0) dlg.style.minHeight = reserve + 'px';
+    }
+
     el.textContent = '';
-    refreshDlgHeight();
+    if (!str.length) {
+      clearDlgHeightReserve();
+      onTypeDone();
+      return;
+    }
+
     var i = 0;
     typer = setInterval(function () {
       el.textContent = str.slice(0, ++i);
-      refreshDlgHeight();
       if (i >= str.length) {
         clearInterval(typer);
         onTypeDone();
@@ -237,6 +308,7 @@
     if (!isDlgDynamicHeight()) {
       dlg.classList.remove('is-dynamic-capped');
       dlg.style.height = '';
+      dlg.style.minHeight = '';
       root.removeProperty('--dlg-dynamic-toolbar-h');
       return;
     }
@@ -555,17 +627,47 @@
     paintBG();
   }
 
+  /** 跳转到中途句时，回溯到该句为止最近一次背景 */
+  function applyBgUpTo(atIdx, opts) {
+    var mods = data.modules || [];
+    var bgId = null;
+    var end = Math.min(Math.max(0, atIdx), Math.max(0, mods.length - 1));
+    for (var j = 0; j <= end; j++) {
+      if (mods[j] && mods[j].bgId) bgId = mods[j].bgId;
+    }
+    if (!bgId) return;
+    if (window.天青_state && window.天青_state.setLocation) {
+      window.天青_state.setLocation(bgId);
+    }
+    paintBG({ instant: !!(opts && opts.instant) });
+  }
+
+  var progressTimer = null;
+  function syncSaveProgress() {
+    if (!window.天青_save || !window.天青_save.setGalIdx) return;
+    /* 舞台尚未载入剧本时，勿把 galIdx=0 写回并覆盖自动存档 */
+    if (!(data.modules && data.modules.length)) return;
+    window.天青_save.setGalIdx(idx);
+    clearTimeout(progressTimer);
+    progressTimer = setTimeout(function () {
+      if (!window.天青_save || !window.天青_save.autoSave) return;
+      if (!window.天青_save.hasProgress || !window.天青_save.hasProgress()) return;
+      window.天青_save.autoSave();
+    }, 450);
+  }
+
   function presentLine(mod, instant) {
     applyLineBg(mod);
-    setSprite(mod.expr);
     var body = $('dlg-body');
     var textEl = $('text');
+    preloadNearbyExprs();
 
     function startContent() {
       applySpeaker(mod);
       if (instant) {
         clearInterval(typer);
         typing = false;
+        clearDlgHeightReserve();
         textEl.textContent = mod.text || '';
         if (body) body.classList.remove('is-fading');
         refreshDlgHeight();
@@ -575,23 +677,26 @@
       }
     }
 
-    if (instant || !body) {
-      dlgToken++;
-      if (body) body.classList.remove('is-fading');
-      startContent();
-      refreshDlgHeight();
-      return;
-    }
-
+    /* 先等立绘切换完成，再淡入/打字机出字 */
     var token = ++dlgToken;
     clearInterval(typer);
     typing = true;
-    body.classList.add('is-fading');
-    setTimeout(function () {
+    if (body && !instant) body.classList.add('is-fading');
+
+    setSprite(mod.expr).then(function () {
       if (token !== dlgToken) return;
-      startContent();
-      refreshDlgHeight();
-    }, DLG_FADE_MS);
+      if (instant || !body) {
+        if (body) body.classList.remove('is-fading');
+        startContent();
+        refreshDlgHeight();
+        return;
+      }
+      setTimeout(function () {
+        if (token !== dlgToken) return;
+        startContent();
+        refreshDlgHeight();
+      }, DLG_FADE_MS);
+    });
   }
 
   function renderStageLine(instant) {
@@ -668,6 +773,8 @@
 
     hideChoices(true);
     var mod = data.modules[idx];
+    var instantLine = pendingInstantLine;
+    pendingInstantLine = false;
     if (mod.type === 'cg') {
       dlgToken++;
       var body = $('dlg-body');
@@ -680,7 +787,7 @@
       return;
     }
     if (mod.type === 'line') {
-      presentLine(mod, false);
+      presentLine(mod, instantLine);
     } else if (autoPlay) {
       scheduleAuto();
     }
@@ -833,6 +940,8 @@
     var max = data.modules.length;
     idx = Math.max(0, Math.min(max, Number(i) || 0));
     lastExpr = null;
+    pendingInstantLine = true;
+    applyBgUpTo(idx >= max ? max - 1 : idx, { instant: true });
     hideChoices(true);
     render();
   }
@@ -1010,21 +1119,23 @@
   function refreshNav() {
     var L = $('navL');
     var R = $('navR');
-    if (!L || !R) return;
-    if (cgViewMode) {
-      if (idx >= data.modules.length) {
-        L.classList.toggle('off', !(data.modules && data.modules.length));
-        R.classList.toggle('off', true);
-        return;
+    if (L && R) {
+      if (cgViewMode) {
+        if (idx >= data.modules.length) {
+          L.classList.toggle('off', !(data.modules && data.modules.length));
+          R.classList.toggle('off', true);
+        } else {
+          var block = getCgBlock();
+          var pos = block ? block.indices.indexOf(idx) : -1;
+          L.classList.toggle('off', !block || pos <= 0);
+          R.classList.toggle('off', !block || pos >= block.indices.length - 1);
+        }
+      } else {
+        L.classList.toggle('off', idx <= 0);
+        R.classList.toggle('off', idx >= data.modules.length);
       }
-      var block = getCgBlock();
-      var pos = block ? block.indices.indexOf(idx) : -1;
-      L.classList.toggle('off', !block || pos <= 0);
-      R.classList.toggle('off', !block || pos >= block.indices.length - 1);
-      return;
     }
-    L.classList.toggle('off', idx <= 0);
-    R.classList.toggle('off', idx >= data.modules.length);
+    syncSaveProgress();
   }
 
   function getLogEntries() {
@@ -1084,12 +1195,19 @@
     return autoPlay;
   }
 
+  var pendingInstantLine = false;
+
   function loadGal(galData, opts) {
     stopAuto();
     streaming = false;
     streamAwaiting = false;
     data = galData || { modules: [], choices: [] };
-    idx = 0;
+    var max = (data.modules || []).length;
+    var start = 0;
+    if (opts && typeof opts.startIndex === 'number' && !isNaN(opts.startIndex)) {
+      start = Math.max(0, Math.floor(opts.startIndex));
+    }
+    idx = Math.min(start, max);
     lastExpr = null;
     typing = false;
     clearInterval(typer);
@@ -1102,7 +1220,11 @@
     hideChoices(false);
     $('hint').textContent = '▼ 点击继续';
     onChoice = (opts && opts.onChoice) || null;
-    paintBG({ instant: !!(opts && opts.instantBg) });
+    pendingInstantLine = !!(opts && opts.instant);
+    applyBgUpTo(idx >= max ? max - 1 : idx, { instant: true });
+    if (!(opts && opts.instantBg === false)) {
+      paintBG({ instant: true });
+    }
     preloadExprs(data.modules);
     render();
   }

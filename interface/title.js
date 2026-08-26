@@ -102,8 +102,129 @@
     }
   }
 
+  function resolveBgUrl(bgId) {
+    if (!bgId) return '';
+    var map = window.天青_backgrounds || {};
+    var band =
+      window.天青_state && window.天青_state.getTimeBand
+        ? window.天青_state.getTimeBand()
+        : '白日';
+    var bands = [band, '白日', '黄昏', '夜晚'];
+    for (var i = 0; i < bands.length; i++) {
+      var u = map[bgId + '·' + bands[i]];
+      if (u) return u;
+    }
+    return '';
+  }
+
+  /** 从存档 lastRaw + galIdx 还原当时场景（背景/立绘或 CG/台词） */
+  function resolveSceneFromSave(data) {
+    if (!data || !String(data.lastRaw || '').trim() || !window.天青_parse) return null;
+    var gal;
+    try {
+      gal = window.天青_parse.parseGal(data.lastRaw);
+    } catch (e) {
+      return null;
+    }
+    var mods = (gal && gal.modules) || [];
+    if (!mods.length) return null;
+
+    var i = typeof data.galIdx === 'number' ? data.galIdx : 0;
+    if (i < 0) i = 0;
+    if (i >= mods.length) i = mods.length - 1;
+
+    var bgId = null;
+    var line = null;
+    var cgName = null;
+    for (var j = 0; j <= i; j++) {
+      var m = mods[j];
+      if (!m) continue;
+      if (m.bgId) bgId = m.bgId;
+      if (m.type === 'line') {
+        line = m;
+        if (m.cg) cgName = String(m.cg).trim() || cgName;
+        else cgName = null;
+      } else if (m.type === 'cg') {
+        cgName = String(m.name || '').trim() || cgName;
+      }
+    }
+
+    var at = mods[i];
+    if (at && at.type === 'line') {
+      line = at;
+      if (at.cg) cgName = String(at.cg).trim() || null;
+      else cgName = null;
+    } else if (at && at.type === 'cg') {
+      cgName = String(at.name || '').trim() || cgName;
+    }
+
+    var expr = (line && line.expr) || '-';
+    var exprMap = window.天青_expressions || {};
+    var spriteUrl = expr && expr !== '-' && exprMap[expr] ? exprMap[expr] : '';
+    var cgMap = window.天青_cg || {};
+    var cgUrl = cgName && cgMap[cgName] ? cgMap[cgName] : '';
+
+    return {
+      who: line ? line.who || '' : '',
+      text: line ? line.text || '' : '',
+      dialogue: !!(line && line.dialogue),
+      bgUrl: resolveBgUrl(bgId),
+      spriteUrl: spriteUrl,
+      cgUrl: cgUrl,
+      isCg: !!cgUrl,
+    };
+  }
+
+  function fillSceneThumb(el, data, emptyLabel) {
+    if (!el) return;
+    el.innerHTML = '';
+    el.classList.remove('has-scene');
+    var scene = resolveSceneFromSave(data);
+    if (!scene) {
+      el.textContent = emptyLabel || 'NO IMAGE';
+      return;
+    }
+
+    el.classList.add('has-scene');
+    var root = document.createElement('div');
+    root.className = 'saves-scene' + (scene.isCg ? ' is-cg' : '');
+
+    if (scene.isCg) {
+      var cg = document.createElement('div');
+      cg.className = 'saves-scene-cg';
+      cg.style.backgroundImage = 'url("' + scene.cgUrl + '")';
+      root.appendChild(cg);
+    } else {
+      var bg = document.createElement('div');
+      bg.className = 'saves-scene-bg';
+      if (scene.bgUrl) bg.style.backgroundImage = 'url("' + scene.bgUrl + '")';
+      root.appendChild(bg);
+      if (scene.spriteUrl) {
+        var sp = document.createElement('div');
+        sp.className = 'saves-scene-sprite';
+        var img = document.createElement('img');
+        img.src = scene.spriteUrl;
+        img.alt = '';
+        img.draggable = false;
+        sp.appendChild(img);
+        root.appendChild(sp);
+      }
+    }
+
+    el.appendChild(root);
+  }
+
   function previewText(data) {
     if (!data) return '尚无内容';
+    var scene = resolveSceneFromSave(data);
+    if (scene && (scene.text || scene.who)) {
+      var line = scene.text || '';
+      if (scene.who && scene.dialogue) line = scene.who + '：' + line;
+      else if (scene.who && !scene.text) line = scene.who;
+      line = String(line).replace(/\s+/g, ' ').trim();
+      if (line.length > 64) line = line.slice(0, 64) + '…';
+      if (line) return line;
+    }
     var raw = String(data.lastRaw || '');
     if (raw) {
       var t = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -112,6 +233,17 @@
     }
     var n = (data.messages && data.messages.length) || 0;
     return n ? '对话 ' + n + ' 条' : '（无预览文本）';
+  }
+
+  function flushLiveProgress() {
+    /* 主菜单打开时不把舞台空进度写回自动存档 */
+    if (isOpen()) return;
+    if (!window.天青_stage || !window.天青_save) return;
+    if (!window.天青_save.hasProgress || !window.天青_save.hasProgress()) return;
+    if (typeof window.天青_stage.getIndex === 'function' && window.天青_save.setGalIdx) {
+      window.天青_save.setGalIdx(window.天青_stage.getIndex());
+    }
+    if (window.天青_save.autoSave) window.天青_save.autoSave();
   }
 
   function getAutoData() {
@@ -147,6 +279,7 @@
     var dateEl = $('saves-preview-date');
     var slotEl = $('saves-preview-slot');
     var commentEl = $('saves-preview-comment');
+    var thumbEl = $('saves-preview-thumb');
     if (dateEl) dateEl.textContent = data ? formatTime(data.updatedAt) : '—';
     if (slotEl) {
       if (selectedKind === 'manual' && selectedManualIndex >= 0) {
@@ -157,6 +290,7 @@
       }
     }
     if (commentEl) commentEl.textContent = data ? previewText(data) : '请选择存档，或点 + 新建';
+    fillSceneThumb(thumbEl, data, 'NO IMAGE');
     refreshActionButtons();
   }
 
@@ -169,6 +303,40 @@
   /** 主菜单打开时只读：不允许新建手动存档 */
   function canCreateSave() {
     return !isOpen();
+  }
+
+  function roundOf(data) {
+    if (!data || !Array.isArray(data.messages)) return 0;
+    var n = 0;
+    for (var i = 0; i < data.messages.length; i++) {
+      if (data.messages[i] && data.messages[i].role === 'assistant') n++;
+    }
+    return n;
+  }
+
+  function appendSlotFoot(foot, data, emptyComment) {
+    var comment = document.createElement('div');
+    comment.className = 'saves-slot-comment';
+    comment.textContent = data ? previewText(data) : emptyComment || '—';
+
+    var meta = document.createElement('div');
+    meta.className = 'saves-slot-meta';
+
+    var time = document.createElement('div');
+    time.className = 'saves-slot-time';
+    time.textContent = data ? formatTime(data.updatedAt) : '—';
+
+    var round = document.createElement('div');
+    round.className = 'saves-slot-round';
+    var n = roundOf(data);
+    round.textContent = n > 0 ? String(n) : '';
+    round.title = n > 0 ? '第 ' + n + ' 轮对话' : '';
+    round.setAttribute('aria-label', n > 0 ? '对话轮次 ' + n : '');
+
+    meta.appendChild(time);
+    meta.appendChild(round);
+    foot.appendChild(comment);
+    foot.appendChild(meta);
   }
 
   function makeManualCard(slot, order) {
@@ -188,18 +356,11 @@
 
     var thumb = document.createElement('div');
     thumb.className = 'saves-slot-thumb';
-    thumb.textContent = 'SAVE';
+    fillSceneThumb(thumb, slot.data, 'SAVE');
 
     var foot = document.createElement('div');
     foot.className = 'saves-slot-foot';
-    var comment = document.createElement('div');
-    comment.className = 'saves-slot-comment';
-    comment.textContent = previewText(slot.data);
-    var time = document.createElement('div');
-    time.className = 'saves-slot-time';
-    time.textContent = formatTime(slot.updatedAt);
-    foot.appendChild(comment);
-    foot.appendChild(time);
+    appendSlotFoot(foot, slot.data);
 
     card.appendChild(head);
     card.appendChild(thumb);
@@ -229,18 +390,11 @@
 
     var thumb = document.createElement('div');
     thumb.className = 'saves-slot-thumb';
-    thumb.textContent = data ? 'AUTO' : 'EMPTY';
+    fillSceneThumb(thumb, data, data ? 'AUTO' : 'EMPTY');
 
     var foot = document.createElement('div');
     foot.className = 'saves-slot-foot';
-    var comment = document.createElement('div');
-    comment.className = 'saves-slot-comment';
-    comment.textContent = data ? previewText(data) : '生成对话后会自动更新';
-    var time = document.createElement('div');
-    time.className = 'saves-slot-time';
-    time.textContent = data ? formatTime(data.updatedAt) : '—';
-    foot.appendChild(comment);
-    foot.appendChild(time);
+    appendSlotFoot(foot, data, '生成对话后会自动更新');
 
     auto.appendChild(head);
     auto.appendChild(thumb);
@@ -270,6 +424,7 @@
   function openSaves() {
     var panel = $('saves-panel');
     if (!panel) return;
+    flushLiveProgress();
     selectedKind = 'auto';
     selectedManualIndex = -1;
     renderSavesGrid();
@@ -304,8 +459,25 @@
   }
 
   function startNewGame() {
+    var openPicker = function () {
+      closeSaves();
+      if (window.天青_settings && window.天青_settings.close) {
+        window.天青_settings.close();
+      }
+      if (window.天青_opening_select && window.天青_opening_select.open) {
+        window.天青_opening_select.open();
+        return;
+      }
+      beginNewGameWithOpening();
+    };
+    openPicker();
+  }
+
+  function beginNewGameWithOpening(openingId) {
     var run = function () {
-      if (window.天青_save) window.天青_save.clear();
+      if (window.天青_opening_select && window.天青_opening_select.close) {
+        window.天青_opening_select.close();
+      }
       closeSaves();
       if (window.天青_settings && window.天青_settings.close) {
         window.天青_settings.close();
@@ -313,7 +485,7 @@
       hide(function () {
         pulseStageEnter();
         if (window.天青_app && window.天青_app.startNewGame) {
-          window.天青_app.startNewGame();
+          window.天青_app.startNewGame(openingId);
         }
       });
     };
@@ -345,6 +517,7 @@
       toast('当前没有可保存的对话');
       return;
     }
+    flushLiveProgress();
     var slot = window.天青_save.appendManualSave();
     selectedKind = 'manual';
     selectedManualIndex = slot.index;
@@ -470,6 +643,13 @@
     var delBtn = $('btn-saves-delete');
     if (loadBtn) loadBtn.addEventListener('click', loadSelected);
     if (delBtn) delBtn.addEventListener('click', deleteSelected);
+
+    window.__tq_onOpeningPicked = function (openingId) {
+      beginNewGameWithOpening(openingId);
+    };
+    if (window.天青_opening_select && window.天青_opening_select.bind) {
+      window.天青_opening_select.bind();
+    }
 
     refreshContinueBtn();
   }

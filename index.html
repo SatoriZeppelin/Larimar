@@ -10,13 +10,24 @@
       href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Noto+Serif+SC:wght@500;600;700&family=ZCOOL+QingKe+HuangYou&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="interface/stage.css?v=20260720k" />
+    <link rel="stylesheet" href="interface/stage.css?v=20260826j" />
     <link rel="stylesheet" href="interface/phone.css?v=20260720j" />
     <link rel="stylesheet" href="interface/phone-line.css?v=20260721k" />
     <link rel="stylesheet" href="interface/phone-twitter.css?v=20260724d" />
   </head>
   <body>
-    <div id="title-screen" class="open" aria-hidden="false">
+    <div id="boot-loader" aria-live="polite" aria-busy="true">
+      <div class="boot-loader-bg" aria-hidden="true"></div>
+      <div class="boot-loader-panel">
+        <div class="boot-loader-pct">0%</div>
+        <div class="boot-loader-bar" aria-hidden="true">
+          <div class="boot-loader-bar-fill"></div>
+        </div>
+        <div class="boot-loader-status">检查本地资源…</div>
+      </div>
+    </div>
+
+    <div id="title-screen" aria-hidden="true" inert>
       <div class="title-screen-bg" aria-hidden="true"></div>
       <video
         class="title-screen-video"
@@ -85,7 +96,34 @@
       </div>
     </div>
 
+    <div id="opening-panel" aria-hidden="true" inert>
+      <div class="opening-blur" aria-hidden="true"></div>
+      <button type="button" class="opening-close" id="btn-opening-close" aria-label="关闭">×</button>
+      <div class="opening-body" role="dialog" aria-modal="true" aria-labelledby="opening-caption">
+        <div class="opening-stage">
+          <button type="button" class="opening-nav opening-nav--prev" id="btn-opening-prev" aria-label="上一个开局">
+            ‹
+          </button>
+          <div class="opening-viewport" id="opening-viewport">
+            <div class="opening-track" id="opening-track" role="listbox" aria-label="开局列表"></div>
+          </div>
+          <button type="button" class="opening-nav opening-nav--next" id="btn-opening-next" aria-label="下一个开局">
+            ›
+          </button>
+        </div>
+        <div class="opening-footer">
+          <div class="opening-dots" id="opening-dots" aria-hidden="true"></div>
+          <p class="opening-caption" id="opening-caption"></p>
+          <button type="button" class="opening-confirm" id="btn-opening-confirm">开始开局</button>
+        </div>
+      </div>
+    </div>
+
     <div id="stage">
+      <div id="gal-generating" class="gal-generating" hidden aria-live="polite">
+        <span class="gal-gen-spinner" aria-hidden="true"></span>
+        <span class="gal-gen-label">正在生成正文</span>
+      </div>
       <div id="bg">
         <div class="bg-layer show" id="bgA"></div>
         <div class="bg-layer" id="bgB"></div>
@@ -301,6 +339,9 @@
               </button>
               <button type="button" class="settings-subtab" data-sub="user">
                 <span class="sub-label">用户设定</span>
+              </button>
+              <button type="button" class="settings-subtab" data-sub="opening">
+                <span class="sub-label">开局设置</span>
               </button>
             </nav>
             <div class="settings-subcontent">
@@ -860,6 +901,43 @@
                   </div>
                 </section>
               </div>
+
+              <div class="settings-subpane" data-subpane="opening">
+                <section class="settings-l3 settings-opening">
+                  <div class="opening-set-headbar">
+                    <div class="opening-set-headbar-text">
+                      <h3 class="settings-l3-title">开局列表</h3>
+                      <p class="tq-hint">默认以 2:3 封面展示；点击某张展开细节设定。至少保留一项。</p>
+                    </div>
+                    <span class="preset-panel-stat" id="opening-panel-stat">0/0 个可开局</span>
+                  </div>
+                  <div class="settings-preset-actions opening-set-actions">
+                    <button type="button" class="tq-preset-btn" id="btn-opening-add">
+                      <span class="tq-preset-icon" aria-hidden="true">
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="18"
+                          height="18"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M12 5v14" />
+                          <path d="M5 12h14" />
+                        </svg>
+                      </span>
+                      <span>新增开局</span>
+                    </button>
+                    <button type="button" class="tq-preset-btn" id="btn-opening-reset">
+                      <span>恢复默认</span>
+                    </button>
+                  </div>
+                  <div class="opening-settings-list" id="opening-settings-list"></div>
+                </section>
+              </div>
             </div>
           </div>
 
@@ -964,6 +1042,9 @@
               <button type="button" class="settings-subtab" data-sub="t2i">
                 <span class="sub-label">文生图</span>
               </button>
+              <button type="button" class="settings-subtab" data-sub="misc">
+                <span class="sub-label">杂项</span>
+              </button>
             </nav>
             <div class="settings-subcontent">
               <div class="settings-subpane active" data-subpane="api">
@@ -988,7 +1069,7 @@
                           type="password"
                           class="tq-input tq-input-has-icon"
                           id="cfg-api-key"
-                          placeholder="sk-...（反向代理可留空）"
+                          placeholder="sk-..."
                           autocomplete="off"
                           spellcheck="false"
                         />
@@ -1577,6 +1658,18 @@
                   <p class="tq-hint">文生图相关设置将在这里配置</p>
                 </section>
               </div>
+              <div class="settings-subpane" data-subpane="misc">
+                <section class="settings-l3 settings-misc">
+                  <h3 class="settings-l3-title">杂项</h3>
+                  <div class="settings-l4">
+                    <label class="tq-check-row" for="cfg-st-form-preset-wb">
+                      <input type="checkbox" id="cfg-st-form-preset-wb" />
+                      <span class="tq-check-box" aria-hidden="true"></span>
+                      <span class="tq-check-label">预设和提示词详细信息显示</span>
+                    </label>
+                  </div>
+                </section>
+              </div>
             </div>
           </div>
 
@@ -1772,7 +1865,7 @@
     <script src="resource/keys.js"></script>
     <script src="resource/svg.js"></script>
     <script src="resource/system.js"></script>
-    <script src="resource/opening.js"></script>
+    <script src="resource/opening.js?v=20260826d"></script>
     <script src="resource/default-worldbook-tianqing.js"></script>
     <script src="resource/default-prompt-worldbook.js"></script>
     <script src="resource/default-variables.js"></script>
@@ -1780,16 +1873,16 @@
     <script src="backend/parse.js"></script>
     <script src="backend/state.js"></script>
     <script src="backend/persona.js"></script>
-    <script src="backend/api.js"></script>
+    <script src="backend/api.js?v=20260809d"></script>
     <script src="backend/preset.js"></script>
     <script src="backend/stat-data.js"></script>
     <script src="backend/prompt-builder.js"></script>
     <script src="backend/regex.js"></script>
-    <script src="backend/save.js"></script>
+    <script src="backend/save.js?v=20260809a"></script>
     <script src="backend/chat.js"></script>
-    <script src="backend/hooks.js"></script>
+    <script src="backend/hooks.js?v=20260809b"></script>
 
-    <script src="interface/stage.js"></script>
+    <script src="interface/stage.js?v=20260809h"></script>
     <script src="interface/phone-apps.js"></script>
     <script src="interface/phone-line-room-tools.js"></script>
     <script src="interface/phone-line.js?v=20260724h"></script>
@@ -1800,8 +1893,10 @@
     <script src="interface/phone.js?v=20260724h"></script>
     <script src="interface/phone-fab.js?v=20260724h"></script>
     <script src="interface/toolbar.js"></script>
-    <script src="interface/title.js"></script>
-    <script src="interface/settings-api.js"></script>
+    <script src="interface/opening-select.js?v=20260826i"></script>
+    <script src="interface/title.js?v=20260809d"></script>
+    <script src="interface/asset-preload.js?v=20260809g"></script>
+    <script src="interface/settings-api.js?v=20260809a"></script>
     <script src="interface/settings-preset.js"></script>
     <script src="interface/settings-regex.js"></script>
     <script src="interface/settings-prompt.js"></script>
@@ -1809,8 +1904,9 @@
     <script src="interface/settings-image.js"></script>
     <script src="interface/settings-phone-sys.js"></script>
     <script src="interface/settings-user.js"></script>
+    <script src="interface/settings-opening.js?v=20260826f"></script>
     <script src="interface/settings-character.js"></script>
-    <script src="interface/settings.js"></script>
-    <script src="interface/app.js"></script>
+    <script src="interface/settings.js?v=20260826a"></script>
+    <script src="interface/app.js?v=20260809e"></script>
   </body>
 </html>

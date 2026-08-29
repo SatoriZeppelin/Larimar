@@ -109,6 +109,202 @@
     </UpdateVariable>
 </summernight>`;
 
+  var RAW_MV_PLANNING = String.raw`<summernight>
+    <summernight_maintext>
+        <背景|事务所办公室|事务所工作室>
+        <旁白|七月的阳光把工作室的窗户晒得发烫，空调的冷气从你背后的出风口吹过来，带着一股干燥的塑料味。>
+        <旁白|天青把企划书摊在桌面上，手指压住纸张边角，指甲上涂着浅蓝色的指甲油，在白纸的反光里显得几乎透明。>
+        <旁白|她刚才说了十五分钟，中间没有停顿喝水，桌上那瓶矿泉水的瓶盖还紧紧拧着。>
+        <旁白|企划书被她翻到了第三页，上面贴满了从杂志上剪下来的海边风景照片，有些被她用荧光笔圈出来，写着「这里」「这个角度」「日落时分」之类的备注。>
+        <旁白|她的头发从肩膀滑下来，发尾的蓝色在窗户透进来的光线里像一片浅海的倒影。那个黑色的蝴蝶结发饰别在耳朵上方，她讲话的时候会轻轻晃动，像一只正在扇翅膀的小蝴蝶。>
+
+        <天青|自信|「小镇叫真浦町，我查过了，从东京坐新干线再转地方线，三个半小时能到。」>
+
+        <旁白|她的手指划过企划书上的地图，指甲轻轻敲了敲某个被红笔圈住的点。那个点旁边写着「防波堤」，字迹是她的，圆润的笔画带着一点向上翘的尾巴。>
+
+        <天青|微笑|「海边有一条石头铺的坡道，两边都是卖渔具和冰淇淋的小店，特别有昭和年代的感觉。」>
+        <天青|得意|「坡道走到底是一个小码头，码头尽头有个灯塔，傍晚的时候逆光拍特别好看。」>
+
+        <旁白|她翻到下一页。上面贴着一张照片，是从网上找的小镇全景图，远处的山脉被夏天的雾气模糊成青灰色的剪影，近处的海面平静得像一块摊开的绸缎。>
+
+        <天青|星星眼|「我想拍你递给我汽水的手，拍我们一起走过小镇坡道时地上的影子，拍我在码头唱副歌的时候，镜头后面有一团蓝色星光。」>
+
+        <旁白|她一条一条地数着，声音轻快得像在念购物清单，但说出来的每一个画面都太具体了。>
+        <旁白|具体到你几乎能看见那些尚未存在的镜头——便利店冰柜前被冷气冻得起雾的汽水瓶，午后阳光把两个人的影子拉得很长很长，以及码头尽头那个抱着吉他唱歌的女孩背后，某一团正在缓慢呼吸的深蓝色星空。>
+
+        <天青|俏皮|「不要先皱眉哦，我已经帮你把反对意见准备好了。」>
+        <天青|做鬼脸|「比如，『制作人出境不太好』，『会让粉丝误会』，『MV焦点应该放在Larimar身上』，『后期宣传会很麻烦』。嗯嗯，我都听见了，木头制作人的标准四连。」>
+
+        <旁白|她模仿你惯用的严肃语气，眉头微微皱起，下巴端得四平八稳，那表情有七分像、三分夸张，看起来又欠揍又可爱。>
+        <旁白|然后她撑不住自己笑起来，肩膀抖了抖，黑蓝渐变的长发从肩头滑落，发尾那一截透明的浅蓝在窗外照进来的日光里泛着温润的光泽。>
+        <旁白|企划书的第五页是一张手绘的分镜图，线条有些歪歪扭扭，但能看出画的是两个人走在坡道上的背影，一高一矮，影子拉得很长，在石板路上交叠成一个复杂的形状。>
+        <旁白|她的手指点了点那张图。>
+
+        <天青|自信|「但是我全部都想好了。后期的时候，你的脸可以用特效处理掉。」>
+        <天青|得意|「不是那种打普通马赛克的丑方法——我找了个做Motion Graphics的朋友问过了，可以做成蓝色星空墨水在水里化开的那种效果。」>
+        <天青|微笑|「就像把一滴靛蓝颜料滴进清水里，你的五官会被那团流动的深蓝色覆盖住。每一帧的形状都不一样，会呼吸，会流动。」>
+
+        <旁白|她说「呼吸」和「流动」的时候，手在空气中比划了一下，像是在描绘一团真实存在的蓝色雾气。>
+
+        <天青|微笑|「这样观众看到的就只有你的轮廓和身形，大家只知道『有一个和Larimar一起走在海滩上的人』，不知道是谁。」>
+        <天青|害羞|「但我知道。看MV的时候我知道那是你。」>
+
+        <旁白|她的声音在最后那几个字变得很轻，轻得像海风吹过贝壳时发出的声音。但她没有移开视线，那双浅蓝色的眼睛直直地看着你，里面没有任何躲闪或者试探。>
+        <旁白|空调的风吹过企划书的纸张边缘，发出很轻的沙沙声。桌上的马克笔滚动了一下，撞到了那瓶没有打开的矿泉水，停住了。>
+        <旁白|她站起来，绕过桌子走到窗边。她的身高刚好让头顶的发旋被斜射进来的阳光照亮，黑发和蓝发的分界线在那个角度显得格外清晰，像一道潮汐的痕迹。>
+
+        <天青|自信|「整支MV的概念就是『夏天、海、和你一起的约定』，少了你就不完整。」>
+        <天青|微笑|「你在里面不需要做任何事，就坐在那里就好了，坐在防波堤上让海风吹着，我来负责所有需要演的部分。」>
+
+        <旁白|她转过身，背对着窗户，脸上的表情被逆光遮去了大半。但你能看到她嘴角的形状，带着一点故意的挑衅，也带着一点理直气壮的任性。>
+        <旁白|她把双手撑在窗台上，手指轻轻敲击着白色的窗框。>
+
+        <天青|得意|「怎么样？有没有被我说服？」>
+        <天青|俏皮|「还是你要继续假装在认真思考然后用一堆专业术语来婉拒我？」>
+    </summernight_maintext>
+
+    <summernight_branches>
+        [「先让我看看真浦町的完整企划」]
+        [「你从一开始就没打算让我拒绝吧」]
+        [无奈又好笑地揉了揉眉心]
+    </summernight_branches>
+
+    <summernight_snapshots>
+        七月午后的事务所工作室，天青向制作人推销真浦町海边 MV 企划，坚持要制作人出镜并用蓝色星空特效处理面部。
+    </summernight_snapshots>
+
+    <UpdateVariable>
+        <summernight_variables>
+        _.set('stat_data.时间.天数', 1)
+        _.set('stat_data.时间.具体时间', [14, 0])
+        _.set('stat_data.时间.星期', '二')
+        _.set('stat_data.地点', '事务所办公室')
+        _.set('stat_data.名气.阶段', '地下偶像期')
+        </summernight_variables>
+    </UpdateVariable>
+</summernight>`;
+
+  var RAW_CHURCH_BRIDE = String.raw`<summernight>
+    <summernight_maintext>
+        <背景|教堂|教堂>
+        <旁白|彩色玻璃把正午的阳光切割成不规则的色块，红、蓝、金、紫，斜斜地落在白色大理石地砖上。>
+        <旁白|摄影师正在调整三脚架的高度，助理举着反光板来回移动，试图找到最佳的补光角度。>
+        <旁白|祭坛前的红毯上，婚纱的裙摆铺开一整片白色浪花。层叠的欧根纱在地砖上堆出柔软的弧度，束身的胸衣把腰收成一握的宽度，锁骨和肩线完全裸露，皮肤白得像冰镇过的牛奶。>
+        <旁白|银白色从发根淌下来，到发尾处沉成透明的湖蓝，卷曲的长发铺在婚纱背后，和裙摆的白混在一起。>
+        <旁白|你推开教堂侧门走进来的瞬间，那束白色马蹄莲捧花的角度歪了一下，然后被她自己纠正过来。>
+        <旁白|造型师的细毛刷还在颧骨上扫过，带出一层淡淡的珠光。但那双浅蓝色的眼睛已经越过化妆师的肩膀，越过正在搬运打光板的工作人员，准确地钉在你站着的位置。>
+
+        <天青|婚纱俏皮|「麻烦让一让。」>
+
+        <旁白|侧身绕过造型师，婚纱裙摆的重量让动作变得笨拙，鱼骨撑起的裙撑在转向时发出悉悉索索的摩擦声。高跟鞋踩在大理石地面上，清脆的声响在挑高的教堂穹顶里回荡。>
+
+        <天青|婚纱开心|「制作人！」>
+
+        <旁白|裙摆像融化的冰激凌一样摊在地上。头顶的水晶皇冠折射出细碎的光斑，有几颗落在睫毛尖上。>
+
+        <天青|婚纱生气|「怎么这个时间才到？」>
+
+        <旁白|嘴角翘起的弧度出卖了语气里的抱怨。手指扣进衬衫袖口和手腕之间的缝隙，指尖冰凉，大概是在空调开得太足的化妆间待太久了。>
+        <旁白|摄影师抬起头，镜头后面的眼睛在你们两个人之间来回移动。几个工作人员停下手里的动作，有人交换了一个意味不明的眼神。>
+
+        <天青|婚纱自豪|「这是我制作人。」>
+
+        <旁白|转向摄影师，像在介绍一件珍藏品。婚纱的拖尾在转身时划出一个漂亮的圆弧，裙摆下隐约露出一截白色缎面高跟鞋的尖头。>
+
+        <天青|婚纱俏皮|「等下我想拍几张有他的。」>
+        <摄影师|「呃……今天的拍摄主题是单人婚纱宣传照……」>
+        <天青|婚纱wink|「我知道。」>
+
+        <旁白|点头，语气理所当然。>
+
+        <天青|婚纱开心|「所以他不用露脸啊。只要拍到手就可以了。比如他帮我整理头纱的手，或者我们手指交叠的特写，又或者他从背后环住我腰的构图。」>
+
+        <旁白|捧花被夹在腋下，腾出来的两只手在空气中描绘那些尚不存在的画面。银白蓝渐变的长发从肩膀滑落，垂在婚纱的前襟上，衬得锁骨更加单薄透明。>
+
+        <天青|婚纱俏皮|「反正宣传照需要故事感嘛。'幸福的新娘'和'被爱着的新娘'是不一样的概念。有另一个人的存在，画面的情感浓度会更高。」>
+
+        <旁白|转头看你，眼神亮晶晶的。>
+
+        <天青|婚纱开心|「对吧？」>
+
+        <旁白|造型师手里拿着一支唇釉走过来，看见那抓着你袖口不放的姿势，犹豫了一下，没有靠近。>
+
+        <天青|婚纱wink|「而且。」>
+
+        <旁白|声音变轻了一点。不是故意压低的暧昧，只是单纯的音量下降，像在说什么只有你们两个人能听见的话。>
+
+        <天青|婚纱俏皮|「你知道我为什么会接这个工作吗？」>
+
+        <旁白|没等你回答。>
+
+        <天青|婚纱歌唱开心|「因为是婚纱啊。」>
+
+        <旁白|松开你的袖口，退后半步，双手张开，让你看清楚身上这套礼服。裙摆在动作中荡开，欧根纱的层叠像一朵正在绽放的白色花瓣。胸口的蕾丝刺绣在侧面打来的灯光下透出淡淡的金线。>
+
+        <天青|婚纱开心|「婚纱企划，能穿婚纱，能在教堂拍照，能假装一天的新娘。」>
+
+        <旁白|语调轻快得像在念一份菜单。>
+
+        <天青|婚纱俏皮|「然后我想，如果能让你也出镜的话，」>
+
+        <旁白|顿了一下，浅蓝色的眼睛直直地看着你，里面没有半点躲闪。>
+
+        <CG|花海>
+        <天青|婚纱开心|「那就更完美了。」>
+        </CG>
+
+        <旁白|彩色玻璃窗投下的光斑正好落在她的脸上，把左半边面颊染成温暖的金红色。皇冠上的碎钻在那个角度折射出细密的彩虹，像一层薄薄的极光覆盖在银蓝色长发上。>
+
+        <天青|婚纱wink|「反正只是拍手嘛。」>
+
+        <旁白|伸出自己的手，手心向上，手指微微蜷曲。>
+
+        <天青|婚纱俏皮|「制作人的手很好看的，修长，骨节分明。拍出来肯定很上镜。」>
+
+        <旁白|摄影师放下手里的相机，用一种「我不知道该怎么处理这个局面」的眼神看向你们俩。助理假装在整理器材，但耳朵明显竖起来了。>
+        <旁白|往前迈了一步，婚纱的裙摆蹭过你的裤脚。仰起脸，假发的卷曲末梢蹭过肩膀，皇冠上的吊坠轻轻晃动。>
+
+        <天青|婚纱开心|「就当是帮我一个忙好了。」>
+
+        <旁白|声音很轻，轻得像花瓣落在水面上。>
+
+        <天青|婚纱俏皮|「穿婚纱的机会不是每天都有的。如果这一次身边没有你的话，我会觉得很可惜。」>
+
+        <旁白|说「很可惜」的时候，语气里没有任何撒娇或者恳求的成分。只是陈述一个事实，就像在说「如果今天下雨我会觉得很可惜」一样自然。>
+        <旁白|眨了眨眼，嘴角的弧度变得有点狡黠。>
+
+        <天青|婚纱wink|「当然，如果你坚持要拒绝的话，我也不会强迫你。」>
+
+        <旁白|手指轻轻碰了一下你的手背，冰凉的触感一闪而过。>
+
+        <天青|婚纱委屈|「只是以后每次看到这套婚纱照的时候，我都会想起来今天制作人不肯配合我，然后我会叹气，会难过，会在深夜的时候翻出来看，会跟粉丝说'其实这套照片本来可以更完美的'。」>
+
+        <旁白|表情变得非常无辜。>
+
+        <天青|婚纱俏皮|「你忍心吗？」>
+    </summernight_maintext>
+
+    <summernight_branches>
+        [「只拍手，不许再得寸进尺」]
+        [「这哪是帮忙，分明是蓄谋已久」]
+        [伸手替她理了理歪掉的头纱]
+    </summernight_branches>
+
+    <summernight_snapshots>
+        正午的教堂婚纱宣传照拍摄，天青穿婚纱向制作人撒娇，坚持要拍两人手部互动镜头。
+    </summernight_snapshots>
+
+    <UpdateVariable>
+        <summernight_variables>
+        _.set('stat_data.时间.天数', 47)
+        _.set('stat_data.时间.具体时间', [12, 0])
+        _.set('stat_data.时间.星期', '六')
+        _.set('stat_data.地点', '教堂')
+        _.set('stat_data.名气.阶段', '正式出道期')
+        </summernight_variables>
+    </UpdateVariable>
+</summernight>`;
+
   window.天青_openings_defaults = [
     {
       id: 'school-gate',
@@ -120,61 +316,62 @@
     },
     {
       id: 'opening-2',
-      title: '开局二',
-      subtitle: '占位 · 敬请期待',
-      coverBgId: '公园',
-      coverExpr: '微笑',
-      placeholder: true,
-      raw: '',
+      title: 'MV企划',
+      subtitle: '七月午后 · 真浦町海边',
+      coverBgId: '事务所办公室',
+      coverExpr: '自信',
+      raw: RAW_MV_PLANNING,
     },
     {
       id: 'opening-3',
-      title: '开局三',
-      subtitle: '占位 · 敬请期待',
-      coverBgId: '海边',
-      coverExpr: '星星眼',
-      placeholder: true,
-      raw: '',
-    },
-    {
-      id: 'opening-4',
-      title: '开局四',
-      subtitle: '占位 · 敬请期待',
-      coverBgId: '教室',
-      coverExpr: '思考',
-      placeholder: true,
-      raw: '',
-    },
-    {
-      id: 'opening-5',
-      title: '开局五',
-      subtitle: '占位 · 敬请期待',
-      coverBgId: '咖啡馆',
-      coverExpr: '害羞',
-      placeholder: true,
-      raw: '',
-    },
-    {
-      id: 'opening-6',
-      title: '开局六',
-      subtitle: '占位 · 敬请期待',
-      coverBgId: '宿舍',
-      coverExpr: '卖萌',
-      placeholder: true,
-      raw: '',
-    },
-    {
-      id: 'opening-7',
-      title: '开局七',
-      subtitle: '占位 · 敬请期待',
-      coverBgId: '商业街',
-      coverExpr: '高兴',
-      placeholder: true,
-      raw: '',
+      title: '婚纱拍摄',
+      subtitle: '正午 · 教堂宣传照',
+      coverBgId: '教堂',
+      coverExpr: '婚纱俏皮',
+      raw: RAW_CHURCH_BRIDE,
     },
   ];
 
   var STORE_KEY = 'tq_plus_openings';
+  var STORE_VERSION = 4;
+  var REMOVED_BUILTIN_IDS = ['opening-4', 'opening-5', 'opening-6', 'opening-7'];
+
+  function defaultIdsSet() {
+    var set = Object.create(null);
+    (window.天青_openings_defaults || []).forEach(function (d) {
+      if (d && d.id) set[d.id] = true;
+    });
+    return set;
+  }
+
+  /** 用内置默认开局覆盖同 id 缓存项，保留用户自建开局 */
+  function mergeWithDefaults(storedList) {
+    var defaults = cloneList(window.天青_openings_defaults);
+    var defById = Object.create(null);
+    defaults.forEach(function (d) {
+      defById[d.id] = d;
+    });
+    var builtinIds = defaultIdsSet();
+    var result = [];
+    var seen = Object.create(null);
+
+    (storedList || []).forEach(function (s) {
+      if (!s || !s.id) return;
+      if (REMOVED_BUILTIN_IDS.indexOf(s.id) >= 0) return;
+      var item =
+        builtinIds[s.id] && defById[s.id] ? cloneOpening(defById[s.id]) : cloneOpening(s);
+      result.push(item);
+      seen[s.id] = true;
+    });
+
+    defaults.forEach(function (d, idx) {
+      if (seen[d.id]) return;
+      var insertAt = Math.min(idx, result.length);
+      result.splice(insertAt, 0, cloneOpening(d));
+    });
+
+    return normalizeList(result);
+  }
 
   function resolveBgUrl(bgId) {
     if (!bgId) return '';
@@ -270,23 +467,36 @@
       var data = JSON.parse(raw);
       var list = Array.isArray(data) ? data : data && data.list;
       if (!Array.isArray(list) || !list.length) return null;
-      return normalizeList(list);
+      var version = Array.isArray(data) ? 1 : (data && data.version) || 1;
+      return { version: version, list: normalizeList(list) };
     } catch (e) {
       return null;
     }
   }
 
-  function persist() {
+  function persistList(list) {
     try {
       localStorage.setItem(
         STORE_KEY,
-        JSON.stringify({ version: 1, list: cloneList(window.天青_openings) }),
+        JSON.stringify({ version: STORE_VERSION, list: cloneList(list) }),
       );
     } catch (e) {}
   }
 
-  var stored = loadStored();
-  window.天青_openings = stored || cloneList(window.天青_openings_defaults);
+  function persist() {
+    persistList(window.天青_openings);
+  }
+
+  var loaded = loadStored();
+  if (!loaded) {
+    window.天青_openings = cloneList(window.天青_openings_defaults);
+    persist();
+  } else if (loaded.version < STORE_VERSION) {
+    window.天青_openings = mergeWithDefaults(loaded.list);
+    persist();
+  } else {
+    window.天青_openings = loaded.list;
+  }
 
   /** 兼容旧代码：默认开局正文 */
   window.天青_opening =

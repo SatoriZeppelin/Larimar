@@ -90,6 +90,21 @@
   height: 18px;
 }
 
+.tq-tw__refresh.is-busy {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.tq-tw__refresh.is-busy svg {
+  animation: tq-tw-spin 0.85s linear infinite;
+}
+
+@keyframes tq-tw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .tq-tw__brand {
   text-align: center;
   font-weight: 800;

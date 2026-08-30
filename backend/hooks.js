@@ -36,6 +36,9 @@
     if (h.app === 'twitter') {
       return !!(window.天青_phone_twitter_generate && window.天青_phone_twitter_generate.generateFromHook);
     }
+    if (h.app === 'twitch') {
+      return !!(window.天青_phone_twitch_generate && window.天青_phone_twitch_generate.generateFromHook);
+    }
     return false;
   }
 
@@ -67,6 +70,15 @@
     return gen.generateFromHook(hookText);
   }
 
+  async function runTwitchHook(hookText) {
+    var gen = window.天青_phone_twitch_generate;
+    if (!gen || typeof gen.generateFromHook !== 'function') {
+      console.warn('[hooks] Twitch 生成模块未就绪');
+      return null;
+    }
+    return gen.generateFromHook(hookText);
+  }
+
   /**
    * 解析 AI 原文中的钩子并异步执行（不阻塞主线）
    * 主线生成结束后左上角显示：正在生成APPX/n
@@ -89,6 +101,8 @@
             results.push(await runLineHook(h.text));
           } else if (h.app === 'twitter') {
             results.push(await runTwitterHook(h.text));
+          } else if (h.app === 'twitch') {
+            results.push(await runTwitchHook(h.text));
           }
         } catch (e) {
           console.warn('[hooks] ' + appLabel(h.app) + ' 生成失败', e);

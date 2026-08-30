@@ -5,6 +5,9 @@
 (function () {
   var STORE_KEY = 'tq_plus_twitter';
   var STORE_VER = 2;
+  var TREND_MAX = 8;
+  var TREND_DECAY_MAIN = 0.8;
+  var TREND_DECAY_TWITTER = 0.9;
   var view = 'tweets'; /* tweets | trends */
   var activeTweetId = '';
   var detailOpen = false;
@@ -69,21 +72,194 @@
 
   function defaultTrends() {
     return [
-      { id: 'tr1', category: '音乐 · 趋势', topic: 'Larimar', count: '趋势 · 1,842 帖子' },
-      { id: 'tr2', category: '地下偶像 · 趋势', topic: '#今晚livehouse', count: '612 帖子' },
-      { id: 'tr3', category: '娱乐 · 趋势', topic: '某顶流偶像 毕业公演', count: '趋势 · 9.6万 帖子' },
-      { id: 'tr4', category: '地区 · 日本', topic: '都内 深夜地铁增发', count: '趋势 · 4.2万 帖子' },
-      { id: 'tr5', category: '偶像行业 · 趋势', topic: '大型事务所 新人海选', count: '趋势 · 2.8万 帖子' },
-      { id: 'tr6', category: '社会 · 趋势', topic: 'livehouse 补助金 政策', count: '1.1万 帖子' },
-      { id: 'tr7', category: '仅你可见的趋势', topic: '透明感声线', count: '正在讨论' },
+      { id: 'tr1', category: '音乐 · 趋势', topic: 'Larimar', countWan: 0.1842, count: '1,842 帖子' },
+      { id: 'tr2', category: '地下偶像 · 趋势', topic: '#今晚livehouse', countWan: 0.0612, count: '612 帖子' },
+      { id: 'tr3', category: '娱乐 · 趋势', topic: '某顶流偶像 毕业公演', countWan: 9.6, count: '9.6万 帖子' },
+      { id: 'tr4', category: '地区 · 日本', topic: '都内 深夜地铁增发', countWan: 4.2, count: '4.2万 帖子' },
+      { id: 'tr5', category: '偶像行业 · 趋势', topic: '大型事务所 新人海选', countWan: 2.8, count: '2.8万 帖子' },
+      { id: 'tr6', category: '社会 · 趋势', topic: 'livehouse 补助金 政策', countWan: 1.1, count: '1.1万 帖子' },
+      { id: 'tr7', category: '仅你可见的趋势', topic: '透明感声线', countWan: 0, count: '正在讨论' },
     ];
   }
 
+  function formatWanCount(wan) {
+    wan = Number(wan);
+    if (!isFinite(wan) || wan < 0) wan = 0;
+    if (wan <= 0) return '正在讨论';
+    if (wan < 1) {
+      var posts = Math.round(wan * 10000);
+      return posts.toLocaleString('en-US') + ' 帖子';
+    }
+    var s = Math.round(wan * 10) / 10;
+    if (Math.abs(s - Math.round(s)) < 0.05) s = Math.round(s);
+    var label = String(s);
+    if (label.indexOf('.') >= 0) label = label.replace(/\.0$/, '');
+    return label + '万 帖子';
+  }
+
+  function normalizeTrendTopic(topic) {
+    return String(topic || '')
+      .trim()
+      .replace(/^#+/, '')
+      .replace(/\s+/g, ' ')
+      .toLowerCase();
+  }
+
+  function ensureTrendFields(tr) {
+    if (!tr || typeof tr !== 'object') return tr;
+    if (typeof tr.countWan !== 'number' || isNaN(tr.countWan)) {
+      var raw = String(tr.count || '').replace(/,/g, '');
+      var mWan = raw.match(/([\d.]+)\s*万/);
+      var mNum = raw.match(/([\d.]+)/);
+      if (mWan) tr.countWan = parseFloat(mWan[1]) || 0;
+      else if (mNum) tr.countWan = (parseFloat(mNum[1]) || 0) / 10000;
+      else tr.countWan = 0;
+    }
+    tr.count = formatWanCount(tr.countWan);
+    if (!tr.category) tr.category = '热搜 · 趋势';
+    return tr;
+  }
+
+  /** 按帖文量（万）降序；同热度按话题名稳定排序；最多保留 TREND_MAX 条 */
+  function finalizeTrendList(list) {
+    return (list || [])
+      .map(ensureTrendFields)
+      .sort(function (a, b) {
+        var aw = Number(a.countWan) || 0;
+        var bw = Number(b.countWan) || 0;
+        if (bw !== aw) return bw - aw;
+        return String(a.topic || '').localeCompare(String(b.topic || ''), 'zh-CN');
+      })
+      .slice(0, TREND_MAX);
+  }
+
+  function trendBelongsToMain(tr, maxIdx) {
+    if (!tr) return false;
+    var idx = typeof tr.mainMsgIndex === 'number' ? tr.mainMsgIndex : 0;
+    return idx <= maxIdx;
+  }
+
+  function decayEventBelongs(ev, maxIdx) {
+    if (!ev) return false;
+    var idx = typeof ev.atMainMsgIndex === 'number' ? ev.atMainMsgIndex : 0;
+    return idx <= maxIdx;
+  }
+
+  /** 汇总趋势增量，再按挂靠回合内的衰减事件重算展示热度（回退时剔除后续衰减） */
+  function rebuildTrendsFromDeltas(deltas, maxIdx, decayEvents) {
+    maxIdx = typeof maxIdx === 'number' ? maxIdx : getCurrentMainAsstIndex();
+    var byKey = Object.create(null);
+    var order = [];
+    (deltas || []).forEach(function (d) {
+      if (!d || !d.topic || !trendBelongsToMain(d, maxIdx)) return;
+      var key = normalizeTrendTopic(d.topic);
+      if (!byKey[key]) {
+        byKey[key] = {
+          id: 'tr_' + key.replace(/\s+/g, '_'),
+          topic: String(d.topic).trim(),
+          category: d.category || '热搜 · 趋势',
+          countWan: 0,
+        };
+        order.push(key);
+      }
+      byKey[key].countWan = (Number(byKey[key].countWan) || 0) + (Number(d.countWan) || 0);
+      byKey[key].count = formatWanCount(byKey[key].countWan);
+      if (d.category) byKey[key].category = d.category;
+      byKey[key].topic = String(d.topic).trim();
+    });
+    var events = (decayEvents || [])
+      .filter(function (ev) {
+        return decayEventBelongs(ev, maxIdx);
+      })
+      .sort(function (a, b) {
+        var ai = typeof a.atMainMsgIndex === 'number' ? a.atMainMsgIndex : 0;
+        var bi = typeof b.atMainMsgIndex === 'number' ? b.atMainMsgIndex : 0;
+        if (ai !== bi) return ai - bi;
+        return String(a.id || '').localeCompare(String(b.id || ''));
+      });
+    events.forEach(function (ev) {
+      var f = Number(ev.factor);
+      if (!isFinite(f) || f <= 0 || f > 1) return;
+      order.forEach(function (k) {
+        var row = byKey[k];
+        if (!row || (Number(row.countWan) || 0) <= 0) return;
+        row.countWan = row.countWan * f;
+        row.count = formatWanCount(row.countWan);
+      });
+    });
+    return finalizeTrendList(
+      order.map(function (k) {
+        return byKey[k];
+      }),
+    );
+  }
+
+  function ensureTrendDeltas(o) {
+    if (!o || typeof o !== 'object') return;
+    if (!Array.isArray(o.trendDeltas) || !o.trendDeltas.length) {
+      o.trendDeltas = (Array.isArray(o.trends) && o.trends.length ? o.trends : defaultTrends()).map(function (tr, i) {
+        return ensureTrendFields(
+          Object.assign({}, tr, {
+            id: tr.id || 'tr_seed_' + i,
+            mainMsgIndex: typeof tr.mainMsgIndex === 'number' ? tr.mainMsgIndex : -1,
+          }),
+        );
+      });
+    } else {
+      o.trendDeltas = o.trendDeltas.map(function (d) {
+        if (typeof d.mainMsgIndex !== 'number') d.mainMsgIndex = 0;
+        return ensureTrendFields(d);
+      });
+    }
+    if (!Array.isArray(o.trendDecayEvents)) o.trendDecayEvents = [];
+    o.trends = rebuildTrendsFromDeltas(o.trendDeltas, getCurrentMainAsstIndex(), o.trendDecayEvents);
+  }
+
+  /**
+   * 记录衰减事件（不改写原始增量）；展示时按 atMainMsgIndex 重算，回退可撤销后续衰减
+   * @param {number} factor 如主线 0.8、Twitter 刷新 0.9
+   * @param {'main'|'twitter'} kind
+   */
+  function decayTrends(factor, kind) {
+    factor = Number(factor);
+    if (!isFinite(factor) || factor <= 0 || factor > 1) return false;
+    store = loadStore();
+    ensureTrendDeltas(store);
+    if (!Array.isArray(store.trendDecayEvents)) store.trendDecayEvents = [];
+    var at = getCurrentMainAsstIndex();
+    store.trendDecayEvents.push({
+      id: 'decay_' + Date.now() + '_' + store.trendDecayEvents.length,
+      atMainMsgIndex: at,
+      factor: factor,
+      kind: kind === 'twitter' ? 'twitter' : 'main',
+    });
+    store.trends = rebuildTrendsFromDeltas(store.trendDeltas, at, store.trendDecayEvents);
+    store.v = STORE_VER;
+    saveStore(store);
+    if (document.querySelector('.tq-tw-sheet .tq-tw')) {
+      renderTrends();
+    }
+    return true;
+  }
+
+  function decayTrendsForMainLine() {
+    return decayTrends(TREND_DECAY_MAIN, 'main');
+  }
+
+  function decayTrendsForTwitterRefresh() {
+    return decayTrends(TREND_DECAY_TWITTER, 'twitter');
+  }
+
   function defaultStore() {
+    var seeds = defaultTrends().map(function (tr, i) {
+      return ensureTrendFields(Object.assign({}, tr, { id: tr.id || 'tr_seed_' + i, mainMsgIndex: -1 }));
+    });
     return {
       v: STORE_VER,
       tweets: defaultTweets(),
-      trends: defaultTrends(),
+      trendDeltas: seeds,
+      trendDecayEvents: [],
+      trends: rebuildTrendsFromDeltas(seeds, getCurrentMainAsstIndex(), []),
       activeTab: 'tweets',
       readIds: {},
     };
@@ -118,6 +294,7 @@
         return t;
       });
       if (!Array.isArray(o.trends) || !o.trends.length) o.trends = defaultTrends();
+      ensureTrendDeltas(o);
       if (o.activeTab !== 'trends') o.activeTab = 'tweets';
       ensureReadMeta(o);
       return o;
@@ -351,7 +528,14 @@
   function renderTrends() {
     var list = document.getElementById('tq-tw-trend-list');
     if (!list) return;
-    var trends = store.trends || [];
+    ensureTrendDeltas(store);
+    store.trends = rebuildTrendsFromDeltas(
+      store.trendDeltas,
+      getCurrentMainAsstIndex(),
+      store.trendDecayEvents,
+    );
+    saveStore(store);
+    var trends = store.trends;
     if (!trends.length) {
       list.innerHTML = '<p class="tq-tw__empty">暂无趋势。</p>';
       return;
@@ -414,7 +598,7 @@
       '<span class="tq-tw__brand" id="tq-tw-title">' +
       esc(brandName()) +
       '</span>' +
-      '<button type="button" class="tq-tw__refresh" id="tq-tw-refresh" title="刷新" aria-label="刷新">' +
+      '<button type="button" class="tq-tw__refresh" id="tq-tw-refresh" title="刷新推文" aria-label="刷新推文">' +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>' +
       '</button></div>' +
       '<div class="tq-tw__tabs" role="tablist" aria-label="Twitter 子页面">' +
@@ -592,24 +776,41 @@
     if (detailOpen && id === activeTweetId) renderDetail();
   }
 
-  function refreshFeed() {
+  function setRefreshBusy(on) {
+    var btn = document.getElementById('tq-tw-refresh');
+    if (!btn) return;
+    btn.classList.toggle('is-busy', !!on);
+    btn.disabled = !!on;
+    btn.setAttribute('aria-busy', on ? 'true' : 'false');
+  }
+
+  /** 右上角刷新：调用 LLM 生成新推文 / 热搜 */
+  async function refreshFeed() {
     if (detailOpen) closeTweet();
-    if (store.tweets && store.tweets.length) {
-      store.tweets = store.tweets.slice().sort(function () {
-        return Math.random() - 0.5;
-      });
+    var gen = window.天青_phone_twitter_generate;
+    if (!gen || typeof gen.generateManualRefresh !== 'function') {
+      toast('Twitter 更新模块未就绪');
+      return;
     }
-    store.trends = defaultTrends()
-      .map(function (tr, i) {
-        return Object.assign({}, tr, { id: 'tr_' + Date.now() + '_' + i });
-      })
-      .sort(function () {
-        return Math.random() - 0.5;
-      });
-    saveStore(store);
-    renderTweets();
-    renderTrends();
-    toast(store.tweets && store.tweets.length ? '已刷新' + brandName() : '暂无推文');
+    if (typeof gen.isGenerating === 'function' && gen.isGenerating()) {
+      toast('Twitter 正在更新中…');
+      return;
+    }
+    setRefreshBusy(true);
+    try {
+      if (typeof decayTrendsForTwitterRefresh === 'function') {
+        decayTrendsForTwitterRefresh();
+      }
+      await gen.generateManualRefresh();
+      store = loadStore();
+      renderTweets();
+      renderTrends();
+    } catch (err) {
+      console.error('[Twitter] 手动刷新失败', err);
+      toast('Twitter 刷新失败');
+    } finally {
+      setRefreshBusy(false);
+    }
   }
 
   function getCurrentMainAsstIndex() {
@@ -631,11 +832,21 @@
     maxIdx = typeof maxIdx === 'number' ? maxIdx : -1;
     store = loadStore();
     ensureReadMeta(store);
-    var before = (store.tweets || []).length;
+    ensureTrendDeltas(store);
+    var tweetsBefore = (store.tweets || []).length;
+    var deltasBefore = (store.trendDeltas || []).length;
+    var decaysBefore = (store.trendDecayEvents || []).length;
     store.tweets = (store.tweets || []).filter(function (t) {
       var idx = t && typeof t.mainMsgIndex === 'number' ? t.mainMsgIndex : 0;
       return idx <= maxIdx;
     });
+    store.trendDeltas = (store.trendDeltas || []).filter(function (d) {
+      return trendBelongsToMain(d, maxIdx);
+    });
+    store.trendDecayEvents = (store.trendDecayEvents || []).filter(function (ev) {
+      return decayEventBelongs(ev, maxIdx);
+    });
+    store.trends = rebuildTrendsFromDeltas(store.trendDeltas, maxIdx, store.trendDecayEvents);
     var keep = {};
     (store.tweets || []).forEach(function (t) {
       if (t && t.id && store.readIds[t.id]) keep[t.id] = true;
@@ -644,10 +855,15 @@
     if (activeTweetId && !(store.tweets || []).some(function (t) { return t && t.id === activeTweetId; })) {
       closeTweet();
     }
-    if (store.tweets.length !== before) {
+    var changed =
+      store.tweets.length !== tweetsBefore ||
+      store.trendDeltas.length !== deltasBefore ||
+      (store.trendDecayEvents || []).length !== decaysBefore;
+    if (changed) {
       saveStore(store);
       if (document.querySelector('.tq-tw-sheet .tq-tw')) {
         renderTweets();
+        renderTrends();
         if (detailOpen && activeTweetId) renderDetail();
       }
       refreshBadges();
@@ -681,6 +897,41 @@
       if (detailOpen && activeTweetId) renderDetail();
     }
     refreshBadges();
+  }
+
+  /**
+   * 合并钩子 / 手动刷新的趋势增量（挂靠 mainMsgIndex，回退时可裁剪）
+   */
+  function mergeTrends(incoming, bindIndex) {
+    if (!incoming || !incoming.length) return;
+    store = loadStore();
+    ensureTrendDeltas(store);
+    var bind = typeof bindIndex === 'number' ? bindIndex : getCurrentMainAsstIndex();
+    if (!Array.isArray(store.trendDeltas)) store.trendDeltas = [];
+    incoming.forEach(function (item) {
+      if (!item || !item.topic) return;
+      store.trendDeltas.push(
+        ensureTrendFields(
+          Object.assign({}, item, {
+            id: item.id || 'tr_delta_' + Date.now() + '_' + store.trendDeltas.length,
+            topic: String(item.topic).trim(),
+            category: item.category || '热搜 · 趋势',
+            countWan: Number(item.countWan) || 0,
+            mainMsgIndex: bind,
+          }),
+        ),
+      );
+    });
+    store.trends = rebuildTrendsFromDeltas(
+      store.trendDeltas,
+      getCurrentMainAsstIndex(),
+      store.trendDecayEvents,
+    );
+    store.v = STORE_VER;
+    saveStore(store);
+    if (document.querySelector('.tq-tw-sheet .tq-tw')) {
+      renderTrends();
+    }
   }
 
   function onOpen() {
@@ -728,6 +979,7 @@
       if (refresh && root.contains(refresh)) {
         e.preventDefault();
         e.stopPropagation();
+        if (refresh.disabled || refresh.classList.contains('is-busy')) return;
         refreshFeed();
         return;
       }
@@ -803,6 +1055,10 @@
     loadStore: loadStore,
     saveStore: saveStore,
     prependTweets: prependTweets,
+    mergeTrends: mergeTrends,
+    decayTrends: decayTrends,
+    decayTrendsForMainLine: decayTrendsForMainLine,
+    decayTrendsForTwitterRefresh: decayTrendsForTwitterRefresh,
     trimToMainMsgIndex: trimToMainMsgIndex,
     getCurrentMainAsstIndex: getCurrentMainAsstIndex,
     getUnreadCount: getUnreadCount,

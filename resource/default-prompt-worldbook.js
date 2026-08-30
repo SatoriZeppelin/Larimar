@@ -137,7 +137,7 @@ window.天青_default_prompt_worldbook = {
       "key": [],
       "keysecondary": [],
       "comment": "APP",
-      "content": "APP为正常LLM对话的点缀，切记不可喧宾夺主，需要注意想法略有当的同时与正文有强联系。\n仅需输出言简意赅总结性的发送段落。\n限制为以下三种APP：line，twitter，twitch\nexmaple:\n①{{user}}和天青完成了一天的约会，分别之后双方均已到家。\n<summernight_hook>\n    <line|天青到家了，活泼的向{{user}}发消息，报备的同时关心{{user}}到没到家>\n</summernight_hook>\n②天青进行完毕了一场公开表演，虽然观众不多但是天青实力过硬，其中一位观众发布到twitter之后疯狂被转发。\n<summernight_hook>\n    <twitter|天青的live被拍摄后上传，评论区有大量路人询问这是哪位偶像，包括大量夸奖和夸赞的声音>\n    <line|天青激动的和{{user}}讨论她刚刚在twitter自搜的消息>\n</summernight_hook>",
+      "content": "APP为正常LLM对话的点缀，切记不可喧宾夺主，需要注意想法略有当的同时与正文有强联系。\n仅需输出言简意赅总结性的发送段落。\n限制为以下三种APP：line，twitter，twitch\nexmaple:\n①{{user}}和天青完成了一天的约会，分别之后双方均已到家。\n<summernight_hook>\n    <line|天青到家了，活泼的向{{user}}发消息，报备的同时关心{{user}}到没到家>\n</summernight_hook>\n②天青进行完毕了一场公开表演，虽然观众不多但是天青实力过硬，其中一位观众发布到twitter之后疯狂被转发。\n<summernight_hook>\n    <twitter|天青的live被拍摄后上传，评论区有大量路人询问这是哪位偶像，包括大量夸奖和夸赞的声音>\n    <line|天青激动的和{{user}}讨论她刚刚在twitter自搜的消息>\n</summernight_hook>\n③夜深了，天青忽然在宿舍开杂谈直播，想跟观众聊聊今天练歌和制作人。\n<summernight_hook>\n    <twitch|天青在宿舍开深夜杂谈直播，提到今天练歌和制作人，弹幕起哄p桑浓度>\n</summernight_hook>",
       "constant": true,
       "order": 204,
       "position": 0,

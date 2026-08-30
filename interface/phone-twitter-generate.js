@@ -215,18 +215,22 @@
   }
 
   /**
-   * 解析 <twitter_message> / <twitter_account>
-   * @returns {Array<object>}
+   * 解析 <twitter_message>：推文账号 + 可选 <trends>
+   * @returns {{ tweets: Array<object>, trends: Array<object> }}
    */
   function parseTwitterMessage(raw) {
     var text = String(raw == null ? '' : raw);
     var block = text.match(/<twitter_message\b[^>]*>([\s\S]*?)<\/twitter_message>/i);
     var body = block ? block[1] : text;
     var accounts = [];
+    var stamp = Date.now();
+
+    var trends = parseTrendsBlock(body);
+
+    var bodyForAccounts = body.replace(/<trends\b[^>]*>[\s\S]*?<\/trends>/gi, '\n');
     var reAcc = /<twitter_account\b[^>]*>([\s\S]*?)<\/twitter_account>/gi;
     var am;
-    var stamp = Date.now();
-    while ((am = reAcc.exec(body))) {
+    while ((am = reAcc.exec(bodyForAccounts))) {
       var inner = am[1];
       var ctxM = inner.match(/<twitter_context\b[^>]*>([\s\S]*?)<\/twitter_context>/i);
       var tagM = inner.match(/<twitter_tag\b[^>]*>([\s\S]*?)<\/twitter_tag>/i);
@@ -298,7 +302,42 @@
         comments: commentsOut,
       });
     }
-    return accounts;
+    return { tweets: accounts, trends: trends };
+  }
+
+  /**
+   * <trends>
+   *   <#海纹石蓝|1.2>
+   *   <今晚livehouse|0.54>
+   * </trends>
+   * 第二段为帖文量，单位：万
+   */
+  function parseTrendsBlock(body) {
+    var text = String(body || '');
+    var block = text.match(/<trends\b[^>]*>([\s\S]*?)<\/trends>/i);
+    if (!block) return [];
+    var inner = block[1];
+    var out = [];
+    var re = /<\s*([^<>|]+?)\s*\|\s*([^<>]+?)\s*>/g;
+    var m;
+    var stamp = Date.now();
+    while ((m = re.exec(inner))) {
+      var topic = String(m[1] || '').trim();
+      var countRaw = String(m[2] || '')
+        .trim()
+        .replace(/,/g, '')
+        .replace(/万\s*$/, '');
+      if (!topic) continue;
+      var wan = parseFloat(countRaw);
+      if (!isFinite(wan) || wan < 0) wan = 0;
+      out.push({
+        id: 'tr_gen_' + stamp + '_' + out.length,
+        topic: topic,
+        category: '热搜 · 趋势',
+        countWan: wan,
+      });
+    }
+    return out;
   }
 
   function applyTweets(tweets, bindIndex) {
@@ -308,6 +347,15 @@
       return;
     }
     api.prependTweets(tweets, bindIndex);
+  }
+
+  function applyTrends(trends, bindIndex) {
+    var api = window.天青_phone_twitter;
+    if (!api || typeof api.mergeTrends !== 'function') {
+      console.warn('[Twitter] mergeTrends 未就绪');
+      return;
+    }
+    api.mergeTrends(trends, bindIndex);
   }
 
   function bindIndexStillValid(bindIndex) {
@@ -328,6 +376,32 @@
       return window.天青_phone_twitter.getCurrentMainAsstIndex();
     }
     return -1;
+  }
+
+  /**
+   * 手动刷新用钩子：优先带上最近主线摘要，保持时间线与剧情相关
+   */
+  function buildManualRefreshHook() {
+    var summary = '';
+    try {
+      if (window.天青_prompt_builder && typeof window.天青_prompt_builder.getLastMainChatTurnSummary === 'function') {
+        var turns = window.天青_prompt_builder.getLastMainChatTurnSummary() || [];
+        for (var i = turns.length - 1; i >= 0; i--) {
+          var c = String((turns[i] && turns[i].content) || '').trim();
+          if (!c || c.indexOf('（本轮暂无摘要）') >= 0) continue;
+          summary = c.replace(/^\[本轮剧情摘要\]\s*/i, '').trim();
+          if (summary) break;
+        }
+      }
+    } catch (e) {}
+    if (summary.length > 220) summary = summary.slice(0, 220) + '…';
+    if (summary) {
+      return (
+        '玩家手动刷新 Twitter 时间线：请根据最近剧情生成新的动态（官方/粉丝/路人皆可），并视情况附带热搜 trends。最近剧情：' +
+        summary
+      );
+    }
+    return '玩家手动刷新 Twitter 时间线：请生成与天青（Larimar）当前日常相关的新动态，并视情况附带热搜 trends。';
   }
 
   /**
@@ -382,19 +456,33 @@
       if (window.天青_regex && window.天青_regex.applyAiOutput) {
         raw = window.天青_regex.applyAiOutput(raw);
       }
-      var tweets = parseTwitterMessage(raw);
-      logPhoneAiReply('Twitter 钩子', raw, 'tweets=' + tweets.length, tweets);
+      var parsed = parseTwitterMessage(raw);
+      var tweets = parsed.tweets || [];
+      var trends = parsed.trends || [];
+      logPhoneAiReply(
+        'Twitter 钩子',
+        raw,
+        'tweets=' + tweets.length + ' trends=' + trends.length,
+        parsed,
+      );
       if (!bindIndexStillValid(bindIndex)) {
         console.info('[Twitter] 钩子：主线已回退，丢弃本轮结果');
-        return { raw: raw, tweets: [], discarded: true };
+        return { raw: raw, tweets: [], trends: [], discarded: true };
       }
-      if (!tweets.length) {
+      if (!tweets.length && !trends.length) {
         console.warn('[Twitter] 钩子：未解析到 <twitter_message>', raw);
-        return { raw: raw, tweets: [] };
+        return { raw: raw, tweets: [], trends: [] };
       }
-      applyTweets(tweets, bindIndex);
-      toast('Twitter 有新动态');
-      return { raw: raw, tweets: tweets };
+      if (tweets.length) applyTweets(tweets, bindIndex);
+      if (trends.length) applyTrends(trends, bindIndex);
+      toast(
+        tweets.length && trends.length
+          ? 'Twitter 有新动态与热搜'
+          : trends.length
+            ? 'Twitter 热搜已更新'
+            : 'Twitter 有新动态',
+      );
+      return { raw: raw, tweets: tweets, trends: trends };
     } catch (err) {
       console.error('[Twitter] 钩子生成失败', err);
       return null;
@@ -403,10 +491,35 @@
     }
   }
 
+  /** 界面右上角刷新：走同一套 LLM 生成 */
+  async function generateManualRefresh() {
+    if (generating) {
+      toast('Twitter 正在更新中…');
+      return null;
+    }
+    if (!window.天青_api || !window.天青_api.chat) {
+      toast('请先连接 API');
+      return null;
+    }
+    toast('正在刷新 Twitter…');
+    var result = await generateFromHook(buildManualRefreshHook());
+    if (!result) {
+      toast('Twitter 刷新失败');
+      return null;
+    }
+    if (result.discarded) return result;
+    if (!(result.tweets && result.tweets.length) && !(result.trends && result.trends.length)) {
+      toast('未解析到新推文，请重试');
+    }
+    return result;
+  }
+
   window.天青_phone_twitter_generate = {
     fillTwitterPrompt: fillTwitterPrompt,
     parseTwitterMessage: parseTwitterMessage,
+    parseTrendsBlock: parseTrendsBlock,
     generateFromHook: generateFromHook,
+    generateManualRefresh: generateManualRefresh,
     isGenerating: function () {
       return generating;
     },

@@ -12,10 +12,15 @@
     { id: 'twitch', label: 'Twitch' },
   ];
 
-  var LINE_PROMPT_VER = 5;
+  /* 升高版本号 → 下次加载强制用 DEFAULT_PROMPTS 覆盖本地对应项 */
+  var LINE_PROMPT_VER = 6;
   var LINE_PROMPT_VER_KEY = 'tq_plus_phone_prompt_line_ver';
-  var TWITTER_PROMPT_VER = 2;
+  var TWITTER_PROMPT_VER = 4;
   var TWITTER_PROMPT_VER_KEY = 'tq_plus_phone_prompt_twitter_ver';
+  var AGENCY_PROMPT_VER = 1;
+  var AGENCY_PROMPT_VER_KEY = 'tq_plus_phone_prompt_agency_ver';
+  var TWITCH_PROMPT_VER = 2;
+  var TWITCH_PROMPT_VER_KEY = 'tq_plus_phone_prompt_twitch_ver';
 
   var DEFAULT_PROMPTS = {
     line:
@@ -45,15 +50,20 @@
       '根据本回合钩子，生成与天青（Larimar）相关的 Twitter/X 内容，风格贴近真实社交平台。\n' +
       '可同时输出多个账号发帖（官方、粉丝、路人等），评论只保留最精华的几条（每帖不超过7条）。\n' +
       '回复人数须 ≥ 列出的评论条数。tag 数量与措辞贴合发帖者性格。\n' +
+      '需要时附带 <trends> 热搜；可同时多个趋势。趋势帖文量单位为「万」。\n' +
+      '同一趋势名在后续回合再次出现时，前端会累加帖文量（追加），不要故意改名规避。\n' +
       '\n' +
       '[ 输出格式 ]\n' +
       '<twitter_message>\n' +
       '    <twitter_account>\n' +
       '        账号名称|账号ID|小时:分钟|查看人数\n' +
       '        <twitter_context>正文</twitter_context>\n' +
-      '        <twitter_tag>#tag1 #tag2 |转推人数|喜欢人数|回复人数</twitter_tag>\n' +
+      '        <twitter_tag>#tag |转推人数|喜欢人数|回复人数</twitter_tag>\n' +
       '        评论账号|评论账号ID|评论\n' +
       '    </twitter_account>\n' +
+      '    <trends>\n' +
+      '        <趋势名|趋势贴文>\n' +
+      '    </trends>\n' +
       '</twitter_message>\n' +
       '\n' +
       'example:\n' +
@@ -65,6 +75,10 @@
       '        海纹石收藏家|larimar_fan01|夸！！副歌那段真的会单曲循环！\n' +
       '        小夏|natsu_live|天青老师请收下我的膝盖（不是\n' +
       '    </twitter_account>\n' +
+      '    <trends>\n' +
+      '        <#海纹石蓝|1.2>\n' +
+      '        <#今晚livehouse|0.54>\n' +
+      '    </trends>\n' +
       '</twitter_message>\n' +
       '\n' +
       '[本回合钩子]\n' +
@@ -75,8 +89,44 @@
       '[独立任务 · 事务所界面，忽略之前的角色扮演格式]\n' +
       '（在此编写事务所相关生成提示词。可用占位符：{{user}} 等）\n',
     twitch:
-      '[独立任务 · Twitch 直播，忽略之前的角色扮演格式]\n' +
-      '（在此编写 Twitch 直播相关生成提示词。可用占位符：{{user}}、{{recent}} 等）\n',
+      '[ Twitch 直播片段生成]\n' +
+      '根据本回合钩子，生成天青（Larimar）的一场短直播切片。风格贴近真实弹幕直播：观众吐槽、天青直球回应、偶尔 SC。\n' +
+      '当前名气阶段：{{stage}}\n' +
+      '形式通常为「杂谈」或「唱歌」；背景优先「宿舍」或「录音室」。\n' +
+      '天青表情名必须来自立绘表（如 微笑/得意/俏皮/星星眼/卖萌/不满/害羞…；穿婚纱时用 婚纱* 前缀）。\n' +
+      '\n' +
+      '[ 输出格式 ]\n' +
+      '<twitch_message>\n' +
+      '    <live|形式|背景|标题>\n' +
+      '    <dm|观众ID|弹幕内容>\n' +
+      '    <天青|表情|「台词」>\n' +
+      '    <旁白|镜头旁白（可选）>\n' +
+      '    <sc|观众ID|金额|醒目留言>\n' +
+      '</twitch_message>\n' +
+      '\n' +
+      '规则：\n' +
+      '- 只输出 <twitch_message>，不要解释\n' +
+      '- 总模块约 10～18 条；弹幕与天青台词交错，弹幕可连发数条再接一句天青\n' +
+      '- 观众 ID 像真实网名；弹幕口语、短句\n' +
+      '- SC 金额只用 30/50/100/500/1000/2000\n' +
+      '- 内容紧扣钩子，可轻度提到制作人，但不要喧宾夺主\n' +
+      '\n' +
+      'example:\n' +
+      '<twitch_message>\n' +
+      '    <live|杂谈|宿舍|深夜小电台>\n' +
+      '    <dm|柠檬汽水不加冰|p桑浓度预警>\n' +
+      '    <dm|第一排的位置是我的|她每次提到制作人表情都不一样>\n' +
+      '    <天青|微笑|「他真的很厉害的。」>\n' +
+      '    <dm|困困困|稍微>\n' +
+      '    <dm|柠檬汽水不加冰|以天青的性格，稍微=吹了半小时>\n' +
+      '    <天青|得意|「你们不要笑啦，我说真的！」>\n' +
+      '    <sc|海纹石收藏家|100|加油 Larimar！>\n' +
+      '</twitch_message>\n' +
+      '\n' +
+      '[本回合钩子]\n' +
+      '{{hook}}\n' +
+      '\n' +
+      '直接输出 <twitch_message>：',
   };
 
   var store = { prompts: {} };
@@ -97,87 +147,56 @@
     };
   }
 
-  function isLegacyLinePrompt(text) {
-    var s = String(text || '');
-    return (
-      s.indexOf('[独立任务 · LINE 私聊回复') === 0 ||
-      s.indexOf('[制作人刚发来]') >= 0 ||
-      s.indexOf('[表情:贴纸名]') >= 0 ||
-      s.indexOf('{{recent}}') >= 0
-    );
-  }
-
-  function isBundledLinePromptV2(text) {
-    var s = String(text || '');
-    return (
-      (s.indexOf('[ LINE 私聊回复 ]') === 0 || s.indexOf('[ LINE 私聊回复]') === 0) &&
-      s.indexOf('<天青|回复>') >= 0 &&
-      s.indexOf('小时:分钟') < 0
-    );
-  }
-
-  function isBundledLinePromptV3(text) {
-    var s = String(text || '');
-    return (
-      s.indexOf('[ LINE 私聊回复]') === 0 &&
-      s.indexOf('制作人（{{user}}）') >= 0 &&
-      s.indexOf('[ 回复须知 ]') < 0 &&
-      s.indexOf('小时:分钟') >= 0 &&
-      s.indexOf('不可过于繁琐') < 0
-    );
-  }
-
-  /** v4：含「回复须知」、尚未含 v5 约束句 */
-  function isBundledLinePromptV4(text) {
-    var s = String(text || '');
-    return (
-      s.indexOf('[ LINE 私聊回复]') === 0 &&
-      (s.indexOf('[ 回复须知 ]') >= 0 || s.indexOf('制作人{{user}}') >= 0) &&
-      s.indexOf('不可过于繁琐') < 0
-    );
-  }
-
-  function shouldMigrateLinePrompt(text) {
-    return (
-      isLegacyLinePrompt(text) ||
-      isBundledLinePromptV2(text) ||
-      isBundledLinePromptV3(text) ||
-      isBundledLinePromptV4(text)
-    );
-  }
-
   function migrateLinePrompt(data) {
     try {
       var ver = parseInt(localStorage.getItem(LINE_PROMPT_VER_KEY) || '0', 10);
-      if (ver >= LINE_PROMPT_VER) return data;
-      if (data.prompts && shouldMigrateLinePrompt(data.prompts.line)) {
-        data.prompts.line = DEFAULT_PROMPTS.line;
-      }
+      if (ver >= LINE_PROMPT_VER) return false;
+      if (!data.prompts) data.prompts = {};
+      data.prompts.line = DEFAULT_PROMPTS.line;
       localStorage.setItem(LINE_PROMPT_VER_KEY, String(LINE_PROMPT_VER));
-    } catch (e) {}
-    return data;
-  }
-
-  function shouldMigrateTwitterPrompt(text) {
-    var s = String(text || '');
-    return (
-      !s ||
-      s.indexOf('<twitter_message>') < 0 ||
-      s.indexOf('[独立任务 · Twitter') === 0 ||
-      s.indexOf('{{hook}}') < 0
-    );
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   function migrateTwitterPrompt(data) {
     try {
       var ver = parseInt(localStorage.getItem(TWITTER_PROMPT_VER_KEY) || '0', 10);
-      if (ver >= TWITTER_PROMPT_VER) return data;
-      if (data.prompts && shouldMigrateTwitterPrompt(data.prompts.twitter)) {
-        data.prompts.twitter = DEFAULT_PROMPTS.twitter;
-      }
+      if (ver >= TWITTER_PROMPT_VER) return false;
+      if (!data.prompts) data.prompts = {};
+      data.prompts.twitter = DEFAULT_PROMPTS.twitter;
       localStorage.setItem(TWITTER_PROMPT_VER_KEY, String(TWITTER_PROMPT_VER));
-    } catch (e) {}
-    return data;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function migrateAgencyPrompt(data) {
+    try {
+      var ver = parseInt(localStorage.getItem(AGENCY_PROMPT_VER_KEY) || '0', 10);
+      if (ver >= AGENCY_PROMPT_VER) return false;
+      if (!data.prompts) data.prompts = {};
+      data.prompts.agency = DEFAULT_PROMPTS.agency;
+      localStorage.setItem(AGENCY_PROMPT_VER_KEY, String(AGENCY_PROMPT_VER));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function migrateTwitchPrompt(data) {
+    try {
+      var ver = parseInt(localStorage.getItem(TWITCH_PROMPT_VER_KEY) || '0', 10);
+      if (ver >= TWITCH_PROMPT_VER) return false;
+      if (!data.prompts) data.prompts = {};
+      data.prompts.twitch = DEFAULT_PROMPTS.twitch;
+      localStorage.setItem(TWITCH_PROMPT_VER_KEY, String(TWITCH_PROMPT_VER));
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   function normalizeStore(o) {
@@ -189,14 +208,30 @@
     delete o.replyIdleSec;
     migrateLinePrompt(o);
     migrateTwitterPrompt(o);
+    migrateAgencyPrompt(o);
+    migrateTwitchPrompt(o);
     return o;
   }
 
   function loadStore() {
     try {
       var raw = localStorage.getItem(KEY);
-      if (!raw) return defaultStore();
-      return normalizeStore(JSON.parse(raw));
+      if (!raw) {
+        var fresh = defaultStore();
+        try {
+          localStorage.setItem(KEY, JSON.stringify(fresh));
+          localStorage.setItem(LINE_PROMPT_VER_KEY, String(LINE_PROMPT_VER));
+          localStorage.setItem(TWITTER_PROMPT_VER_KEY, String(TWITTER_PROMPT_VER));
+          localStorage.setItem(AGENCY_PROMPT_VER_KEY, String(AGENCY_PROMPT_VER));
+          localStorage.setItem(TWITCH_PROMPT_VER_KEY, String(TWITCH_PROMPT_VER));
+        } catch (e) {}
+        return fresh;
+      }
+      var data = normalizeStore(JSON.parse(raw));
+      try {
+        localStorage.setItem(KEY, JSON.stringify(data));
+      } catch (e) {}
+      return data;
     } catch (e) {
       return defaultStore();
     }
@@ -381,9 +416,15 @@
   }
 
   function getPrompt(id) {
+    if (!store.prompts || !Object.keys(store.prompts).length) {
+      store = loadStore();
+    }
     ensureDefaults();
     return String((store.prompts && store.prompts[id]) || '');
   }
+
+  /* 脚本加载即迁移，不等打开设置页 */
+  store = loadStore();
 
   window.天青_settings_phone_sys = {
     bind: bind,

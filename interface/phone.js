@@ -123,7 +123,9 @@
             ? '<span class="tq-phone-app-badge" data-line-app-badge hidden aria-hidden="true"></span>'
             : app.id === 'twitter'
               ? '<span class="tq-phone-app-badge" data-twitter-app-badge hidden aria-hidden="true"></span>'
-              : '';
+              : app.id === 'twitch'
+                ? '<span class="tq-phone-app-badge" data-twitch-app-badge hidden aria-hidden="true"></span>'
+                : '';
         return (
           '<button type="button" class="tq-phone-app" data-app="' +
           app.id +
@@ -155,6 +157,9 @@
         }
         if (app.id === 'twitter' && window.天青_phone_twitter && window.天青_phone_twitter.sheetHtml) {
           return window.天青_phone_twitter.sheetHtml();
+        }
+        if (app.id === 'twitch' && window.天青_phone_twitch && window.天青_phone_twitch.sheetHtml) {
+          return window.天青_phone_twitch.sheetHtml();
         }
         var icon = appsApi.iconHtml(app.id, 'sheet-' + app.id);
         return (
@@ -250,6 +255,9 @@
     if (openAppId === 'twitter' && window.天青_phone_twitter && window.天青_phone_twitter.onBack) {
       if (window.天青_phone_twitter.onBack()) return true;
     }
+    if (openAppId === 'twitch' && window.天青_phone_twitch && window.天青_phone_twitch.onBack) {
+      if (window.天青_phone_twitch.onBack()) return true;
+    }
     return false;
   }
 
@@ -274,6 +282,9 @@
     }
     if (appId === 'twitter' && window.天青_phone_twitter && window.天青_phone_twitter.onOpen) {
       window.天青_phone_twitter.onOpen();
+    }
+    if (appId === 'twitch' && window.天青_phone_twitch && window.天青_phone_twitch.onOpen) {
+      window.天青_phone_twitch.onOpen();
     }
     var bar = $('tq-phone-home-bar');
     if (bar) bar.setAttribute('aria-label', '返回主屏幕');
@@ -304,6 +315,9 @@
     }
     if (window.天青_phone_twitter && window.天青_phone_twitter.getUnreadCount) {
       n += parseInt(window.天青_phone_twitter.getUnreadCount(), 10) || 0;
+    }
+    if (window.天青_phone_twitch && window.天青_phone_twitch.getUnreadCount) {
+      n += parseInt(window.天青_phone_twitch.getUnreadCount(), 10) || 0;
     }
     return n;
   }
@@ -339,6 +353,14 @@
     refreshFabUnread();
   }
 
+  function refreshTwitchBadge(count) {
+    if (count == null && window.天青_phone_twitch && window.天青_phone_twitch.getUnreadCount) {
+      count = window.天青_phone_twitch.getUnreadCount();
+    }
+    setAppBadge('.tq-phone-app[data-app="twitch"] .tq-phone-app-badge', count, 'Twitch 直播');
+    refreshFabUnread();
+  }
+
   function refreshFabUnread() {
     if (window.天青_phone_fab && window.天青_phone_fab.refreshUnreadBadge) {
       window.天青_phone_fab.refreshUnreadBadge(getPhoneUnreadTotal());
@@ -348,6 +370,7 @@
   function refreshAllUnreadBadges() {
     refreshLineBadge();
     refreshTwitterBadge();
+    refreshTwitchBadge();
   }
 
   function open() {
@@ -456,10 +479,12 @@
     applyLayout: applyLayout,
     refreshLineBadge: refreshLineBadge,
     refreshTwitterBadge: refreshTwitterBadge,
+    refreshTwitchBadge: refreshTwitchBadge,
     refreshAllUnreadBadges: refreshAllUnreadBadges,
     getPhoneUnreadTotal: getPhoneUnreadTotal,
     getCurrentMainAsstIndex: getCurrentMainAsstIndex,
     trimPhoneToMainMsgIndex: trimPhoneToMainMsgIndex,
+    syncPhoneToMainMsgIndex: syncPhoneToMainMsgIndex,
   };
 
   function getCurrentMainAsstIndex() {
@@ -481,5 +506,13 @@
     if (window.天青_phone_twitter && typeof window.天青_phone_twitter.trimToMainMsgIndex === 'function') {
       window.天青_phone_twitter.trimToMainMsgIndex(maxIdx);
     }
+    if (window.天青_phone_twitch && typeof window.天青_phone_twitch.trimToMainMsgIndex === 'function') {
+      window.天青_phone_twitch.trimToMainMsgIndex(maxIdx);
+    }
+  }
+
+  /** 读档 / 继续游戏后：裁剪手机各 App 至当前主线楼层 */
+  function syncPhoneToMainMsgIndex() {
+    trimPhoneToMainMsgIndex(getCurrentMainAsstIndex());
   }
 })();

@@ -102,6 +102,10 @@
     var data = window.天青_parse.parseGal(raw);
     logAiReply(raw, data, { source: '主线' });
 
+    if (window.天青_phone_twitter && typeof window.天青_phone_twitter.decayTrendsForMainLine === 'function') {
+      window.天青_phone_twitter.decayTrendsForMainLine();
+    }
+
     if (window.天青_hooks && window.天青_hooks.dispatchFromRaw) {
       window.天青_hooks.dispatchFromRaw(raw).catch(function (e) {
         console.warn('[SummerNight Plus] 钩子执行失败', e);

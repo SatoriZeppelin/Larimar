@@ -213,6 +213,9 @@
             startIndex: startIndex,
             instant: true,
           });
+          if (window.天青_phone && typeof window.天青_phone.syncPhoneToMainMsgIndex === 'function') {
+            window.天青_phone.syncPhoneToMainMsgIndex();
+          }
           return true;
         }
         console.warn('[SummerNight Plus] 存档无可演出剧本，改用开局剧情');
@@ -231,6 +234,9 @@
     }
     if (window.天青_phone_twitter && window.天青_phone_twitter.resetToInitial) {
       window.天青_phone_twitter.resetToInitial();
+    }
+    if (window.天青_phone_twitch && window.天青_phone_twitch.resetToInitial) {
+      window.天青_phone_twitch.resetToInitial();
     }
     loadDemo(openingId);
     if (window.天青_save && window.天青_save.autoSave) {

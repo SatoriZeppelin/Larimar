@@ -1543,11 +1543,20 @@
     });
   }
 
+  /** Twitch 钩子：组装方式与 LINE / Twitter 钩子相同 */
+  function buildTwitchHookChatMessages(opts) {
+    opts = opts || {};
+    return buildLineHookChatMessages({
+      linePrompt: opts.twitchPrompt || opts.linePrompt || '',
+    });
+  }
+
   window.天青_prompt_builder = {
     buildChatMessages: buildChatMessages,
     buildLineChatMessages: buildLineChatMessages,
     buildLineHookChatMessages: buildLineHookChatMessages,
     buildTwitterHookChatMessages: buildTwitterHookChatMessages,
+    buildTwitchHookChatMessages: buildTwitchHookChatMessages,
     buildSystemMessage: buildSystemMessage,
     activateWorldbookBuckets: activateWorldbookBuckets,
     collectWorldbookPool: collectWorldbookPool,

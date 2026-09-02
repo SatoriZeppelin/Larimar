@@ -276,7 +276,7 @@
       sheet.classList.add('is-open');
       sheet.setAttribute('aria-hidden', 'false');
     }
-    setStatusDark(true);
+    setStatusDark(appId !== 'twitch');
     if (appId === 'line' && window.天青_phone_line && window.天青_phone_line.onOpen) {
       window.天青_phone_line.onOpen();
     }

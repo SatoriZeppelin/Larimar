@@ -1,13 +1,21 @@
-/* Twitch 直播间 · 手机壳内全屏，布局对齐旧版 Gal 直播模式 */
+/* Twitch · 手机端直播 / 关注页 / 聊天（对齐 Twitch 暗色 App，非 Gal 叠层） */
 
-.tq-twitch-sheet {
-  --tq-live-main: #8dd4e0;
-  --tq-live-dm-w: 58%;
-  background: #0a0e14;
-  overflow: hidden;
+.tq-phone__sheet.tq-twitch-sheet {
+  --twitch-bg: #0e0e10;
+  --twitch-alt: #18181b;
+  --twitch-elev: #1f1f23;
+  --twitch-text: #efeff1;
+  --twitch-muted: #adadb8;
+  --twitch-accent: #9146ff;
+  --twitch-accent-hover: #772ce8;
+  --twitch-live: #eb0400;
+  --twitch-link: #bf94ff;
+  --twitch-border: rgba(83, 83, 95, 0.48);
   display: flex;
   flex-direction: column;
-  padding: 0;
+  background: var(--twitch-bg);
+  padding: 54px 0 0;
+  overflow: hidden;
 }
 
 .tq-twitch-sheet .tq-phone__sheet-head {
@@ -15,181 +23,660 @@
 }
 
 .tq-twitch {
-  position: absolute;
-  inset: 0;
   display: flex;
   flex-direction: column;
-  color: #eef3f7;
-  font-family: inherit;
+  height: 100%;
+  min-height: 0;
+  color: var(--twitch-text);
+  background: var(--twitch-bg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial,
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
 }
 
-.tq-twitch__stage {
-  position: relative;
+/* —— 顶栏 —— */
+.tq-twitch__top {
+  flex: none;
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  height: 48px;
+  padding: 0 6px;
+  background: var(--twitch-bg);
+  z-index: 4;
+}
+
+.tq-twitch__back,
+.tq-twitch__fs {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--twitch-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.tq-twitch__back {
+  font-size: 28px;
+}
+
+.tq-twitch__back:active,
+.tq-twitch__fs:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tq-twitch__fs svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tq-twitch.is-idle .tq-twitch__fs {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.tq-twitch__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.03em;
+}
+
+.tq-twitch__glitch {
+  width: 22px;
+  height: 22px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* —— 关注首页 —— */
+.tq-twitch__home {
+  display: none;
   flex: 1;
   min-height: 0;
-  width: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 12px 36px;
+}
+
+.tq-twitch.is-idle .tq-twitch__home {
+  display: block;
+}
+
+.tq-twitch__home-label {
+  margin: 6px 2px 10px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.tq-twitch__sec {
+  margin: 18px 2px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--twitch-text);
+}
+
+.tq-twitch__sec-sub {
+  font-weight: 500;
+  color: var(--twitch-muted);
+  font-size: 12px;
+}
+
+.tq-twitch__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 20px 4px 12px;
+}
+
+.tq-twitch__empty-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   overflow: hidden;
-  background: #10161f center / cover no-repeat;
+}
+
+.tq-twitch__empty h4 {
+  margin: 4px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tq-twitch__empty p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--twitch-muted);
+}
+
+.tq-twitch__empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.tq-twitch__empty-actions--inline {
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.tq-twitch__btn {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: 0;
+  background: var(--twitch-elev);
+  color: var(--twitch-text);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
 }
 
-.tq-twitch__stage.is-barmin .tq-twitch__bar {
-  gap: 6px;
-  padding: 6px 10px;
+.tq-twitch__btn--primary {
+  background: var(--twitch-accent);
+  color: #fff;
 }
 
-.tq-twitch__stage.is-barmin .tq-twitch__bar-sep,
-.tq-twitch__stage.is-barmin .tq-twitch__clock,
-.tq-twitch__stage.is-barmin .tq-twitch__viewers,
-.tq-twitch__stage.is-barmin .tq-twitch__heat,
-.tq-twitch__stage.is-barmin .tq-twitch__title {
+.tq-twitch__btn--primary:hover {
+  background: var(--twitch-accent-hover);
+}
+
+.tq-twitch__btn:active {
+  transform: translateY(1px);
+}
+
+.tq-twitch__btn.is-busy {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.tq-twitch__card {
+  display: block;
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tq-twitch__thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #000 center / cover no-repeat;
+}
+
+.tq-twitch__badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--twitch-live);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.tq-twitch__badge.is-vod {
+  background: rgba(0, 0, 0, 0.72);
+  letter-spacing: 0.02em;
+}
+
+.tq-twitch__thumb-viewers {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tq-twitch__card-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.tq-twitch__card-av {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #2a2a30;
+}
+
+.tq-twitch__card-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.tq-twitch__card-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tq-twitch__card-user,
+.tq-twitch__card-cat {
+  font-size: 13px;
+  color: var(--twitch-muted);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* —— 观看页 —— */
+.tq-twitch__watch {
   display: none;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--twitch-bg);
+  position: relative;
 }
 
-.tq-twitch__stage.is-dmoff .tq-twitch__dm {
-  display: none;
-}
-
-.tq-twitch__stage.is-dmoff .tq-twitch__dm-tog {
-  left: 4.5%;
-  opacity: 0.85;
-}
-
-.tq-twitch__stage.is-replay .tq-twitch__input {
-  display: none;
-}
-
-.tq-twitch__stage.is-replay .tq-twitch__replay {
+.tq-twitch:not(.is-idle) .tq-twitch__watch {
   display: flex;
 }
 
-.tq-twitch__stage.is-replay .tq-twitch__dm-tog {
-  display: none;
+.tq-twitch__player {
+  position: relative;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #000 center / cover no-repeat;
+  cursor: pointer;
 }
 
 .tq-twitch__sprite {
   position: absolute;
   left: 50%;
-  bottom: 0;
-  height: 100%;
+  top: -10%;
+  bottom: auto;
+  height: 240%;
   width: auto;
-  max-width: 96%;
-  transform: translateX(-50%) translateY(0%);
-  transform-origin: center bottom;
+  max-width: none;
+  transform: translateX(-50%);
   object-fit: contain;
-  object-position: center bottom;
+  object-position: center top;
   pointer-events: none;
-  z-index: 2;
-  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.35));
+  z-index: 1;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.4));
 }
 
-.tq-twitch__bar {
+.tq-twitch__player-hud {
   position: absolute;
-  top: calc(54px + env(safe-area-inset-top, 0px));
-  left: 10px;
-  z-index: 14;
-  display: flex;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.38) 0%, transparent 28%, transparent 62%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+.tq-twitch__live {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 11px;
-  border-radius: 10px;
-  cursor: pointer;
-  background: rgba(12, 16, 22, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(9px);
-  -webkit-backdrop-filter: blur(9px);
-  color: #eef3f7;
-  font-size: 11.5px;
-  font-weight: 600;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 4px;
+  background: var(--twitch-live);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.tq-twitch__live.is-vod {
+  background: rgba(0, 0, 0, 0.72);
   letter-spacing: 0.02em;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.42);
-  white-space: nowrap;
 }
 
-.tq-twitch__bar b {
-  color: #ff5f6b;
-  letter-spacing: 0.09em;
-  font-size: 11px;
-}
-
-.tq-twitch__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #ff4d5a;
-  box-shadow: 0 0 8px #ff4d5a;
-  animation: tq-live-pulse 1.4s infinite;
-}
-
-.tq-twitch__bar-sep {
-  width: 1px;
-  height: 11px;
-  background: rgba(255, 255, 255, 0.2);
-}
-
-@keyframes tq-live-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.25;
-  }
-}
-
-.tq-twitch__title {
+.tq-twitch__viewers {
   position: absolute;
-  top: calc(92px + env(safe-area-inset-top, 0px));
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tq-twitch__viewers svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tq-twitch__cc {
+  position: absolute;
   left: 10px;
-  z-index: 14;
-  padding: 4px 10px;
-  border-radius: 8px;
-  background: rgba(12, 16, 22, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 11px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 4;
+  max-height: 42%;
+  overflow: hidden;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 2px #000, 0 0 6px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+}
+
+.tq-twitch__cc.is-narr {
   font-weight: 500;
-  white-space: nowrap;
-  max-width: calc(100% - 24px);
+  font-style: italic;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+/* —— 频道信息 —— */
+.tq-twitch__meta {
+  flex: none;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--twitch-border);
+}
+
+.tq-twitch__meta-av {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  object-fit: cover;
+  background: #2a2a30;
+  flex-shrink: 0;
+}
+
+.tq-twitch__meta-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.tq-twitch__meta-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tq-twitch__meta-channel {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--twitch-text);
+  font-weight: 600;
+}
+
+.tq-twitch__meta-game {
+  font-size: 13px;
+  color: var(--twitch-link);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.tq-twitch__sub {
+.tq-twitch__follow {
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--twitch-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tq-twitch__follow.is-on {
+  background: var(--twitch-elev);
+  color: var(--twitch-text);
+}
+
+.tq-twitch__follow:active {
+  background: #2a2a30;
+}
+
+.tq-twitch__alert {
   position: absolute;
-  left: 7%;
-  right: 7%;
-  bottom: calc(31% + 70px);
-  z-index: 13;
+  inset: 0;
+  z-index: 40;
   display: flex;
+  align-items: center;
   justify-content: center;
+  padding: 28px 22px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.tq-twitch__alert[hidden] {
+  display: none !important;
+}
+
+.tq-twitch__alert-card {
+  width: min(100%, 260px);
+  padding: 18px 16px 14px;
+  border-radius: 8px;
+  background: var(--twitch-elev);
+  border: 1px solid var(--twitch-border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   text-align: center;
-  pointer-events: none;
-  font-size: 15.5px;
-  line-height: 1.6;
+}
+
+.tq-twitch__alert-card p {
+  margin: 0 0 14px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--tq-live-main);
-  text-shadow:
-    0 0 3px #000,
-    0 0 3px #000,
-    0 2px 7px rgba(0, 0, 0, 0.92),
-    0 0 15px rgba(0, 0, 0, 0.65);
-  animation: tq-live-sub-in 0.3s ease both;
+  line-height: 1.5;
+  color: var(--twitch-text);
 }
 
-.tq-twitch__sub.is-narr {
-  color: rgba(255, 255, 255, 0.92);
+.tq-twitch__alert-ok {
+  width: 100%;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--twitch-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tq-twitch__alert-ok:active {
+  background: var(--twitch-accent-hover);
+}
+
+.tq-twitch__chat-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--twitch-border);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tq-twitch__chat-head span {
+  color: var(--twitch-text);
+  padding-bottom: 8px;
+  margin-top: 8px;
+  border-bottom: 2px solid var(--twitch-accent);
+}
+
+/* —— 聊天 —— */
+.tq-twitch__chat {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 12px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tq-twitch__chat::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tq-twitch__chat::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 2px;
+}
+
+.tq-twitch__msg {
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+  color: var(--twitch-text);
+}
+
+.tq-twitch__msg .n {
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+.tq-twitch__msg.is-me .n {
+  color: var(--twitch-link);
+}
+
+.tq-twitch__msg.is-sys {
+  color: var(--twitch-muted);
+  font-size: 12px;
   font-style: italic;
-  font-weight: 500;
-  font-size: 13.5px;
+  text-align: left;
 }
 
-@keyframes tq-live-sub-in {
+.tq-twitch__badge-bc {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 4px;
+  height: 14px;
+  line-height: 14px;
+  border-radius: 3px;
+  background: var(--twitch-accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+}
+
+.tq-twitch__cheer {
+  flex-shrink: 0;
+  margin: 3px 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(145, 70, 255, 0.18);
+  border-left: 3px solid var(--twitch-accent);
+  animation: tq-twitch-cheer-in 0.28s ease both;
+}
+
+.tq-twitch__cheer.is-t1 {
+  background: rgba(255, 255, 255, 0.06);
+  border-left-color: #9c9c9c;
+}
+
+.tq-twitch__cheer.is-t2 {
+  background: rgba(145, 70, 255, 0.2);
+  border-left-color: #9146ff;
+}
+
+.tq-twitch__cheer.is-t3 {
+  background: rgba(0, 173, 166, 0.22);
+  border-left-color: #00ada6;
+}
+
+.tq-twitch__cheer.is-t4 {
+  background: rgba(27, 133, 255, 0.22);
+  border-left-color: #1b85ff;
+}
+
+.tq-twitch__cheer .top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tq-twitch__cheer .y {
+  color: var(--twitch-link);
+  font-variant-numeric: tabular-nums;
+}
+
+.tq-twitch__cheer .bd {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--twitch-text);
+  font-weight: 500;
+}
+
+@keyframes tq-twitch-cheer-in {
   from {
     opacity: 0;
     transform: translateY(6px);
@@ -200,489 +687,299 @@
   }
 }
 
-.tq-twitch__dm {
+/* —— 输入栏 / 回放条 —— */
+.tq-twitch__composer,
+.tq-twitch__vod-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 22px;
+  background: var(--twitch-bg);
+  border-top: 1px solid var(--twitch-border);
+}
+
+.tq-twitch.is-replay .tq-twitch__composer {
+  display: none;
+}
+
+.tq-twitch__vod-bar {
+  display: none;
+}
+
+.tq-twitch.is-replay .tq-twitch__vod-bar {
+  display: flex;
+}
+
+.tq-twitch__nick {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--twitch-elev);
+  color: var(--twitch-link);
+  font-size: 10px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 2px;
+}
+
+.tq-twitch__text {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--twitch-border);
+  background: var(--twitch-elev);
+  color: var(--twitch-text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.tq-twitch__text::placeholder {
+  color: var(--twitch-muted);
+}
+
+.tq-twitch__text:focus {
+  border-color: var(--twitch-accent);
+}
+
+.tq-twitch__cheer-sel {
+  flex-shrink: 0;
+  height: 34px;
+  max-width: 72px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid var(--twitch-border);
+  background: var(--twitch-elev);
+  color: var(--twitch-text);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.tq-twitch__cheer-sel option {
+  background: #18181b;
+  color: var(--twitch-text);
+}
+
+.tq-twitch__send {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--twitch-accent);
+  color: #fff;
+  font-size: 0;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tq-twitch__send svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tq-twitch__send:active {
+  background: var(--twitch-accent-hover);
+}
+
+.tq-twitch__send.is-ok {
+  background: #00f593;
+  color: #0e0e10;
+}
+
+.tq-twitch__vod-bar span {
+  font-size: 12px;
+  color: var(--twitch-muted);
+  font-weight: 600;
+}
+
+.tq-twitch__vod-bar b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--twitch-text);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.tq-twitch__replay-back {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 0;
+  background: var(--twitch-elev);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* —— 全屏直播（铺满播放器 · 立绘贴底 · 聊天/输入叠层） —— */
+.tq-twitch__fs-bar {
+  display: none;
+}
+
+.tq-twitch.is-fs .tq-twitch__top {
+  display: none;
+}
+
+.tq-twitch.is-fs .tq-twitch__watch {
+  position: relative;
+}
+
+.tq-twitch.is-fs .tq-twitch__player {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: auto;
+  height: 100%;
+  z-index: 1;
+}
+
+.tq-twitch.is-fs .tq-twitch__sprite {
+  top: auto;
+  bottom: 0;
+  height: 100%;
+  max-width: 96%;
+  object-position: center bottom;
+  transform: translateX(-50%) translateY(0);
+}
+
+.tq-twitch.is-fs .tq-twitch__meta,
+.tq-twitch.is-fs .tq-twitch__chat-head,
+.tq-twitch.is-fs .tq-twitch__vod-bar {
+  display: none !important;
+}
+
+.tq-twitch.is-fs .tq-twitch__chat {
   position: absolute;
   left: 4.5%;
-  width: var(--tq-live-dm-w);
+  width: 58%;
   bottom: 58px;
-  height: 29%;
+  height: 30%;
   z-index: 13;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
   padding: 9px 11px;
-  overflow-y: auto;
   border-radius: 12px;
   background: rgba(8, 11, 16, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-  scroll-behavior: smooth;
-  pointer-events: auto;
 }
 
-.tq-twitch__dm::-webkit-scrollbar {
-  width: 3px;
-}
-
-.tq-twitch__dm::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.18);
-  border-radius: 2px;
-}
-
-.tq-twitch__dm-item {
-  font-size: 12px;
-  line-height: 1.45;
-  color: #e8eef3;
-  animation: tq-dm-in 0.3s ease both;
-  word-break: break-word;
-  flex-shrink: 0;
-}
-
-.tq-twitch__dm-item .n {
-  color: #8fa8bb;
-  margin-right: 6px;
-  font-weight: 500;
-}
-
-.tq-twitch__dm-item.is-me .n {
-  color: var(--tq-live-main);
-  font-weight: 700;
-}
-
-.tq-twitch__dm-item.is-sys {
-  color: #7f93a3;
-  font-size: 11px;
-  font-style: italic;
-  text-align: center;
-}
-
-@keyframes tq-dm-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.tq-twitch__sc {
-  flex-shrink: 0;
-  border-radius: 8px;
-  overflow: hidden;
-  animation: tq-sc-in 0.42s cubic-bezier(0.34, 1.4, 0.64, 1) both;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
-}
-
-.tq-twitch__sc .top {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 9px;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #fff;
-}
-
-.tq-twitch__sc .top .y {
-  background: rgba(255, 255, 255, 0.22);
-  padding: 1px 7px;
-  border-radius: 5px;
-  font-size: 10.5px;
-  letter-spacing: 0.02em;
-}
-
-.tq-twitch__sc .bd {
-  padding: 6px 9px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: #f2f6f9;
-  background: rgba(0, 0, 0, 0.34);
-}
-
-@keyframes tq-sc-in {
-  from {
-    opacity: 0;
-    transform: translateX(-14px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.tq-twitch__dm-tog {
+.tq-twitch.is-fs .tq-twitch__composer {
   position: absolute;
-  left: calc(4.5% + var(--tq-live-dm-w) + 8px);
-  bottom: 58px;
-  z-index: 15;
+  left: 4.5%;
+  right: 4.5%;
+  bottom: 14px;
+  z-index: 14;
+  padding: 0 0 8px;
+  background: transparent;
+  border: 0;
+}
+
+.tq-twitch.is-fs .tq-twitch__cc {
+  left: 7%;
+  right: 7%;
+  bottom: calc(30% + 74px);
+  z-index: 13;
+  font-size: 15px;
+}
+
+.tq-twitch.is-fs .tq-twitch__fs-bar {
   display: flex;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 18;
+  gap: 4px;
+}
+
+.tq-twitch__fs-ico {
+  position: relative;
   width: 28px;
   height: 28px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  cursor: pointer;
-  background: rgba(12, 16, 22, 0.66);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 9px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
-  color: #fff;
-  padding: 0;
-  font-family: inherit;
-}
-
-.tq-twitch__dm-tog:active {
-  transform: scale(0.88);
-}
-
-.tq-twitch__input {
-  position: absolute;
-  left: 4.5%;
-  right: 4.5%;
-  bottom: 12px;
-  z-index: 14;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  pointer-events: auto;
-}
-
-.tq-twitch__nick {
-  flex-shrink: 0;
-  max-width: 72px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0 8px;
-  height: 32px;
-  line-height: 32px;
-  border-radius: 9px;
-  background: rgba(12, 16, 22, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: var(--tq-live-main);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.tq-twitch__text {
-  flex: 1;
-  min-width: 0;
-  height: 32px;
-  padding: 0 11px;
-  border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(12, 16, 22, 0.62);
-  color: #eef3f7;
-  font-size: 12.5px;
-  font-family: inherit;
-  outline: none;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.tq-twitch__text::placeholder {
-  color: rgba(230, 240, 246, 0.4);
-}
-
-.tq-twitch__text:focus {
-  border-color: var(--tq-live-main);
-}
-
-.tq-twitch__sc-sel {
-  flex-shrink: 0;
-  height: 32px;
-  padding: 0 5px;
-  border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(12, 16, 22, 0.72);
-  color: #eef3f7;
-  font-size: 11.5px;
-  font-family: inherit;
-  cursor: pointer;
-  outline: none;
-  max-width: 64px;
-}
-
-.tq-twitch__sc-sel option {
-  background: #141a22;
-  color: #eef3f7;
-}
-
-.tq-twitch__send {
-  flex-shrink: 0;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 9px;
-  border: none;
-  background: var(--tq-live-main);
-  color: #0d2730;
-  font-size: 12.5px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(141, 212, 224, 0.35);
-}
-
-.tq-twitch__send:active {
-  transform: translateY(1px);
-}
-
-.tq-twitch__send.is-ok {
-  background: #7ddc9a;
-}
-
-.tq-twitch__replay {
-  position: absolute;
-  bottom: 12px;
-  left: 4.5%;
-  right: 4.5%;
-  z-index: 15;
-  display: none;
-  align-items: center;
-  gap: 10px;
-  padding: 0 12px;
-  height: 34px;
-  border-radius: 10px;
-  background: rgba(12, 16, 22, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(9px);
-  -webkit-backdrop-filter: blur(9px);
-  color: #dfe8ef;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.tq-twitch__replay b {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--tq-live-main);
-  font-weight: 600;
-}
-
-.tq-twitch__replay-back {
-  flex-shrink: 0;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  font-size: 11px;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.tq-twitch__empty {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  padding: calc(72px + env(safe-area-inset-top, 0px)) 20px 24px;
-  text-align: center;
-  background: linear-gradient(160deg, #1a1028 0%, #0d1118 55%, #12182a 100%);
-  color: rgba(255, 255, 255, 0.78);
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.tq-twitch.is-idle .tq-twitch__empty {
-  display: flex;
-}
-
-.tq-twitch.is-idle .tq-twitch__bar,
-.tq-twitch.is-idle .tq-twitch__title,
-.tq-twitch.is-idle .tq-twitch__sub,
-.tq-twitch.is-idle .tq-twitch__dm,
-.tq-twitch.is-idle .tq-twitch__dm-tog,
-.tq-twitch.is-idle .tq-twitch__input,
-.tq-twitch.is-idle .tq-twitch__sprite,
-.tq-twitch.is-idle .tq-twitch__replay {
-  display: none !important;
-}
-
-.tq-twitch__empty-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(145, 70, 255, 0.35);
-}
-
-.tq-twitch__empty h4 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: #fff;
-}
-
-.tq-twitch__empty p {
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: rgba(230, 240, 246, 0.55);
-  max-width: 260px;
-}
-
-.tq-twitch__empty-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: min(100%, 240px);
-  margin-top: 4px;
-}
-
-.tq-twitch__btn {
-  width: 100%;
-  min-height: 36px;
-  padding: 0 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-  color: #eef3f7;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.tq-twitch__btn--primary {
-  border-color: rgba(141, 212, 224, 0.45);
-  background: rgba(141, 212, 224, 0.22);
-  color: #dff7fb;
-}
-
-.tq-twitch__btn:active {
-  transform: translateY(1px);
-}
-
-.tq-twitch__history {
-  width: min(100%, 280px);
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: left;
-}
-
-.tq-twitch__history-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(141, 212, 224, 0.75);
-  padding: 0 2px;
-}
-
-.tq-twitch__history-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(12, 16, 22, 0.55);
-  color: #eef3f7;
-  font-family: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-.tq-twitch__history-item:active {
-  background: rgba(141, 212, 224, 0.12);
-}
-
-.tq-twitch__history-title {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tq-twitch__history-meta {
-  font-size: 11px;
-  color: rgba(230, 240, 246, 0.48);
-}
-
-.tq-twitch__back {
-  position: absolute;
-  top: calc(54px + env(safe-area-inset-top, 0px));
-  right: 10px;
-  z-index: 16;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(12, 16, 22, 0.66);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: #fff;
-  font-size: 16px;
-  cursor: pointer;
-  padding: 0;
-  font-family: inherit;
-  line-height: 1;
-}
-
-.tq-twitch__refresh {
-  position: absolute;
-  top: calc(54px + env(safe-area-inset-top, 0px));
-  right: 48px;
-  z-index: 16;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(12, 16, 22, 0.66);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  border: 0;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.65);
   color: #fff;
   cursor: pointer;
   padding: 0;
-  font-family: inherit;
-  line-height: 1;
 }
 
-.tq-twitch__refresh svg {
+.tq-twitch__fs-ico svg {
   width: 16px;
   height: 16px;
 }
 
-.tq-twitch__refresh.is-busy {
+.tq-twitch__fs-ico:active {
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.tq-twitch__fs-ico.is-on {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.tq-twitch__fs-ico.is-on::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background: #fff;
+  transform: rotate(-45deg);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
   pointer-events: none;
-  opacity: 0.55;
 }
 
-.tq-twitch__refresh.is-busy svg {
-  animation: tq-twitch-spin 0.85s linear infinite;
+.tq-twitch.is-fs .tq-twitch__viewers {
+  right: 102px;
 }
 
-@keyframes tq-twitch-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.tq-twitch.is-fs.is-ui-off .tq-twitch__composer {
+  display: none !important;
+}
+
+.tq-twitch.is-fs.is-ui-off .tq-twitch__chat {
+  bottom: 14px;
+}
+
+.tq-twitch.is-fs.is-ui-off .tq-twitch__cc {
+  bottom: calc(30% + 30px);
+}
+
+.tq-twitch.is-fs.is-chat-off .tq-twitch__chat {
+  display: none;
+}
+
+.tq-twitch.is-fs.is-chat-off .tq-twitch__cc {
+  bottom: 58px;
+}
+
+.tq-twitch.is-fs.is-ui-off.is-chat-off .tq-twitch__cc {
+  bottom: 16px;
+}
+
+.tq-twitch.is-fs.is-replay #tq-twitch-hide-ui {
+  display: none;
 }

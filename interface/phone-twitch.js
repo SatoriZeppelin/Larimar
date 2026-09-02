@@ -1,11 +1,11 @@
 /**
- * Twitch 直播间 · 手机壳内全屏，交互对齐旧版 Gal 直播模式
+ * Twitch · 手机端关注页 / 直播播放器 / 聊天
  * 对外：window.天青_phone_twitch
  */
 (function () {
   var NICK_LS = 'tq_live_nick';
-  var BARMIN_LS = 'tq_gal_barmin';
-  var DMOFF_LS = 'tq_gal_dmoff';
+  var UI_OFF_LS = 'tq_plus_twitch_ui_off';
+  var CHAT_OFF_LS = 'tq_plus_twitch_chat_off';
   var LIVE_STORE = 'tq_plus_live_session';
   var LIVE_STORE_VER = 2;
 
@@ -16,25 +16,31 @@
     专辑稳定期: { v: [1500, 4000], peak: 8000, heat: [50000, 150000] },
   };
 
-  var SC_TIERS = [
-    [2000, '#ab1a32'],
-    [1000, '#e54d60'],
-    [500, '#e09443'],
-    [100, '#e2b52b'],
-    [50, '#427d9e'],
-    [0, '#2a60b2'],
+  var TWITCH_NAME_COLORS = [
+    '#ff0000',
+    '#0000ff',
+    '#00ad03',
+    '#b22222',
+    '#ff7f50',
+    '#9acd32',
+    '#ff4500',
+    '#2e8b57',
+    '#daa520',
+    '#d2691e',
+    '#5f9ea0',
+    '#1e90ff',
+    '#ff69b4',
+    '#8a2be2',
+    '#00ff7f',
   ];
 
-  var CLOCK = {
-    清晨: [6, 8],
-    上午: [9, 11],
-    午后: [13, 17],
-    傍晚: [18, 19],
-    夜晚: [20, 22],
-    深夜: [23, 25],
+  var FORM_CAT = {
+    杂谈: 'Just Chatting',
+    唱歌: 'Music',
+    歌回: 'Music',
+    游戏: 'Games',
   };
 
-  /** 演示场（对齐截图样式，无真实直播时也能预览 UI） */
   var DEMO_SESSION = {
     form: '杂谈',
     bg: '宿舍',
@@ -65,11 +71,10 @@
   var subTimer = null;
   var nDone = 0;
   var nTotal = 1;
-  var seed = '';
   var bound = false;
-  var useDemoFallback = false;
   var unread = false;
   var viewMode = 'idle'; /* idle | live | replay */
+  var fullscreen = false;
 
   function toast(msg) {
     if (window.天青_settings && window.天青_settings.toast) {
@@ -87,14 +92,14 @@
       .replace(/"/g, '&quot;');
   }
 
-  function sessionTitle(data) {
-    if (!data) return '直播';
-    return (
-      (data.form || '杂谈') +
-      ' · ' +
-      (data.bg || '宿舍') +
-      (data.title ? ' · ' + data.title : '')
-    );
+  function categoryOf(form) {
+    var f = String(form || '').trim();
+    return FORM_CAT[f] || f || 'Just Chatting';
+  }
+
+  function streamTitle(data) {
+    if (!data) return 'Live';
+    return String(data.title || '').trim() || categoryOf(data.form) + ' · Larimar';
   }
 
   function listLiveEntries() {
@@ -116,11 +121,12 @@
     return found;
   }
 
-  function scColor(y) {
-    for (var i = 0; i < SC_TIERS.length; i++) {
-      if (y >= SC_TIERS[i][0]) return SC_TIERS[i][1];
-    }
-    return SC_TIERS[SC_TIERS.length - 1][1];
+  function cheerTier(y) {
+    y = +y || 0;
+    if (y >= 1000) return 4;
+    if (y >= 500) return 3;
+    if (y >= 100) return 2;
+    return 1;
   }
 
   function hash(s, n) {
@@ -130,19 +136,31 @@
     return Math.abs(x) % Math.max(1, n);
   }
 
+  function nameColor(who) {
+    return TWITCH_NAME_COLORS[hash(who, TWITCH_NAME_COLORS.length)];
+  }
+
   function fmt(n) {
     if (n >= 10000) return (n / 10000).toFixed(1) + '万';
     if (n >= 1000) return Number(n).toLocaleString('en-US');
     return String(n);
   }
 
-  function readFameStage() {
+  function viewersOf(data, progress) {
+    var st = STAGE_BAND[readFameStage(data)] || STAGE_BAND['地下偶像期'];
+    var s = String((data && data.form) || '') + String((data && data.bg) || '') + String((data && data.title) || '');
+    var lo = st.v[0] + (hash(s + 'v', Math.max(1, (st.v[1] - st.v[0]) >> 1)) || 0);
+    var p = typeof progress === 'number' ? progress : 0.55;
+    return Math.round(lo + (st.peak - lo) * 0.55 * p);
+  }
+
+  function readFameStage(data) {
     var api = window.天青_stat_data;
     if (api && api.getByPath) {
       var s = api.getByPath('名气.阶段');
       if (s) return String(s);
     }
-    return (session && session.stage) || '地下偶像期';
+    return (data && data.stage) || (session && session.stage) || '地下偶像期';
   }
 
   function resolveBgUrl(place, band) {
@@ -161,13 +179,20 @@
     return map['微笑'] || map['得意'] || '';
   }
 
+  function channelAvatar() {
+    var map = window.天青_avatars;
+    if (map && map['微笑']) return map['微笑'];
+    if (map && map['高兴']) return map['高兴'];
+    return resolveSprite('微笑');
+  }
+
   function getCurrentMainAsstIndex() {
     if (window.天青_phone && typeof window.天青_phone.getCurrentMainAsstIndex === 'function') {
       return window.天青_phone.getCurrentMainAsstIndex();
     }
     try {
       if (!window.天青_save || !window.天青_save.load) return -1;
-      var msgs = (window.天青_save.load().messages || []);
+      var msgs = window.天青_save.load().messages || [];
       for (var i = msgs.length - 1; i >= 0; i--) {
         if (msgs[i] && msgs[i].role === 'assistant') return i;
       }
@@ -239,8 +264,7 @@
       saveLiveStore({ v: LIVE_STORE_VER, entries: [] });
       return;
     }
-    var bind =
-      typeof data.mainMsgIndex === 'number' ? data.mainMsgIndex : getCurrentMainAsstIndex();
+    var bind = typeof data.mainMsgIndex === 'number' ? data.mainMsgIndex : getCurrentMainAsstIndex();
     data.mainMsgIndex = bind;
     upsertLiveEntry(bind, data);
   }
@@ -281,42 +305,75 @@
     }
   }
 
+  function nickInitial(name) {
+    var s = String(name || '匿名').trim();
+    return s ? s.charAt(0) : '?';
+  }
+
   function sheetHtml() {
     return (
       '<div class="tq-phone__layer tq-phone__sheet tq-twitch-sheet" data-app-sheet="twitch" aria-hidden="true">' +
       '<div class="tq-twitch is-idle" id="tq-twitch">' +
-      '<div class="tq-twitch__stage" id="tq-twitch-stage">' +
-      '<button type="button" class="tq-twitch__refresh" id="tq-twitch-refresh" title="刷新直播" aria-label="刷新直播">' +
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>' +
-      '</button>' +
-      '<button type="button" class="tq-twitch__back" id="tq-twitch-back" aria-label="返回主屏幕">‹</button>' +
+      '<header class="tq-twitch__top">' +
+      '<button type="button" class="tq-twitch__back" id="tq-twitch-back" aria-label="返回">‹</button>' +
+      '<div class="tq-twitch__brand">' +
+      '<svg class="tq-twitch__glitch" viewBox="0 0 24 24" aria-hidden="true">' +
+      '<path fill="currentColor" d="M4.3 2 2 6.2v13.4h6.1V24l4.1-4.4h5.3L22 13.6V2H4.3zm15.1 11.2-3.8 4H12.7l-4.1 4.3v-4.3H5.3V3.7h14.1v9.5z"/>' +
+      '<path fill="currentColor" d="M16.1 7.2h2.4v7.3h-2.4zm-6.6 0h2.4v7.3H9.5z"/>' +
+      '</svg>Twitch</div>' +
+      '<button type="button" class="tq-twitch__fs" id="tq-twitch-fs" title="全屏直播" aria-label="全屏直播">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>' +
+      '</button></header>' +
+      '<div class="tq-twitch__home" id="tq-twitch-home"></div>' +
+      '<div class="tq-twitch__watch" id="tq-twitch-watch">' +
+      '<div class="tq-twitch__player" id="tq-twitch-stage">' +
       '<img class="tq-twitch__sprite" id="tq-twitch-sprite" alt="" draggable="false" />' +
-      '<div class="tq-twitch__bar" id="tq-twitch-bar" title="点一下收起">' +
-      '<span class="tq-twitch__dot" aria-hidden="true"></span><b>LIVE</b>' +
-      '<span class="tq-twitch__bar-sep"></span><span class="tq-twitch__clock" id="tq-twitch-clock">--:--</span>' +
-      '<span class="tq-twitch__bar-sep"></span><span class="tq-twitch__viewers" id="tq-twitch-viewers">👤 —</span>' +
-      '<span class="tq-twitch__bar-sep"></span><span class="tq-twitch__heat" id="tq-twitch-heat">🔥 —</span>' +
-      '</div>' +
-      '<div class="tq-twitch__title" id="tq-twitch-title"></div>' +
-      '<div class="tq-twitch__sub" id="tq-twitch-sub"></div>' +
-      '<div class="tq-twitch__dm" id="tq-twitch-dm"></div>' +
-      '<button type="button" class="tq-twitch__dm-tog" id="tq-twitch-dm-tog" title="收起弹幕">💬</button>' +
-      '<div class="tq-twitch__input" id="tq-twitch-input">' +
-      '<span class="tq-twitch__nick" id="tq-twitch-nick" title="点击改马甲 ID">匿名的听众</span>' +
-      '<input class="tq-twitch__text" id="tq-twitch-text" type="text" maxlength="40" placeholder="发条弹幕…" autocomplete="off" />' +
-      '<select class="tq-twitch__sc-sel" id="tq-twitch-sc" title="醒目留言 SC">' +
-      '<option value="0">弹幕</option>' +
-      '<option value="30">¥30</option><option value="50">¥50</option><option value="100">¥100</option>' +
-      '<option value="500">¥500</option><option value="1000">¥1000</option><option value="2000">¥2000</option>' +
+      '<div class="tq-twitch__player-hud" aria-hidden="true">' +
+      '<span class="tq-twitch__live" id="tq-twitch-live">LIVE</span>' +
+      '<span class="tq-twitch__viewers" id="tq-twitch-viewers">' +
+      '<svg viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M10 10a3.2 3.2 0 100-6.4A3.2 3.2 0 0010 10zm0 1.6c-3.2 0-7.2 1.6-7.2 3.6V17h14.4v-1.8c0-2-4-3.6-7.2-3.6z"/></svg>' +
+      '<span id="tq-twitch-viewers-n">—</span></span></div>' +
+      '<div class="tq-twitch__fs-bar" id="tq-twitch-fs-bar">' +
+      '<button type="button" class="tq-twitch__fs-ico" id="tq-twitch-hide-ui" title="关闭 UI" aria-label="关闭 UI">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg>' +
+      '</button>' +
+      '<button type="button" class="tq-twitch__fs-ico" id="tq-twitch-hide-chat" title="关闭 CHAT" aria-label="关闭 CHAT">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>' +
+      '</button>' +
+      '<button type="button" class="tq-twitch__fs-ico" id="tq-twitch-fs-exit" title="退出全屏" aria-label="退出全屏">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>' +
+      '</button></div>' +
+      '<div class="tq-twitch__cc" id="tq-twitch-sub"></div></div>' +
+      '<div class="tq-twitch__meta">' +
+      '<img class="tq-twitch__meta-av" id="tq-twitch-meta-av" alt="" />' +
+      '<div class="tq-twitch__meta-body">' +
+      '<div class="tq-twitch__meta-title" id="tq-twitch-title"></div>' +
+      '<div class="tq-twitch__meta-channel">Larimar</div>' +
+      '<div class="tq-twitch__meta-game" id="tq-twitch-game"></div></div>' +
+      '<button type="button" class="tq-twitch__follow is-on" id="tq-twitch-follow">已订阅</button></div>' +
+      '<div class="tq-twitch__chat-head"><span>聊天</span></div>' +
+      '<div class="tq-twitch__chat" id="tq-twitch-dm"></div>' +
+      '<div class="tq-twitch__composer" id="tq-twitch-input">' +
+      '<button type="button" class="tq-twitch__nick" id="tq-twitch-nick" title="更改用户名">匿</button>' +
+      '<input class="tq-twitch__text" id="tq-twitch-text" type="text" maxlength="140" placeholder="发送消息" autocomplete="off" />' +
+      '<select class="tq-twitch__cheer-sel" id="tq-twitch-sc" title="金额">' +
+      '<option value="0">匿名</option>' +
+      '<option value="30">¥30</option><option value="50">¥50</option>' +
+      '<option value="100">¥100</option><option value="500">¥500</option>' +
+      '<option value="1000">¥1000</option><option value="2000">¥2000</option>' +
       '</select>' +
-      '<button type="button" class="tq-twitch__send" id="tq-twitch-send">发送</button>' +
-      '</div>' +
-      '<div class="tq-twitch__replay" id="tq-twitch-replay">' +
-      '<span>📼 直播回放</span><b id="tq-twitch-replay-t"></b>' +
+      '<button type="button" class="tq-twitch__send" id="tq-twitch-send" aria-label="发送">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.4 20.6 21 12 3.4 3.4 3 10.1 15 12 3 13.9z"/></svg>' +
+      '</button></div>' +
+      '<div class="tq-twitch__vod-bar" id="tq-twitch-replay">' +
+      '<span>视频点播</span><b id="tq-twitch-replay-t"></b>' +
       '<button type="button" class="tq-twitch__replay-back" id="tq-twitch-replay-back">返回</button>' +
       '</div>' +
-      '<div class="tq-twitch__empty" id="tq-twitch-empty"></div>' +
-      '</div></div></div>'
+      '<div class="tq-twitch__alert" id="tq-twitch-alert" hidden>' +
+      '<div class="tq-twitch__alert-card" role="dialog" aria-modal="true" aria-labelledby="tq-twitch-alert-msg">' +
+      '<p id="tq-twitch-alert-msg">你不能取订你P的偶像</p>' +
+      '<button type="button" class="tq-twitch__alert-ok" id="tq-twitch-alert-ok">好的</button>' +
+      '</div></div></div></div></div>'
     );
   }
 
@@ -328,22 +385,48 @@
     return document.getElementById('tq-twitch-stage');
   }
 
+  function paintFollow() {
+    var btn = document.getElementById('tq-twitch-follow');
+    if (!btn) return;
+    btn.classList.add('is-on');
+    btn.textContent = '已订阅';
+  }
+
+  function showSubAlert() {
+    var el = document.getElementById('tq-twitch-alert');
+    if (!el) return;
+    el.hidden = false;
+  }
+
+  function hideSubAlert() {
+    var el = document.getElementById('tq-twitch-alert');
+    if (!el) return;
+    el.hidden = true;
+  }
+
   function paintBar() {
-    var st = STAGE_BAND[readFameStage()] || STAGE_BAND['地下偶像期'];
-    var bandKey = (session && session.band) || '夜晚';
-    var cr = CLOCK[bandKey] || CLOCK['夜晚'] || [20, 22];
-    var span = Math.max(1, cr[1] - cr[0]);
-    var hh = (cr[0] + hash(seed, span)) % 24;
-    var mm = hash(seed + 'm', 60);
-    var clock = document.getElementById('tq-twitch-clock');
-    var viewers = document.getElementById('tq-twitch-viewers');
-    var heat = document.getElementById('tq-twitch-heat');
-    if (clock) clock.textContent = ('0' + hh).slice(-2) + ':' + ('0' + mm).slice(-2);
-    var lo = st.v[0] + (hash(seed + 'v', Math.max(1, (st.v[1] - st.v[0]) >> 1)) || 0);
-    var grow = (st.peak - lo) * 0.55 * (nDone / Math.max(1, nTotal));
-    if (viewers) viewers.textContent = '👤 ' + fmt(Math.round(lo + grow));
-    var hb = st.heat[0] + hash(seed + 'h', Math.max(1, st.heat[1] - st.heat[0]));
-    if (heat) heat.textContent = '🔥 ' + fmt(Math.round(hb * (0.7 + 0.5 * (nDone / Math.max(1, nTotal)))));
+    var live = document.getElementById('tq-twitch-live');
+    var viewersN = document.getElementById('tq-twitch-viewers-n');
+    var n = viewersOf(session, nDone / Math.max(1, nTotal));
+    if (viewersN) viewersN.textContent = fmt(n);
+    if (live) {
+      var vod = !!(session && (session.replayMode || session.status === 'ended' || viewMode === 'replay'));
+      live.textContent = vod ? 'VOD' : 'LIVE';
+      live.classList.toggle('is-vod', vod);
+    }
+  }
+
+  function paintMeta() {
+    var title = document.getElementById('tq-twitch-title');
+    var game = document.getElementById('tq-twitch-game');
+    var av = document.getElementById('tq-twitch-meta-av');
+    if (title) title.textContent = streamTitle(session);
+    if (game) game.textContent = categoryOf(session && session.form);
+    if (av) {
+      var url = channelAvatar();
+      if (url) av.src = url;
+    }
+    paintFollow();
   }
 
   function pushDm(m) {
@@ -352,17 +435,18 @@
     var el;
     if (m.type === 'sc') {
       el = document.createElement('div');
-      el.className = 'tq-twitch__sc';
-      el.style.background = scColor(m.yen || 0);
+      el.className = 'tq-twitch__cheer is-t' + cheerTier(m.yen);
       var top = document.createElement('div');
       top.className = 'top';
+      var n = document.createElement('span');
+      n.className = 'n';
+      n.style.color = nameColor(m.who);
+      n.textContent = m.who || '';
       var y = document.createElement('span');
       y.className = 'y';
       y.textContent = '¥' + (m.yen || 0);
-      var n = document.createElement('span');
-      n.textContent = m.who || '';
-      top.appendChild(y);
       top.appendChild(n);
+      top.appendChild(y);
       var bd = document.createElement('div');
       bd.className = 'bd';
       bd.textContent = m.text || '';
@@ -370,12 +454,23 @@
       el.appendChild(bd);
     } else {
       el = document.createElement('div');
-      el.className = 'tq-twitch__dm-item' + (m.me ? ' is-me' : '') + (m.type === 'sys' ? ' is-sys' : '');
+      el.className =
+        'tq-twitch__msg' +
+        (m.me ? ' is-me' : '') +
+        (m.type === 'sys' ? ' is-sys' : '') +
+        (m.streamer ? ' is-streamer' : '');
       if (m.type === 'sys') {
         el.textContent = m.text || '';
       } else {
+        if (m.streamer) {
+          var bc = document.createElement('span');
+          bc.className = 'tq-twitch__badge-bc';
+          bc.textContent = 'LIVE';
+          el.appendChild(bc);
+        }
         var n2 = document.createElement('span');
         n2.className = 'n';
+        n2.style.color = m.streamer ? '#bf94ff' : nameColor(m.who);
         n2.textContent = m.who || '';
         var t2 = document.createElement('span');
         t2.textContent = m.text || '';
@@ -385,7 +480,7 @@
     }
     box.appendChild(el);
     box.scrollTop = box.scrollHeight;
-    while (box.children.length > 60) box.removeChild(box.firstChild);
+    while (box.children.length > 80) box.removeChild(box.firstChild);
   }
 
   function sysDm(t) {
@@ -407,10 +502,7 @@
     if (!sub || !mod) return;
     clearInterval(subTimer);
     subTyping = true;
-    sub.className = 'tq-twitch__sub' + (mod.dialogue ? '' : ' is-narr');
-    sub.style.animation = 'none';
-    void sub.offsetWidth;
-    sub.style.animation = '';
+    sub.className = 'tq-twitch__cc' + (mod.dialogue ? '' : ' is-narr');
     var full = String(mod.text || '');
     var i = 0;
     sub.textContent = '';
@@ -422,6 +514,12 @@
         subTyping = false;
       }
     }, 26);
+  }
+
+  function chatTextFromLine(mod) {
+    var t = String((mod && mod.text) || '').trim();
+    if (/^「[\s\S]*」$/.test(t)) return t.slice(1, -1);
+    return t;
   }
 
   function step() {
@@ -458,6 +556,9 @@
       chaining = false;
       if (mod.who === '天青' && mod.expr && mod.expr !== '-') setSprite(mod.expr);
       paintSub(mod);
+      if (mod.who === '天青' && mod.dialogue) {
+        pushDm({ type: 'dm', who: 'Larimar', text: chatTextFromLine(mod), streamer: true });
+      }
       li += 1;
       return;
     }
@@ -510,111 +611,189 @@
     var t = String(inp.value || '').trim();
     if (!t) return;
     var yen = +(sel && sel.value) || 0;
-    var id = (nick && nick.textContent) || '匿名的听众';
+    var id = '';
+    try {
+      id = localStorage.getItem(NICK_LS) || '';
+    } catch (e) {}
+    if (!id) id = (nick && nick.title) || '匿名的听众';
+    if (id === '更改用户名') id = '匿名的听众';
     pushDm(yen ? { type: 'sc', who: id, yen: yen, text: t, me: 1 } : { type: 'dm', who: id, text: t, me: 1 });
     var payload = yen ? '[SC|' + id + '|' + yen + '|' + t + ']' : '[弹幕|' + id + '|' + t + ']';
-    var msg = toTavern(payload);
+    toast(toTavern(payload));
     inp.value = '';
     if (sel) sel.value = '0';
     if (btn) {
-      var old = btn.textContent;
-      btn.textContent = '✓';
       btn.classList.add('is-ok');
       setTimeout(function () {
-        btn.textContent = old;
         btn.classList.remove('is-ok');
-      }, 1400);
+      }, 900);
     }
-    sysDm(msg);
   }
 
-  function applyChromeState() {
-    var st = stageEl();
-    if (!st) return;
-    var barmin = false;
-    var dmoff = false;
+  function lsFlag(key) {
     try {
-      barmin = localStorage.getItem(BARMIN_LS) === '1';
-      dmoff = localStorage.getItem(DMOFF_LS) === '1';
-    } catch (e) {}
-    st.classList.toggle('is-barmin', barmin);
-    st.classList.toggle('is-dmoff', dmoff);
-    var tog = document.getElementById('tq-twitch-dm-tog');
-    if (tog) {
-      tog.textContent = dmoff ? '💬' : '✕';
-      tog.title = dmoff ? '展开弹幕' : '收起弹幕';
+      return localStorage.getItem(key) === '1';
+    } catch (e) {
+      return false;
     }
-    var bar = document.getElementById('tq-twitch-bar');
-    if (bar) bar.title = barmin ? '点一下展开' : '点一下收起';
+  }
+
+  function setLsFlag(key, on) {
+    try {
+      localStorage.setItem(key, on ? '1' : '0');
+    } catch (e) {}
+  }
+
+  function applyFsChrome() {
+    var root = rootEl();
+    if (!root) return;
+    var uiOff = lsFlag(UI_OFF_LS);
+    var chatOff = lsFlag(CHAT_OFF_LS);
+    root.classList.toggle('is-fs', !!fullscreen);
+    root.classList.toggle('is-ui-off', !!uiOff);
+    root.classList.toggle('is-chat-off', !!chatOff);
+    var uiBtn = document.getElementById('tq-twitch-hide-ui');
+    var chatBtn = document.getElementById('tq-twitch-hide-chat');
+    if (uiBtn) {
+      uiBtn.classList.toggle('is-on', uiOff);
+      uiBtn.title = uiOff ? '显示 UI' : '关闭 UI';
+      uiBtn.setAttribute('aria-label', uiBtn.title);
+    }
+    if (chatBtn) {
+      chatBtn.classList.toggle('is-on', chatOff);
+      chatBtn.title = chatOff ? '显示 CHAT' : '关闭 CHAT';
+      chatBtn.setAttribute('aria-label', chatBtn.title);
+    }
+  }
+
+  function setFullscreen(on) {
+    if (on && viewMode === 'idle') {
+      toast('请先进入直播');
+      return;
+    }
+    fullscreen = !!on;
+    applyFsChrome();
   }
 
   function setIdle(on) {
     var root = rootEl();
     if (!root) return;
     root.classList.toggle('is-idle', !!on);
-    if (on) viewMode = 'idle';
+    root.classList.toggle('is-replay', !on && viewMode === 'replay');
+    if (on) {
+      viewMode = 'idle';
+      fullscreen = false;
+      applyFsChrome();
+    }
   }
 
-  function renderIdlePanel() {
-    var empty = document.getElementById('tq-twitch-empty');
-    if (!empty) return;
+  function renderHome() {
+    var home = document.getElementById('tq-twitch-home');
+    if (!home) return;
     var appsApi = window.天青_phone_apps;
     var icon = appsApi && appsApi.iconHtml ? appsApi.iconHtml('twitch', 'empty-twitch') : '';
+    var av = channelAvatar();
     var entries = listLiveEntries();
-    var html =
-      '<div class="tq-twitch__empty-icon">' +
-      icon +
-      '</div>' +
-      '<h4>Twitch 直播</h4>' +
-      '<p>主线钩子或点「刷新」可生成天青直播切片。<br>已保存的场次可在下方回放。</p>' +
-      '<div class="tq-twitch__empty-actions">' +
-      '<button type="button" class="tq-twitch__btn tq-twitch__btn--primary" id="tq-twitch-refresh-idle">刷新 / 生成直播</button>' +
-      '<button type="button" class="tq-twitch__btn" id="tq-twitch-demo">预览演示场</button>' +
-      '</div>';
-    if (entries.length) {
-      html += '<div class="tq-twitch__history"><div class="tq-twitch__history-label">最近场次</div>';
-      entries.forEach(function (entry) {
-        var d = entry.data || {};
-        var ended = d.status === 'ended';
-        html +=
-          '<button type="button" class="tq-twitch__history-item" data-live-idx="' +
-          entry.mainMsgIndex +
-          '">' +
-          '<span class="tq-twitch__history-title">' +
-          esc(sessionTitle(d)) +
-          '</span>' +
-          '<span class="tq-twitch__history-meta">' +
-          (ended ? '回放' : '进行中') +
-          ' · 回合 #' +
-          (entry.mainMsgIndex + 1) +
-          '</span></button>';
-      });
-      html += '</div>';
+    var liveEntries = [];
+    var vodEntries = [];
+    entries.forEach(function (entry) {
+      if (entry && entry.data && entry.data.status !== 'ended') liveEntries.push(entry);
+      else vodEntries.push(entry);
+    });
+
+    function cardHtml(entry) {
+      var d = entry.data || {};
+      var ended = d.status === 'ended';
+      var bg = resolveBgUrl(d.bg || '宿舍', d.band || '白日');
+      var n = viewersOf(d, ended ? 1 : 0.4);
+      return (
+        '<button type="button" class="tq-twitch__card" data-live-idx="' +
+        entry.mainMsgIndex +
+        '">' +
+        '<div class="tq-twitch__thumb"' +
+        (bg ? ' style="background-image:url(\'' + esc(bg) + '\')"' : '') +
+        '>' +
+        '<span class="tq-twitch__badge' +
+        (ended ? ' is-vod' : '') +
+        '">' +
+        (ended ? 'VOD' : 'LIVE') +
+        '</span>' +
+        '<span class="tq-twitch__thumb-viewers">' +
+        fmt(n) +
+        ' 观众</span></div>' +
+        '<div class="tq-twitch__card-row">' +
+        '<img class="tq-twitch__card-av" alt="" src="' +
+        esc(av) +
+        '" />' +
+        '<div class="tq-twitch__card-body">' +
+        '<div class="tq-twitch__card-title">' +
+        esc(streamTitle(d)) +
+        '</div>' +
+        '<div class="tq-twitch__card-user">Larimar</div>' +
+        '<div class="tq-twitch__card-cat">' +
+        esc(categoryOf(d.form)) +
+        '</div></div></div></button>'
+      );
     }
-    empty.innerHTML = html;
+
+    var html = '<div class="tq-twitch__home-label">关注</div>';
+    if (liveEntries.length) {
+      html += '<div class="tq-twitch__sec">正在直播</div>';
+      liveEntries.forEach(function (entry) {
+        html += cardHtml(entry);
+      });
+    }
+    if (vodEntries.length) {
+      html += '<div class="tq-twitch__sec">最近直播 <span class="tq-twitch__sec-sub">视频点播</span></div>';
+      vodEntries.forEach(function (entry) {
+        html += cardHtml(entry);
+      });
+    }
+    if (!entries.length) {
+      html +=
+        '<div class="tq-twitch__empty">' +
+        '<div class="tq-twitch__empty-icon">' +
+        icon +
+        '</div>' +
+        '<h4>Larimar 现在不在直播</h4>' +
+        '<p>主线推进或点刷新，会生成一场新的直播切片。</p>' +
+        '<div class="tq-twitch__empty-actions">' +
+        '<button type="button" class="tq-twitch__btn tq-twitch__btn--primary" id="tq-twitch-refresh-idle">刷新直播</button>' +
+        '<button type="button" class="tq-twitch__btn" id="tq-twitch-demo">预览演示直播</button>' +
+        '</div></div>';
+    } else {
+      html +=
+        '<div class="tq-twitch__empty-actions tq-twitch__empty-actions--inline">' +
+        '<button type="button" class="tq-twitch__btn tq-twitch__btn--primary" id="tq-twitch-refresh-idle">刷新直播</button>' +
+        '</div>';
+    }
+    home.innerHTML = html;
   }
 
   function showIdleHome() {
     session = null;
-    var st = stageEl();
-    if (st) st.classList.remove('is-replay');
+    fullscreen = false;
+    hideSubAlert();
+    var root = rootEl();
+    if (root) root.classList.remove('is-replay');
     setIdle(true);
-    renderIdlePanel();
+    renderHome();
     viewMode = 'idle';
   }
 
   function enterReplayMode() {
     viewMode = 'replay';
-    var st = stageEl();
-    if (st) st.classList.add('is-replay');
+    var root = rootEl();
+    if (root) root.classList.add('is-replay');
     var rt = document.getElementById('tq-twitch-replay-t');
-    if (rt) rt.textContent = sessionTitle(session);
+    if (rt) rt.textContent = streamTitle(session);
     chaining = false;
-    sysDm('—— 直播已结束 · 回放模式 ——');
+    paintBar();
+    sysDm('直播已结束');
   }
 
   function setRefreshBusy(on) {
-    var btn = document.getElementById('tq-twitch-refresh');
+    var btn = document.getElementById('tq-twitch-refresh-idle');
     if (!btn) return;
     btn.classList.toggle('is-busy', !!on);
     btn.disabled = !!on;
@@ -672,9 +851,8 @@
 
     viewMode = session.replayMode ? 'replay' : 'live';
     setIdle(false);
-
-    var st = stageEl();
-    if (st) st.classList.toggle('is-replay', !!session.replayMode);
+    var root = rootEl();
+    if (root) root.classList.toggle('is-replay', !!session.replayMode);
 
     li = 0;
     chaining = false;
@@ -682,13 +860,12 @@
     clearInterval(subTimer);
     nDone = 0;
     nTotal = (session.modules && session.modules.length) || 1;
-    seed = String(session.form || '') + String(session.bg || '') + String((session.modules[0] && session.modules[0].text) || '');
 
-    var title = document.getElementById('tq-twitch-title');
-    if (title) title.textContent = sessionTitle(session);
-
+    var st = stageEl();
     var bg = resolveBgUrl(session.bg || '宿舍', session.band || '白日');
-    if (st && bg) st.style.backgroundImage = 'url("' + bg + '")';
+    if (st) {
+      st.style.backgroundImage = bg ? 'url("' + bg + '")' : '';
+    }
 
     var box = document.getElementById('tq-twitch-dm');
     if (box) box.innerHTML = '';
@@ -696,73 +873,68 @@
     if (sub) sub.textContent = '';
 
     var rt = document.getElementById('tq-twitch-replay-t');
-    if (rt) rt.textContent = sessionTitle(session);
+    if (rt) rt.textContent = streamTitle(session);
 
+    paintMeta();
     setSprite(session.expr || '微笑');
-    applyChromeState();
     paintBar();
-    sysDm(session.replayMode ? '—— 回放开始 ——' : '—— 直播开始 ——');
+    sysDm(session.replayMode ? '欢迎来到视频点播聊天室' : '欢迎来到聊天室');
     step();
   }
 
   function bindOnce() {
-    if (bound) return;
-    var st = stageEl();
-    if (!st) return;
+    var root = rootEl();
+    if (!root) return;
+    if (bound && root.dataset.twitchBound) return;
     bound = true;
+    root.dataset.twitchBound = '1';
 
     var nick = document.getElementById('tq-twitch-nick');
+    var savedNick = '匿名的听众';
     try {
-      if (nick) nick.textContent = localStorage.getItem(NICK_LS) || '匿名的听众';
+      savedNick = localStorage.getItem(NICK_LS) || '匿名的听众';
     } catch (e) {}
-
-    st.addEventListener('click', function (e) {
-      if (
-        e.target.closest(
-          '.tq-twitch__input, .tq-twitch__dm, .tq-twitch__dm-tog, .tq-twitch__bar, .tq-twitch__back, .tq-twitch__refresh, .tq-twitch__replay, .tq-twitch__empty',
-        )
-      ) {
-        return;
-      }
-      advance();
-    });
-
-    var bar = document.getElementById('tq-twitch-bar');
-    if (bar) {
-      bar.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var on = !st.classList.contains('is-barmin');
-        st.classList.toggle('is-barmin', on);
-        try {
-          localStorage.setItem(BARMIN_LS, on ? '1' : '0');
-        } catch (err) {}
-        applyChromeState();
-      });
+    if (nick) {
+      nick.textContent = nickInitial(savedNick);
+      nick.title = savedNick;
     }
 
-    var tog = document.getElementById('tq-twitch-dm-tog');
-    if (tog) {
-      tog.addEventListener('click', function (e) {
+    var st = stageEl();
+    if (st) {
+      st.addEventListener('click', function (e) {
         e.stopPropagation();
-        var off = !st.classList.contains('is-dmoff');
-        st.classList.toggle('is-dmoff', off);
-        try {
-          localStorage.setItem(DMOFF_LS, off ? '1' : '0');
-        } catch (err) {}
-        applyChromeState();
+        advance();
       });
     }
 
     if (nick) {
       nick.addEventListener('click', function (e) {
         e.stopPropagation();
-        var n = prompt('你在直播间用的马甲 ID：', nick.textContent);
+        var n = prompt('聊天显示名称：', nick.title || savedNick);
         if (n && n.trim()) {
-          nick.textContent = n.trim().slice(0, 12);
+          var name = n.trim().slice(0, 16);
+          nick.textContent = nickInitial(name);
+          nick.title = name;
           try {
-            localStorage.setItem(NICK_LS, nick.textContent);
+            localStorage.setItem(NICK_LS, name);
           } catch (err) {}
         }
+      });
+    }
+
+    var follow = document.getElementById('tq-twitch-follow');
+    if (follow) {
+      follow.addEventListener('click', function (e) {
+        e.stopPropagation();
+        showSubAlert();
+      });
+    }
+
+    var alertEl = document.getElementById('tq-twitch-alert');
+    if (alertEl) {
+      alertEl.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (e.target === alertEl || e.target.closest('#tq-twitch-alert-ok')) hideSubAlert();
       });
     }
 
@@ -798,18 +970,45 @@
       });
     }
 
-    var refresh = document.getElementById('tq-twitch-refresh');
-    if (refresh) {
-      refresh.addEventListener('click', function (e) {
+    var fsBtn = document.getElementById('tq-twitch-fs');
+    if (fsBtn) {
+      fsBtn.addEventListener('click', function (e) {
         e.stopPropagation();
-        if (refresh.disabled || refresh.classList.contains('is-busy')) return;
-        refreshLive();
+        setFullscreen(true);
       });
     }
 
-    var empty = document.getElementById('tq-twitch-empty');
-    if (empty) {
-      empty.addEventListener('click', function (e) {
+    var fsExit = document.getElementById('tq-twitch-fs-exit');
+    if (fsExit) {
+      fsExit.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setFullscreen(false);
+      });
+    }
+
+    var hideUi = document.getElementById('tq-twitch-hide-ui');
+    if (hideUi) {
+      hideUi.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setLsFlag(UI_OFF_LS, !lsFlag(UI_OFF_LS));
+        applyFsChrome();
+      });
+    }
+
+    var hideChat = document.getElementById('tq-twitch-hide-chat');
+    if (hideChat) {
+      hideChat.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setLsFlag(CHAT_OFF_LS, !lsFlag(CHAT_OFF_LS));
+        applyFsChrome();
+      });
+    }
+
+    applyFsChrome();
+
+    var home = document.getElementById('tq-twitch-home');
+    if (home) {
+      home.addEventListener('click', function (e) {
         var hist = e.target.closest('[data-live-idx]');
         if (hist) {
           e.stopPropagation();
@@ -855,6 +1054,10 @@
   }
 
   function onBack() {
+    if (fullscreen) {
+      setFullscreen(false);
+      return true;
+    }
     if (viewMode === 'live' || viewMode === 'replay') {
       showIdleHome();
       return true;
@@ -862,7 +1065,6 @@
     return false;
   }
 
-  /** 供舞台 / 解析层 / 钩子写入当前直播场（挂靠 mainMsgIndex） */
   function setLiveSession(data, opts) {
     opts = opts || {};
     if (!data) {

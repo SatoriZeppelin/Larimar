@@ -7,6 +7,7 @@
   var KEY = 'tq_plus_system_prompts';
   var SEED_KEY = 'tq_plus_prompt_wb_seed';
   var SEED_VER = 'prompt-default-wb-v4';
+  var FAME_STAGE_KEY = 'tq_plus_prompt_drop_fame_stage_v1';
   var STAT_DATA_UID = 'tq_locked_stat_data';
   var store = { entries: [] };
   var expandedId = null;
@@ -198,6 +199,31 @@
     } catch (e) {}
     console.info('[天青 提示词] 已载入默认基础提示词', defaults.length + ' 条');
     return true;
+  }
+
+  /** 已有存档：去掉提示词里残留的 名气.阶段 示例 */
+  function migrateDropFameStage() {
+    try {
+      if (localStorage.getItem(FAME_STAGE_KEY)) return false;
+    } catch (e) {}
+    var list = entries();
+    var changed = false;
+    var from = "_.set('stat_data.名气.阶段', '地下偶像期')";
+    var to = "_.set('stat_data.名气.twitter', 1000)";
+    list.forEach(function (e) {
+      if (!e || typeof e.content !== 'string') return;
+      if (e.content.indexOf(from) < 0) return;
+      e.content = e.content.split(from).join(to);
+      changed = true;
+    });
+    try {
+      localStorage.setItem(FAME_STAGE_KEY, '1');
+    } catch (e) {}
+    if (changed) {
+      saveStore();
+      console.info('[天青 提示词] 已去掉 名气.阶段');
+    }
+    return changed;
   }
 
   function isStatDataEntry(entry) {
@@ -1299,6 +1325,7 @@
   function bind() {
     store = loadStore();
     ensureDefaultPrompts();
+    migrateDropFameStage();
     var svg = window.天青_svg;
     if (svg && svg.importIcon) svg.mount($('btn-prompt-import-icon'), svg.importIcon);
     if (svg && svg.exportIcon) svg.mount($('btn-prompt-export-icon'), svg.exportIcon);

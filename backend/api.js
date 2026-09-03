@@ -14,7 +14,7 @@
   /* 与 resource/seed.json 的 api 对齐（不含密钥/模型） */
   var DEFAULTS = {
     mode: 'direct',
-    baseUrl: 'https://api.tokenfactory.nebius.com/v1',
+    baseUrl: '',
     apiKey: '',
     model: 'gpt-4o-mini',
     temperature: 1,

@@ -885,8 +885,8 @@
     });
   }
 
-  /** LINE：无完整主线历史；本轮 LINE 提示词 + 主线最近 1 轮 + @D / AN / 用户人设 */
-  function appendLineUserTurn(messages, linePrompt, wiBuckets, absolutePrompts) {
+  /** LINE：无完整主线历史；本轮 LINE 提示词 + 手机上下文 + @D / AN / 用户人设 */
+  function appendLineUserTurn(messages, linePrompt, wiBuckets, absolutePrompts, extraOpts) {
     var chatMsgs = [];
 
     /* 用户设定 → 作者注顶部 */
@@ -912,15 +912,11 @@
     var personaDepth = getPersonaDepthInjection();
     if (personaDepth) depthItems.push(personaDepth);
 
-    /* 主线最近 1 次常规 LLM 对话 → 总结性消息 */
-    getLastMainChatTurnSummary().forEach(function (m) {
-      chatMsgs.push({ role: m.role, content: m.content });
-    });
-
     chatMsgs.push({
       role: 'user',
       content: String(linePrompt || '').trim() || '（请回复 LINE 私聊）',
     });
+    insertPhoneContextBeforeUser(chatMsgs, extraOpts);
     injectDepthEntries(chatMsgs, depthItems);
 
     if (wiBuckets.anBottom && wiBuckets.anBottom.length) {
@@ -1011,6 +1007,180 @@
     if (!plain) return '';
     if (plain.length > maxLen) plain = plain.slice(0, maxLen) + '…';
     return plain;
+  }
+
+  function extractMainTurnFull(content) {
+    var text = String(content || '');
+    if (!text.trim()) return '';
+    var main = text.match(/<summernight_maintext\b[^>]*>([\s\S]*?)<\/summernight_maintext>/i);
+    if (main && String(main[1] || '').trim()) return String(main[1]).trim();
+    return text
+      .replace(/<UpdateVariable\b[\s\S]*?<\/UpdateVariable>/gi, '')
+      .replace(/<summernight_hook\b[\s\S]*?<\/summernight_hook>/gi, '')
+      .replace(/<summernight_variables\b[\s\S]*?<\/summernight_variables>/gi, '')
+      .trim();
+  }
+
+  function getCleanedMainMessages() {
+    var hist = [];
+    try {
+      if (window.天青_save && typeof window.天青_save.load === 'function') {
+        hist = (window.天青_save.load().messages || []).slice();
+      }
+    } catch (e) {
+      hist = [];
+    }
+    var cleaned = [];
+    hist.forEach(function (m) {
+      if (!m) return;
+      if (m.role !== 'user' && m.role !== 'assistant') return;
+      var c = String(m.content || '').trim();
+      if (!c) return;
+      cleaned.push({ role: m.role, content: c });
+    });
+    return cleaned;
+  }
+
+  /** 主线按「user + assistant」配对成轮，opening 仅 assistant 也算一轮 */
+  function getMainTurns() {
+    var cleaned = getCleanedMainMessages();
+    var turns = [];
+    var i = 0;
+    while (i < cleaned.length) {
+      if (cleaned[i].role === 'user') {
+        var turn = { user: cleaned[i], assistant: null };
+        if (cleaned[i + 1] && cleaned[i + 1].role === 'assistant') {
+          turn.assistant = cleaned[i + 1];
+          i += 2;
+        } else {
+          i += 1;
+        }
+        turns.push(turn);
+      } else {
+        turns.push({ user: null, assistant: cleaned[i] });
+        i += 1;
+      }
+    }
+    return turns;
+  }
+
+  function formatTurnUser(turn) {
+    if (!turn || !turn.user) return '';
+    return String(turn.user.content || '').trim();
+  }
+
+  function formatLastFullTurn(turn) {
+    if (!turn) return '';
+    var parts = [];
+    var u = formatTurnUser(turn);
+    if (u) parts.push('[玩家行动]\n' + u);
+    if (turn.assistant) {
+      var full = extractMainTurnFull(turn.assistant.content);
+      if (full) parts.push('[本轮正文]\n' + full);
+    }
+    return parts.join('\n\n');
+  }
+
+  function formatTurnSummaryLine(turn, idx) {
+    if (!turn) return '';
+    var bits = [];
+    if (turn.user) {
+      var u = extractMainTurnSummary(turn.user.content, { maxLen: 80 });
+      if (u) bits.push('玩家：' + u);
+    }
+    if (turn.assistant) {
+      var s = extractMainTurnSummary(turn.assistant.content);
+      if (s) bits.push(s);
+    }
+    if (!bits.length) return '';
+    return idx + '. ' + bits.join(' / ');
+  }
+
+  function lineRecentText(chatId, limit) {
+    var lineApi = window.天青_phone_line;
+    if (!lineApi || typeof lineApi.buildLineRecentMessage !== 'function') return '';
+    var id = chatId || 'tianqing';
+    var text = lineApi.buildLineRecentMessage(id, { limit: limit });
+    if (!text || text === '（暂无对话）') return '';
+    return text;
+  }
+
+  function scanHasTwitch(text) {
+    return /twitch|直播|老鼠台/i.test(String(text || ''));
+  }
+
+  function scanHasTwitter(text) {
+    var s = String(text || '');
+    if (/twitter|推特|推文|推|SNS/i.test(s)) return true;
+    return /(?:^|[^A-Za-z0-9_])X(?:[^A-Za-z0-9_]|$)/.test(s) || s.indexOf('Ｘ') >= 0;
+  }
+
+  /**
+   * 手机 App LLM 共用上下文：
+   * 主线最近 1 轮全文 + 最近 5 轮摘要 + 最近 100 条私聊；
+   * 最近 1 轮正文或最近 50 条私聊命中关键词时附带直播/推文。
+   */
+  function buildPhoneSideContext(opts) {
+    opts = opts || {};
+    var chatId = opts.chatId || 'tianqing';
+    var turns = getMainTurns();
+    var last = turns.length ? turns[turns.length - 1] : null;
+    var lastFive = turns.slice(-5);
+    var sections = [];
+
+    var full = formatLastFullTurn(last);
+    if (full) {
+      sections.push('[主线最近 1 轮 · 完整剧情]\n' + full);
+    }
+
+    var summaryLines = [];
+    lastFive.forEach(function (turn, i) {
+      var line = formatTurnSummaryLine(turn, i + 1);
+      if (line) summaryLines.push(line);
+    });
+    if (summaryLines.length) {
+      sections.push('[主线最近 5 轮 · 摘要]\n' + summaryLines.join('\n'));
+    }
+
+    var line100 = lineRecentText(chatId, 100);
+    if (line100) {
+      sections.push('[最近 100 条私聊]\n' + line100);
+    }
+
+    var scan = (full || '') + '\n' + lineRecentText(chatId, 50);
+    if (scanHasTwitch(scan)) {
+      var twitchApi = window.天青_phone_twitch;
+      var liveText =
+        twitchApi && typeof twitchApi.formatLastLiveForPrompt === 'function'
+          ? twitchApi.formatLastLiveForPrompt()
+          : '';
+      if (liveText) sections.push('[最近一次直播全文]\n' + liveText);
+    }
+    if (scanHasTwitter(scan)) {
+      var twApi = window.天青_phone_twitter;
+      var twText =
+        twApi && typeof twApi.formatContextForPrompt === 'function'
+          ? twApi.formatContextForPrompt()
+          : '';
+      if (twText) sections.push('[Twitter 热搜与最近推文]\n' + twText);
+    }
+
+    if (!sections.length) return '';
+    return '[手机上下文]\n' + sections.join('\n\n');
+  }
+
+  function insertPhoneContextBeforeUser(messages, opts) {
+    var pack = buildPhoneSideContext(opts);
+    if (!pack) return;
+    var msg = { role: 'system', content: pack };
+    var idx = messages.length;
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (messages[i] && messages[i].role === 'user') {
+        idx = i;
+        break;
+      }
+    }
+    messages.splice(idx, 0, msg);
   }
 
   /**
@@ -1299,7 +1469,7 @@
           pushJoinedSystem(messages, wi.emTop, '世界书·示例前');
           pushJoinedSystem(messages, wi.emBottom, '世界书·示例后');
         } else if (id === 'chatHistory') {
-          appendLineUserTurn(messages, linePrompt, wi, absolutePrompts);
+          appendLineUserTurn(messages, linePrompt, wi, absolutePrompts, opts);
           chatInserted = true;
         } else if (id === 'personaDescription') {
           var personaPrompt = getPersonaInjection('prompt');
@@ -1342,7 +1512,7 @@
       if (!sawWiAfter && wi.after.length) {
         pushJoinedSystem(messages, wi.after, '世界书·角色定义后');
       }
-      appendLineUserTurn(messages, linePrompt, wi, absolutePrompts);
+      appendLineUserTurn(messages, linePrompt, wi, absolutePrompts, opts);
     }
 
     if (!personaPromptInjected) {
@@ -1401,12 +1571,12 @@
   }
 
   /**
-   * LINE 钩子专用组装：
+   * LINE / Twitter / Twitch 钩子共用组装：
    * - 系统设置 · 预设（仅正文条目，不含世界书 / chatHistory）
    * - 用户设定（人设）
-   * - 主线最近 1 轮（总结性消息）
-   * - 系统设置 · 手机 · LINE 提示词（本轮 user，含当前游戏时间）
-   * @param {{ linePrompt: string }} opts
+   * - 手机上下文（最近 1 轮全文 + 5 轮摘要 + 100 条私聊，按关键词附带直播/推文）
+   * - 系统设置 · 手机 App 提示词（本轮 user，含钩子与游戏时间）
+   * @param {{ linePrompt: string, chatId?: string }} opts
    */
   function buildLineHookChatMessages(opts) {
     opts = opts || {};
@@ -1473,16 +1643,13 @@
     var personaAnTop = getPersonaInjection('an_top');
     if (personaAnTop) messages.push({ role: 'system', content: personaAnTop });
 
-    getLastMainChatTurnSummary().forEach(function (m) {
-      messages.push({ role: m.role, content: m.content });
-    });
-
     var personaDepth = getPersonaDepthInjection();
     var hookUser = {
       role: 'user',
       content: linePrompt || '（请根据钩子回复 LINE 私聊）',
     };
     messages.push(hookUser);
+    insertPhoneContextBeforeUser(messages, opts);
     if (personaDepth) {
       injectDepthEntries(messages, [personaDepth]);
     }
@@ -1540,6 +1707,7 @@
     opts = opts || {};
     return buildLineHookChatMessages({
       linePrompt: opts.twitterPrompt || opts.linePrompt || '',
+      chatId: opts.chatId,
     });
   }
 
@@ -1548,6 +1716,7 @@
     opts = opts || {};
     return buildLineHookChatMessages({
       linePrompt: opts.twitchPrompt || opts.linePrompt || '',
+      chatId: opts.chatId,
     });
   }
 
@@ -1564,6 +1733,9 @@
     getLastMainChatTurn: getLastMainChatTurn,
     getLastMainChatTurnSummary: getLastMainChatTurnSummary,
     extractMainTurnSummary: extractMainTurnSummary,
+    extractMainTurnFull: extractMainTurnFull,
+    getMainTurns: getMainTurns,
+    buildPhoneSideContext: buildPhoneSideContext,
     selectHistoryByTokenBudget: selectHistoryByTokenBudget,
     ensureOpeningInHistory: ensureOpeningInHistory,
     estimateMessageTokens: estimateMessageTokens,

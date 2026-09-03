@@ -1,7 +1,7 @@
 {
   "format": "tq_plus_seed",
   "version": 2,
-  "exportedAt": "2026-07-23T03:24:52.651Z",
+  "exportedAt": "2026-09-03T07:12:59.863Z",
   "excludes": [
     "persona",
     "apiKey",
@@ -215,7 +215,7 @@
         "key": [],
         "keysecondary": [],
         "comment": "变量列表",
-        "content": "时间.天数：{{stat_data::时间.天数}} #整数\n时间.具体时间：{{stat_data::时间.具体时间}} #以[小时,分钟]的形式显示\n时间.星期：{{stat_data::时间.星期}} #包含日一二三四五六\n地点：{{stat_data::地点}} #参照标准地点，如无则自建地点\n名气.twitter：{{stat_data::名气.twitter}} #Twitter/X 粉丝数，整数\n名气.同接：{{stat_data::名气.同接}} #最近直播同接人数，整数\n名气.专辑：{{stat_data::名气.专辑}} #每条 [专辑名称, 首发销量]；新专辑用 _.append 追加\n名气.Live：{{stat_data::名气.Live}} #每条 [地点, 参加人数]；新现场用 _.append 追加",
+        "content": "时间.天数：{{stat_data::时间.天数}} #整数\n时间.具体时间：{{stat_data::时间.具体时间}} #以[小时,分钟]的形式显示\n时间.星期：{{stat_data::时间.星期}} #包含日一二三四五六\n地点：{{stat_data::地点}} #参照标准地点，如无则自建地点\n名气.twitter：{{stat_data::名气.twitter}} #Twitter/X 粉丝数，整数\n名气.同接：{{stat_data::名气.同接}} #最近直播同接人数，整数\n名气.专辑：{{stat_data::名气.专辑}} #每条 [专辑名称, 首发销量]；新专辑用 _.append('stat_data.名气.专辑', [\"名称\", 销量]) 追加\n名气.Live：{{stat_data::名气.Live}} #每条 [地点, 参加人数]；新现场用 _.append('stat_data.名气.Live', [\"地点\", 人数]) 追加",
         "constant": true,
         "order": -1000,
         "position": 0,
@@ -240,7 +240,7 @@
         "key": [],
         "keysecondary": [],
         "comment": "变量更新规则",
-        "content": "## 变量更新格式（UpdateVariable）\n\n```\n<UpdateVariable>\n        - calculate time passed: ${分析经过的时间}\n        - decide whether dramatic updates are allowed as it's in a special case or the time passed is more than usual: yes or no\n        - ${分析每个变量是否需要更新}\n        - ${检查变量变化条件是否满足}\n        ...\n        <summernight_variables>\n        更新变量\n        </summernight_variables>\n</UpdateVariable>\n```\n\n### 可用命令\n\n| 命令 | 参数 | 说明 | 示例 |\n| --- | --- | --- | --- |\n| `_.set` | `'路径', 新值` | 设置变量值 | `_.set('stat_data.名气.twitter', 1200)` |\n| `_.add` | `'路径', 增量` | 数值增加/减少 | `_.add('stat_data.时间.天数', 1)` |\n| `_.append` | `'路径', 增量数组` | 向数组末尾追加一组（Live/专辑） | `_.append('stat_data.名气.Live', [\"渋谷 CLUB QUATTRO\",350])` |\n\n### 名气 Live / 专辑\n\n- 有新现场或新专辑时，用 `_.append` 追加一组，不要用 `_.set` 覆盖整个数组\n- Live 每组：`[地点, 参加人数]`\n- 专辑每组：`[专辑名称, 首发销量]`\n\n示例：\n\n```\n_.append('stat_data.名气.Live', [\"渋谷 CLUB QUATTRO\", 350])\n_.append('stat_data.名气.专辑', [\"AOI\", 1200])\n```",
+        "content": "## 变量更新格式（UpdateVariable）\n\n```\n<UpdateVariable>\n        - calculate time passed: ${分析经过的时间}\n        - decide whether dramatic updates are allowed as it's in a special case or the time passed is more than usual: yes or no\n        - ${分析每个变量是否需要更新}\n        - ${检查变量变化条件是否满足}\n        ...\n        <summernight_variables>\n        更新变量\n        </summernight_variables>\n</UpdateVariable>\n```\n\n### 可用命令\n\n| 命令    | 参数           | 说明          | 示例                                            |\n| ------- | -------------- | ------------- | ----------------------------------------------- |\n| `_.set` | `'路径', 新值` | 设置变量值    | `_.set('stat_data.名气.twitter', 1000)` |\n| `_.add` | `'路径', 增量` | 数值增加/减少 | `_.add('stat_data.时间.天数', 1)`      |",
         "constant": true,
         "order": 200,
         "position": 4,
@@ -265,7 +265,7 @@
         "key": [],
         "keysecondary": [],
         "comment": "GAL格式",
-        "content": "Ignoring the format in the dialogue history, when the user takes a game action, you must strictly adhere to the following format for this turn's output:\n<summernight>\n    <summernight_maintext>\n        正文内容\n    </summernight_maintext>\n\n    <summernight_branches>\n        分支选项\n    </summernight_branches>\n\n    <summernight_snapshots>\n        快照信息（当前对话轮快照）\n    </summernight_snapshots>\n\n\t<summernight_hook>\n        为APP使用的钩子，判断当前情况下APP是否会弹出消息\n    </summernight_hook>\n\n    <UpdateVariable>\n    变量更新思维\n        <summernight_variables>\n        更新变量\n        </summernight_variables>\n    </UpdateVariable>\n</summernight>\n说明:\n    标签要求:\n        - 主标签: <summernight></summernight>\n        - 正文标签: <summernight_maintext></summernight_maintext>\n        - 分支选项标签: <summernight_branches></summernight_branches>\n        - 快照信息: <summernight_snapshots></summernight_snapshots>\n        - 变量更新标签: <UpdateVariable><summernight_variables></summernight_variables></UpdateVariable>\n\n\n    正文规则:\n        仅限以下格式：\n            - 对话标签:<天青|立绘|对话内容>\n            - 其他人/旁白/{{user}}对话标签:<角色名|对话内容>\n            - CG标签:<CG|CG名称>\n            - 背景标签: <背景|背景图片ID|背景名称>\n            - 禁止出现line,twitter,twitch作为对话来源，仅可出现人类或旁白\n\n\tAPP钩子:\n\t\t调用规则:\n\t\t\t- <APP名称|APP输出的消息的简略描写>\n\n\n    分支选项标签:\n        <summernight_branches>\n            [「行了行了，该回去排练了」][无奈又好笑地摸摸她的头][「你同学都快被你说服了」]\n        </summernight_branches>\n    快照信息标签:\n        <summernight_snapshots>总结（字数不超过正文的1/10）</summernight_snapshots>\n\n参考:\n<summernight>\n    <summernight_maintext>\n        <背景|校园|校门口>\n        <旁白|三月末的风还带着凉意，校门口的银杏树刚冒出嫩黄的新叶。>\n        <旁白|你靠在离校门十几米远的路灯柱上，手机显示下午四点十七分——距离她说的放学时间，过去了整整十二分钟。>\n        <旁白|三三两两的学生从校门里走出来，有人骑车，有人边走边拆便利店的面包。你换了个姿势，手边还提着两杯热可可。>\n        <旁白|一阵嬉闹声从校门方向传来。>\n        <旁白|她走在三四个女生中间，黑蓝渐变的长发被风吹起，发尾那段透明的浅蓝在银杏漏下的光斑里一闪一闪。>\n        <旁白|然后她抬头看见你，那双浅蓝色的眼睛亮起来的速度快得过分，像有人在她眼球后面按下了开关。>\n        <旁白|她跑了两步就刹住，转过身面对那群还没反应过来的同学，一只手指向你站着的路灯。>\n\n        <天青|完全胜利|看到没！那个是我的制作人！>\n\n        <旁白|她的声音大到路过的学生都侧目，那群女孩顺着她的手指看过来，有茫然的，有好奇的，也有一个红着脸捂住嘴的。>\n\n        <同学|每次都这样……>\n\n        <旁白|天青完全没理会她的吐槽，反而凑近一步压低声音——但那所谓的压低，依然能让五米外的你听得一清二楚。>\n\n        <天青|得意|帅吧？而且很温柔的哦，上次我说想吃草莓大福，第二天就给我带了。>\n\n        <制作人|……你不是说那是顺路买的吗？>\n\n        <天青|不满|顺路买的难道就不算温柔了吗！>\n\n        <天青|卖萌|而且你看那个站姿，是不是特别好看，我之前偷偷拍过背影发群里，你们都点赞了的。>\n\n        <同学|那是天青你逼我们点的……>\n\n        <天青|不满|我没有逼！我只是说，你们不点赞的话我会伤心而已！>\n        <CG|璀璨笑容>\n        <旁白|她说完也不等回应，转身小跑过来，裙摆随着动作扬起又落下，黑色连裤袜在阳光下泛着柔和的雾面光泽。>\n        <旁白|她在离你还有两步远的地方停住，仰起脸，刘海被风吹得有点乱，露出一小截干净的额头。>\n\n        <天青|微笑|让你久等了，辛苦啦。>\n\n        <旁白|她的语气轻飘飘的，像在说今天天气不错。但她看你的眼神里带着某种毫不掩饰的满足，像一只成功把漂亮羽毛展示给全世界的小孔雀。>\n        <旁白|她转身把你推到同学面前，动作理直气壮得像在展示自己养的宠物。>\n\n        <天青|高兴|介绍一下，这是我的制作人。>\n\n        <旁白|她的手圈住你的手臂，手指扣在你外套的袖口，那个动作亲密到不像艺人和制作人，倒像女朋友在宣示主权。>\n\n        <天青|得意|长得好看吧？对我也超好的。今天还专门来接我放学，带了热可可。>\n\n        <旁白|她抽走一杯热可可喝了一口，满足地叹了口气，然后故意把杯子举到同学面前晃了晃。>\n\n        <天青|得意|我的制作人会记得我喜欢喝什么，还会算好时间，让我出来的时候刚好是最好喝的温度。羡慕吗？>\n\n        <同学|天青你也太离谱了吧，人家制作人不是工作关系吗？>\n\n        <天青|不满|工作关系怎么了，工作关系也可以很好啊。>\n\n        <天青|星星眼|而且我跟你说哦，我制作人比你们见过的任何男朋友都靠谱一百倍。>\n\n        <天青|卖萌|他会帮我检查作业，会在我练习的时候给我买宵夜，还会……>\n\n        <旁白|她顿了顿，脸上浮出一个狡黠的笑。>\n\n        <天青|卖萌|嗯，剩下的不告诉你们。>\n\n        <同学|天青，你这是在……炫耀吧？>\n\n        <天青|得意|是啊。>\n\n        <旁白|她的嘴角翘起一个角度，那个笑容里没有任何心虚或不好意思，只有一种透明的、几乎可以说是嚣张的满足感。>\n\n        <天青|完全胜利|我就是在炫耀。>\n\n        <旁白|她侧过头，视线从同学们脸上扫过，最后停在你的侧脸上，停顿了半秒。>\n\n        <天青|微笑|因为我的制作人真的很厉害。>\n\n        <旁白|她的几个同学集体发出了一声意味复杂的「哇」。>\n\n        <同学|好了好了，知道了，你们关系好、你制作人帅、你人生赢家，可以了吧？>\n\n        <天青|高兴|不可以。>\n\n        <天青|卖萌|还没夸够。>\n\t\t</CG>\n    </summernight_maintext>\n\n    <summernight_branches>\n        [「行了行了，该回去排练了」]\n        [无奈又好笑地摸摸她的头]\n        [「你同学都快被你说服了」]\n    </summernight_branches>\n\n    <summernight_snapshots>\n        校门口接天青放学，天青当众向同学炫耀制作人并表现出明显亲近与占有欲。\n    </summernight_snapshots>\n\n    <UpdateVariable>\n        <summernight_variables>\n    \t\t<summernight_variables>\n        \t\t_.set('stat_data.时间.天数', 1)\n     \t\t    _.set('stat_data.时间.具体时间', [16, 0])\n     \t\t    _.set('stat_data.时间.星期', '一')\n      \t\t    _.set('stat_data.地点', '校园')\n    \t\t    _.set('stat_data.        </summernight_variables>\n        </summernight_variables>\n    </UpdateVariable>\n</summernight>",
+        "content": "Ignoring the format in the dialogue history, when the user takes a game action, you must strictly adhere to the following format for this turn's output:\n<summernight>\n    <summernight_maintext>\n        正文内容\n    </summernight_maintext>\n\n    <summernight_branches>\n        分支选项\n    </summernight_branches>\n\n    <summernight_snapshots>\n        快照信息（当前对话轮快照）\n    </summernight_snapshots>\n\n\t<summernight_hook>\n        为APP使用的钩子，判断当前情况下APP是否会弹出消息\n    </summernight_hook>\n\n    <UpdateVariable>\n    变量更新思维\n        <summernight_variables>\n        更新变量\n        </summernight_variables>\n    </UpdateVariable>\n</summernight>\n说明:\n    标签要求:\n        - 主标签: <summernight></summernight>\n        - 正文标签: <summernight_maintext></summernight_maintext>\n        - 分支选项标签: <summernight_branches></summernight_branches>\n        - 快照信息: <summernight_snapshots></summernight_snapshots>\n        - 变量更新标签: <UpdateVariable><summernight_variables></summernight_variables></UpdateVariable>\n\n\n    正文规则:\n        仅限以下格式：\n            - 对话标签:<天青|立绘|对话内容>\n            - 其他人/旁白/{{user}}对话标签:<角色名|对话内容>\n            - CG标签:<CG|CG名称>\n            - 背景标签: <背景|背景图片ID|背景名称>\n            - 禁止出现line,twitter,twitch作为对话来源，仅可出现人类或旁白\n\n\tAPP钩子:\n\t\t调用规则:\n\t\t\t- <APP名称|APP输出的消息的简略描写>\n\n\n    分支选项标签:\n        <summernight_branches>\n            [「行了行了，该回去排练了」][无奈又好笑地摸摸她的头][「你同学都快被你说服了」]\n        </summernight_branches>\n    快照信息标签:\n        <summernight_snapshots>总结（字数不超过正文的1/10）</summernight_snapshots>\n\n参考:\n<summernight>\n    <summernight_maintext>\n        <背景|校园|校门口>\n        <旁白|三月末的风还带着凉意，校门口的银杏树刚冒出嫩黄的新叶。>\n        <旁白|你靠在离校门十几米远的路灯柱上，手机显示下午四点十七分——距离她说的放学时间，过去了整整十二分钟。>\n        <旁白|三三两两的学生从校门里走出来，有人骑车，有人边走边拆便利店的面包。你换了个姿势，手边还提着两杯热可可。>\n        <旁白|一阵嬉闹声从校门方向传来。>\n        <旁白|她走在三四个女生中间，黑蓝渐变的长发被风吹起，发尾那段透明的浅蓝在银杏漏下的光斑里一闪一闪。>\n        <旁白|然后她抬头看见你，那双浅蓝色的眼睛亮起来的速度快得过分，像有人在她眼球后面按下了开关。>\n        <旁白|她跑了两步就刹住，转过身面对那群还没反应过来的同学，一只手指向你站着的路灯。>\n\n        <天青|完全胜利|看到没！那个是我的制作人！>\n\n        <旁白|她的声音大到路过的学生都侧目，那群女孩顺着她的手指看过来，有茫然的，有好奇的，也有一个红着脸捂住嘴的。>\n\n        <同学|每次都这样……>\n\n        <旁白|天青完全没理会她的吐槽，反而凑近一步压低声音——但那所谓的压低，依然能让五米外的你听得一清二楚。>\n\n        <天青|得意|帅吧？而且很温柔的哦，上次我说想吃草莓大福，第二天就给我带了。>\n\n        <制作人|……你不是说那是顺路买的吗？>\n\n        <天青|不满|顺路买的难道就不算温柔了吗！>\n\n        <天青|卖萌|而且你看那个站姿，是不是特别好看，我之前偷偷拍过背影发群里，你们都点赞了的。>\n\n        <同学|那是天青你逼我们点的……>\n\n        <天青|不满|我没有逼！我只是说，你们不点赞的话我会伤心而已！>\n        <CG|璀璨笑容>\n        <旁白|她说完也不等回应，转身小跑过来，裙摆随着动作扬起又落下，黑色连裤袜在阳光下泛着柔和的雾面光泽。>\n        <旁白|她在离你还有两步远的地方停住，仰起脸，刘海被风吹得有点乱，露出一小截干净的额头。>\n\n        <天青|微笑|让你久等了，辛苦啦。>\n\n        <旁白|她的语气轻飘飘的，像在说今天天气不错。但她看你的眼神里带着某种毫不掩饰的满足，像一只成功把漂亮羽毛展示给全世界的小孔雀。>\n        <旁白|她转身把你推到同学面前，动作理直气壮得像在展示自己养的宠物。>\n\n        <天青|高兴|介绍一下，这是我的制作人。>\n\n        <旁白|她的手圈住你的手臂，手指扣在你外套的袖口，那个动作亲密到不像艺人和制作人，倒像女朋友在宣示主权。>\n\n        <天青|得意|长得好看吧？对我也超好的。今天还专门来接我放学，带了热可可。>\n\n        <旁白|她抽走一杯热可可喝了一口，满足地叹了口气，然后故意把杯子举到同学面前晃了晃。>\n\n        <天青|得意|我的制作人会记得我喜欢喝什么，还会算好时间，让我出来的时候刚好是最好喝的温度。羡慕吗？>\n\n        <同学|天青你也太离谱了吧，人家制作人不是工作关系吗？>\n\n        <天青|不满|工作关系怎么了，工作关系也可以很好啊。>\n\n        <天青|星星眼|而且我跟你说哦，我制作人比你们见过的任何男朋友都靠谱一百倍。>\n\n        <天青|卖萌|他会帮我检查作业，会在我练习的时候给我买宵夜，还会……>\n\n        <旁白|她顿了顿，脸上浮出一个狡黠的笑。>\n\n        <天青|卖萌|嗯，剩下的不告诉你们。>\n\n        <同学|天青，你这是在……炫耀吧？>\n\n        <天青|得意|是啊。>\n\n        <旁白|她的嘴角翘起一个角度，那个笑容里没有任何心虚或不好意思，只有一种透明的、几乎可以说是嚣张的满足感。>\n\n        <天青|完全胜利|我就是在炫耀。>\n\n        <旁白|她侧过头，视线从同学们脸上扫过，最后停在你的侧脸上，停顿了半秒。>\n\n        <天青|微笑|因为我的制作人真的很厉害。>\n\n        <旁白|她的几个同学集体发出了一声意味复杂的「哇」。>\n\n        <同学|好了好了，知道了，你们关系好、你制作人帅、你人生赢家，可以了吧？>\n\n        <天青|高兴|不可以。>\n\n        <天青|卖萌|还没夸够。>\n\t\t</CG>\n    </summernight_maintext>\n\n    <summernight_branches>\n        [「行了行了，该回去排练了」]\n        [无奈又好笑地摸摸她的头]\n        [「你同学都快被你说服了」]\n    </summernight_branches>\n\n    <summernight_snapshots>\n        校门口接天青放学，天青当众向同学炫耀制作人并表现出明显亲近与占有欲。\n    </summernight_snapshots>\n\n    <UpdateVariable>\n        <summernight_variables>\n    \t\t<summernight_variables>\n        \t\t_.set('stat_data.时间.天数', 1)\n     \t\t    _.set('stat_data.时间.具体时间', [16, 0])\n     \t\t    _.set('stat_data.时间.星期', '一')\n      \t\t    _.set('stat_data.地点', '校园')\n    \t\t    _.set('stat_data.名气.twitter', 1000)\n        </summernight_variables>\n        </summernight_variables>\n    </UpdateVariable>\n</summernight>",
         "constant": true,
         "order": 201,
         "position": 0,
@@ -377,15 +377,8 @@
       "名气": {
         "twitter": 1000,
         "同接": 200,
-        "专辑": [
-          ["AOI", 3200],
-          ["透明な夜", 8500]
-        ],
-        "Live": [
-          ["下北泽 Shelter", 85],
-          ["渋谷 CLUB QUATTRO", 350],
-          ["Zepp Haneda", 1200]
-        ]
+        "专辑": [],
+        "Live": []
       }
     },
     "meta": {
@@ -436,15 +429,8 @@
     "名气": {
       "twitter": 1000,
       "同接": 200,
-      "专辑": [
-        ["AOI", 3200],
-        ["透明な夜", 8500]
-      ],
-      "Live": [
-        ["下北泽 Shelter", 85],
-        ["渋谷 CLUB QUATTRO", 350],
-        ["Zepp Haneda", 1200]
-      ]
+      "专辑": [],
+      "Live": []
     }
   },
   "defaultVariablesMeta": {
@@ -474,25 +460,24 @@
     },
     "名气\u0000专辑": {
       "varName": "名气.专辑",
-      "comment": "已发行专辑数组，每条 [专辑名称, 首发销量]，如 [[\"AOI\",1200],[\"透明な夜\",8500]]"
+      "comment": "每条 [专辑名称, 首发销量]；新专辑用 _.append('stat_data.名气.专辑', [\"名称\", 销量]) 追加"
     },
     "名气\u0000Live": {
       "varName": "名气.Live",
-      "comment": "现场 Live 数组，每条 [地点, 参加人数]，如 [[\"渋谷 CLUB QUATTRO\",350],[\"新宿 livehouse\",120]]"
+      "comment": "每条 [地点, 参加人数]；新现场用 _.append('stat_data.名气.Live', [\"地点\", 人数]) 追加"
     }
   },
   "phonePrompts": {
     "prompts": {
-      "line": "[ LINE ç§èåå¤]\nä½ ç°å¨æ¯å¤©éï¼å¨ LINE ä¸åå¤å¶ä½äººï¼{{user}}ï¼çç§èãå¤©éæ¯éæç´çãå¿å£å¦ä¸çå¶åï¼åæ¬¢ç´æ¥è¡¨è¾¾ã\n\n[ åå¤æ ¼å¼ ]æå­åè¡¨æåå¯ä»¥æ··åä½¿ç¨ï¼ä½ä¸è¡åªåè®¸å­å¨ä¸ç§å½¢å¼ï¼\n  - æå­ï¼ç´æ¥ååºå£è¯­åçç­ä¿¡åå®¹ï¼ä¸è¦å¨ä½/æç½/æ¬å·/markdownï¼ï¼ä½æ³¨æä¸å¯è¿äºç¹çåè¿äºè·³è·æ§çå¨å¤ä¸ªè¯é¢æ¥åè·³è·\n  - è¡¨æåï¼å¨åç¬ä¸è¡å¯ç¨ï¼åå«ä»¥ä¸å­æ®µ: ä¸ç¥éãä¸è¡ãä¸¾ç½æãä»å¢è¾¹æ¢å¤´ãä»çº¸ç®±éæ¢å¤´ãä½è½ãå¹æ°ãå®³ææå­æ³£ãå°å¥³ç¥ç¥·ä¸­ãå¼å¿ãå¾æãæèãç¹èµãçæ°ãçé®\n  - æ ¼å¼ç»ä¸ä¸ºï¼<å¤©é|åå¤|å°æ¶:åé>\n  - è¡¨æä¸ºæéä½¿ç¨çæåç¬¦å·ï¼åå¿éä¸è¡ä½¿ç¨ä¸ä¸ªï¼æ­£å¸¸ä¸æ®µå¯¹è¯åªå¯ä½¿ç¨1-2æ¬¡\n  - æ§å¶æ¯æ¬¡åå¤çä¿¡æ¯ä¸º6å¥ä»¥åï¼ä¸å«è¡¨æï¼\n\n  example:\n    <line_message>\n        <å¤©é|æ®~ç½~ä¸¢~è²~|17:20>\n        <å¤©é|çæ°|17:20> #æ­¤å¤ççæ°è°ç¨çæ°è¡¨æå\n        <å¤©é|ä¸ºä»ä¹ä¸åæï¼|17:21>\n    </line_message>\n\n[æè¿çå¯¹è¯]\n{{line_recent_message}}\n\nç´æ¥è¾åºå¤©éçåå¤ï¼",
-      "twitter": "[ Twitter / X å¨æçæ]\næ ¹æ®æ¬ååé©å­ï¼çæä¸å¤©éï¼Larimarï¼ç¸å³ç Twitter/X åå®¹ï¼é£æ ¼è´´è¿çå®ç¤¾äº¤å¹³å°ã\nå¯åæ¶è¾åºå¤ä¸ªè´¦å·åå¸ï¼å®æ¹ãç²ä¸ãè·¯äººç­ï¼ï¼è¯è®ºåªä¿çæç²¾åçå æ¡ï¼æ¯å¸ä¸è¶è¿7æ¡ï¼ã\nåå¤äººæ°é¡» â¥ ååºçè¯è®ºæ¡æ°ãtag æ°éä¸æªè¾è´´ååå¸èæ§æ ¼ã\néè¦æ¶éå¸¦ <trends> ç­æï¼å¯åæ¶å¤ä¸ªè¶å¿ãè¶å¿å¸æéåä½ä¸ºãä¸ãã\nåä¸è¶å¿åå¨åç»­åååæ¬¡åºç°æ¶ï¼åç«¯ä¼ç´¯å å¸æéï¼è¿½å ï¼ï¼ä¸è¦æææ¹åè§é¿ã\n\n[ è¾åºæ ¼å¼ ]\n<twitter_message>\n    <twitter_account>\n        è´¦å·åç§°|è´¦å·ID|å°æ¶:åé|æ¥çäººæ°\n        <twitter_context>æ­£æ</twitter_context>\n        <twitter_tag>#tag |è½¬æ¨äººæ°|åæ¬¢äººæ°|åå¤äººæ°</twitter_tag>\n        è¯è®ºè´¦å·|è¯è®ºè´¦å·ID|è¯è®º\n    </twitter_account>\n    <trends>\n        <è¶å¿å|è¶å¿è´´æ>\n    </trends>\n</twitter_message>\n\nexample:\n<twitter_message>\n    <twitter_account>\n        Larimar|larimar_official|16:20|12k\n        <twitter_context>æç»ç»æï½åå­æç¹åï¼ä½ä»å¤©å¯æ­é£æ®µæå°æè§äºï¼å¶ä½äººå¬äºä¼ä¸ä¼å¤¸æï¼ ð</twitter_context>\n        <twitter_tag>#æç»æ¥å¸¸ #æ°æ²å¶ä½ä¸­ #æµ·çº¹ç³è |126|892|48</twitter_tag>\n        æµ·çº¹ç³æ¶èå®¶|larimar_fan01|å¤¸ï¼ï¼å¯æ­é£æ®µççä¼åæ²å¾ªç¯ï¼\n        å°å¤|natsu_live|å¤©éèå¸è¯·æ¶ä¸æçèçï¼ä¸æ¯\n    </twitter_account>\n    <trends>\n        <#æµ·çº¹ç³è|1.2>\n        <#ä»ælivehouse|0.54>\n    </trends>\n</twitter_message>\n\n[æ¬ååé©å­]\n{{hook}}\n\nç´æ¥è¾åº <twitter_message>ï¼",
-      "agency": "[事务所 App · 说明]\n界面读取 stat_data 名气字段，不调用 LLM。\n\n变量：\n- 名气.twitter：Twitter/X 粉丝数（整数）\n- 名气.同接：最近直播同接（整数）\n- 名气.专辑：已发行专辑名数组，按顺序，如 [\"AOI\",\"123\",\"456\"]\n- 名气.Live：[场数, 最新一次参加人数]，如 [3,350]\n\n更新示例：\n_.add('stat_data.名气.twitter', 120)\n_.set('stat_data.名气.同接', 256)\n_.set('stat_data.名气.Live', [3, 350])\n_.set('stat_data.名气.专辑', ['AOI','123','456'])\n\n本栏仅作设定备忘，不会作为钩子提示词发送。\n",
-      "twitch": "[ Twitch ç´æ­çæ®µçæ]\næ ¹æ®æ¬ååé©å­ï¼çæå¤©éï¼Larimarï¼çä¸åºç­ç´æ­åçãé£æ ¼è´´è¿çå®å¼¹å¹ç´æ­ï¼è§ä¼åæ§½ãå¤©éç´çååºãå¶å° SCã\nå½ååæ°é¶æ®µï¼{{stage}}\nå½¢å¼éå¸¸ä¸ºãæè°ãæãå±æ­ãï¼èæ¯ä¼åãå®¿èãæãå½é³å®¤ãã\nå¤©éè¡¨æåå¿é¡»æ¥èªç«ç»è¡¨ï¼å¦ å¾®ç¬/å¾æ/ä¿ç®/ææç¼/åè/ä¸æ»¡/å®³ç¾â¦ï¼ç©¿å©çº±æ¶ç¨ å©çº±* åç¼ï¼ã\n\n[ è¾åºæ ¼å¼ ]\n<twitch_message>\n    <live|å½¢å¼|èæ¯|æ é¢>\n    <dm|è§ä¼ID|å¼¹å¹åå®¹>\n    <å¤©é|è¡¨æ|ãå°è¯ã>\n    <æç½|éå¤´æç½ï¼å¯éï¼>\n    <sc|è§ä¼ID|éé¢|éç®çè¨>\n</twitch_message>\n\nè§åï¼\n- åªè¾åº <twitch_message>ï¼ä¸è¦è§£é\n- æ»æ¨¡åçº¦ 10ï½18 æ¡ï¼å¼¹å¹ä¸å¤©éå°è¯äº¤éï¼å¼¹å¹å¯è¿åæ°æ¡åæ¥ä¸å¥å¤©é\n- è§ä¼ ID åçå®ç½åï¼å¼¹å¹å£è¯­ãç­å¥\n- SC éé¢åªç¨ 30/50/100/500/1000/2000\n- åå®¹ç´§æ£é©å­ï¼å¯è½»åº¦æå°å¶ä½äººï¼ä½ä¸è¦å§å®¾å¤ºä¸»\n\nexample:\n<twitch_message>\n    <live|æè°|å®¿è|æ·±å¤å°çµå°>\n    <dm|æ æª¬æ±½æ°´ä¸å å°|pæ¡æµåº¦é¢è­¦>\n    <dm|ç¬¬ä¸æçä½ç½®æ¯æç|å¥¹æ¯æ¬¡æå°å¶ä½äººè¡¨æé½ä¸ä¸æ ·>\n    <å¤©é|å¾®ç¬|ãä»ççå¾åå®³çãã>\n    <dm|å°å°å°|ç¨å¾®>\n    <dm|æ æª¬æ±½æ°´ä¸å å°|ä»¥å¤©éçæ§æ ¼ï¼ç¨å¾®=å¹äºåå°æ¶>\n    <å¤©é|å¾æ|ãä½ ä»¬ä¸è¦ç¬å¦ï¼æè¯´ççï¼ã>\n    <sc|æµ·çº¹ç³æ¶èå®¶|100|å æ²¹ Larimarï¼>\n</twitch_message>\n\n[æ¬ååé©å­]\n{{hook}}\n\nç´æ¥è¾åº <twitch_message>ï¼"
-    },
-    "agency": "[事务所 App · 说明]\n界面读取 stat_data 名气字段，不调用 LLM。\n\n变量：\n- 名气.twitter：Twitter/X 粉丝数（整数）\n- 名气.同接：最近直播同接（整数）\n- 名气.专辑：每条 [专辑名称, 首发销量]；新专辑用 _.append 追加\n- 名气.Live：每条 [Live 地点, 参加人数]；新现场用 _.append 追加\n\n更新示例：\n_.add('stat_data.名气.twitter', 120)\n_.set('stat_data.名气.同接', 256)\n_.append('stat_data.名气.Live', ['渋谷 CLUB QUATTRO', 350])\n_.append('stat_data.名气.专辑', ['AOI', 1200])\n\n本栏仅作设定备忘，不会作为钩子提示词发送。\n"
+      "line": "[ LINE 私聊回复]\n你现在是天青，在 LINE 上回复制作人（{{user}}）的私聊。天青是透明直球、心口如一的偶像，喜欢直接表达。\n\n[ 回复格式 ]文字和表情包可以混合使用，但一行只允许存在一种形式：\n  - 文字：直接写出口语化的短信内容（不要动作/旁白/括号/markdown），但注意不可过于繁琐和过于跳跃性的在多个话题来回跳跃\n  - 表情包：在单独一行启用，包含以下字段: 不知道、不行、举白旗、从墙边探头、从纸箱里探头、低落、叹气、害怕或哭泣、少女祈祷中、开心、得意、思考、点赞、生气、疑问\n  - 格式统一为：<天青|回复|小时:分钟>\n  - 表情为慎重使用的文化符号，切勿隔一行使用一个，正常一段对话只可使用1-2次\n  - 控制每次回复的信息为6句以内（不含表情）\n\n  example:\n    <line_message>\n        <天青|普~罗~丢~色~|17:20>\n        <天青|生气|17:20> #此处的生气调用生气表情包\n        <天青|为什么不回我！|17:21>\n    </line_message>\n\n[最近的对话]\n{{line_recent_message}}\n\n直接输出天青的回复：",
+      "twitter": "[ Twitter / X 动态生成]\n根据本回合钩子，生成与天青（Larimar）相关的 Twitter/X 内容，风格贴近真实社交平台。\n当前 Larimar 粉丝约 {{twitter}}，互动必须匹配这个数字。\n可同时输出多个账号发帖（官方、粉丝、路人等），评论只保留最精华的几条（每帖不超过 5 条）。\n回复人数须 ≥ 列出的评论条数。tag 数量与措辞贴合发帖者性格。\n趋势允许使用同一名称作为热度追加。\n\n[ 输出格式 ]\n<twitter_message>\n    <twitter_account>\n        账号名称|账号ID|小时:分钟|查看人数\n        <twitter_context>正文</twitter_context>\n        <twitter_tag>#tag |转推人数|喜欢人数|回复人数</twitter_tag>\n        评论账号|评论账号ID|评论\n    </twitter_account>\n    <trends>\n        <趋势名|趋势贴文>\n    </trends>\n</twitter_message>\n\nexample:\n<twitter_message>\n    <twitter_account>\n        Larimar|larimar_official|16:20|280\n        <twitter_context>排练结束～嗓子有点哑，但今天副歌那段抓到感觉了！制作人听了会不会夸我？ 💙</twitter_context>\n        <twitter_tag>#排练日常 #新曲制作中 |6|28|5</twitter_tag>\n        海纹石收藏家|larimar_fan01|夸！！副歌那段真的会单曲循环！\n        小夏|natsu_live|天青老师请收下我的膝盖（不是\n    </twitter_account>\n    <trends>\n        <#海纹石蓝|0.02>\n        <#今晚livehouse|0.05>\n    </trends>\n</twitter_message>\n\n[本回合钩子]\n{{hook}}\n\n直接输出 <twitter_message>：",
+      "agency": "[事务所 App · 说明]\n界面读取 stat_data 名气字段，不调用 LLM。\n\n变量：\n- 名气.twitter：Twitter/X 粉丝数（整数）\n- 名气.同接：最近直播同接（整数）\n- 名气.专辑：每条 [专辑名称, 首发销量]；新专辑用 _.append 追加\n- 名气.Live：每条 [Live 地点, 参加人数]；新现场用 _.append 追加\n\n更新示例：\n_.add('stat_data.名气.twitter', 120)\n_.set('stat_data.名气.同接', 256)\n_.append('stat_data.名气.Live', ['渋谷 CLUB QUATTRO', 350])\n_.append('stat_data.名气.专辑', ['AOI', 1200])\n\n本栏仅作设定备忘，不会作为钩子提示词发送。\n",
+      "twitch": "[ Twitch 直播片段生成]\n根据本回合钩子，生成天青（Larimar）的一场短直播切片。风格贴近真实弹幕直播：观众吐槽、天青直球回应、偶尔 SC。\n当前名气数据：{{twitter}} 粉丝 · 同接 {{同接}}\n形式通常为「杂谈」或「唱歌」；背景优先「宿舍」或「录音室」。\n天青表情名必须来自立绘表（如 微笑/得意/俏皮/星星眼/卖萌/不满/害羞…；穿婚纱时用 婚纱* 前缀）。\n\n[ 输出格式 ]\n<twitch_message>\n    <live|形式|背景|标题>\n    <dm|观众ID|弹幕内容>\n    <天青|表情|「台词」>\n    <旁白|镜头旁白（可选）>\n    <sc|观众ID|金额|醒目留言>\n</twitch_message>\n\n规则：\n- 只输出 <twitch_message>，不要解释\n- 总模块约 10～18 条；弹幕与天青台词交错，弹幕可连发数条再接一句天青\n- 观众 ID 像真实网名；弹幕口语、短句\n- SC 金额只用 30/50/100/500/1000/2000\n- 内容紧扣钩子，可轻度提到制作人，但不要喧宾夺主\n\nexample:\n<twitch_message>\n    <live|杂谈|宿舍|深夜小电台>\n    <dm|柠檬汽水不加冰|p桑浓度预警>\n    <dm|第一排的位置是我的|她每次提到制作人表情都不一样>\n    <天青|微笑|「他真的很厉害的。」>\n    <dm|困困困|稍微>\n    <dm|柠檬汽水不加冰|以天青的性格，稍微=吹了半小时>\n    <天青|得意|「你们不要笑啦，我说真的！」>\n    <sc|海纹石收藏家|100|加油 Larimar！>\n</twitch_message>\n\n[本回合钩子]\n{{hook}}\n\n直接输出 <twitch_message>："
+    }
   },
   "api": {
     "mode": "direct",
-    "baseUrl": "https://api.tokenfactory.nebius.com/v1",
+    "baseUrl": "",
     "temperature": 1,
     "maxTokens": 4096,
     "contextLength": 1999872,
@@ -500,8 +485,8 @@
     "presencePenalty": 0,
     "topP": 0.99,
     "reasoningEffort": "xhigh",
-    "chatPath": "https://api.tokenfactory.nebius.com/v1/chat/completions",
-    "modelsPath": "https://api.tokenfactory.nebius.com/v1/models",
+    "chatPath": "",
+    "modelsPath": "",
     "resolvedMode": "direct",
     "stream": false,
     "streamDisplay": false,

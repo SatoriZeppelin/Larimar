@@ -251,6 +251,7 @@
       var messages = window.天青_prompt_builder.buildLineChatMessages({
         linePrompt: filled,
         scanText: filled,
+        chatId: chatId,
       });
       console.info('[LINE] 调用 LLM · messages=', messages.length);
       var raw = await window.天青_api.chat({ messages: messages });
@@ -290,7 +291,7 @@
 
   /**
    * 主线 <summernight_hook><line|…> 触发
-   * 组装：预设 + 主线最近 1 轮 + 系统设置-手机-LINE 提示词（含钩子）
+   * 组装：预设 + 手机上下文 + 系统设置-手机-LINE 提示词（含钩子）
    * @param {string} chatId
    * @param {string} hookText
    */
@@ -343,6 +344,7 @@
     try {
       var messages = window.天青_prompt_builder.buildLineHookChatMessages({
         linePrompt: filled,
+        chatId: chatId,
       });
       console.info('[LINE] 钩子调用 LLM · messages=', messages.length, '· hook=', hookText.slice(0, 80));
       var raw = await window.天青_api.chat({ messages: messages });

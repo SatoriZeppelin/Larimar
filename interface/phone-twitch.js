@@ -1099,6 +1099,48 @@
     return unread ? 1 : 0;
   }
 
+  function formatModuleLine(mod) {
+    if (!mod) return '';
+    if (mod.type === 'dm') {
+      return '弹幕 ' + String(mod.who || '观众') + '：' + String(mod.text || '').trim();
+    }
+    if (mod.type === 'sc') {
+      return (
+        'SC ' +
+        String(mod.who || '观众') +
+        ' ¥' +
+        (mod.yen || 0) +
+        '：' +
+        String(mod.text || '').trim()
+      );
+    }
+    if (mod.type === 'line') {
+      var who = String(mod.who || '天青');
+      var expr = mod.expr && mod.expr !== '-' ? '（' + mod.expr + '）' : '';
+      return who + expr + '：' + String(mod.text || '').trim();
+    }
+    return String(mod.text || '').trim();
+  }
+
+  /** 给 LINE / 钩子用：最近一次直播的全部文段 */
+  function formatLastLiveForPrompt() {
+    var store = loadLiveStore();
+    var entries = store.entries || [];
+    var data = entries.length ? entries[entries.length - 1].data : null;
+    if (!data && session) data = session;
+    if (!data) return '';
+    var lines = [];
+    var title = streamTitle(data);
+    var form = data.form || '';
+    var bg = data.bg || '';
+    lines.push('标题：' + title + (form ? ' · ' + form : '') + (bg ? ' · ' + bg : ''));
+    (data.modules || []).forEach(function (mod) {
+      var line = formatModuleLine(mod);
+      if (line) lines.push(line);
+    });
+    return lines.join('\n');
+  }
+
   window.天青_phone_twitch = {
     sheetHtml: sheetHtml,
     onOpen: onOpen,
@@ -1107,6 +1149,7 @@
     getLiveSession: getLiveSession,
     markUnread: markUnread,
     getUnreadCount: getUnreadCount,
+    formatLastLiveForPrompt: formatLastLiveForPrompt,
     trimToMainMsgIndex: trimToMainMsgIndex,
     resetToInitial: resetToInitial,
     getCurrentMainAsstIndex: getCurrentMainAsstIndex,

@@ -143,40 +143,24 @@
   }
 
   function renderAlbumsCard(albums) {
+    if (!albums.length) return '';
     var head =
       '<div class="tq-agency__card-head">' +
-      '<span class="tq-agency__label">专辑首发销量</span>' +
+      '<span class="tq-agency__label">作品</span>' +
       '<span class="tq-agency__badge">' +
-      esc(albums.length ? albums.length + ' 张' : '暂无') +
+      esc(albums.length + ' 张') +
       '</span></div>';
-
-    if (!albums.length) {
-      return (
-        '<div class="tq-agency__card">' +
-        head +
-        '<div class="tq-agency__empty">尚未发行专辑。<br>每条 [专辑名称, 首发销量]；AI 用 _.append 追加新专辑。</div></div>'
-      );
-    }
-
     return '<div class="tq-agency__card">' + head + renderRecordList(albums, 'album') + '</div>';
   }
 
   function renderLiveCard(shows) {
+    if (!shows.length) return '';
     var head =
       '<div class="tq-agency__card-head">' +
-      '<span class="tq-agency__label">Live人数</span>' +
+      '<span class="tq-agency__label">Live</span>' +
       '<span class="tq-agency__badge">' +
-      esc(shows.length ? shows.length + ' 场' : '暂无') +
+      esc(shows.length + ' 场') +
       '</span></div>';
-
-    if (!shows.length) {
-      return (
-        '<div class="tq-agency__card">' +
-        head +
-        '<div class="tq-agency__empty">尚未举办现场演出。<br>每条 [Live 地点, 参加人数]；AI 用 _.append 追加新现场。</div></div>'
-      );
-    }
-
     return (
       '<div class="tq-agency__card tq-agency__card--live">' +
       head +

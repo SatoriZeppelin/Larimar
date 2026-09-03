@@ -104,6 +104,8 @@
         _.set('stat_data.时间.具体时间', [16, 0])
         _.set('stat_data.时间.星期', '一')
         _.set('stat_data.地点', '校园')
+        _.set('stat_data.名气.专辑', [])
+        _.set('stat_data.名气.Live', [])
         </summernight_variables>
     </UpdateVariable>
 </summernight>`;
@@ -178,6 +180,8 @@
         _.set('stat_data.时间.具体时间', [14, 0])
         _.set('stat_data.时间.星期', '二')
         _.set('stat_data.地点', '事务所办公室')
+        _.set('stat_data.名气.专辑', [])
+        _.set('stat_data.名气.Live', [])
         </summernight_variables>
     </UpdateVariable>
 </summernight>`;
@@ -330,7 +334,7 @@
   ];
 
   var STORE_KEY = 'tq_plus_openings';
-  var STORE_VERSION = 4;
+  var STORE_VERSION = 5;
   var REMOVED_BUILTIN_IDS = ['opening-4', 'opening-5', 'opening-6', 'opening-7'];
 
   function defaultIdsSet() {

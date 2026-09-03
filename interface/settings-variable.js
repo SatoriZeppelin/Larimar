@@ -10,7 +10,9 @@
   var VIEW_KEY = 'tq_plus_variables_view';
   var SEED_KEY = 'tq_plus_variables_seed';
   var SEED_VER = 'variables-default-v10';
-  var FAME_DEMO_KEY = 'tq_plus_fame_demo_v1';
+  var FAME_EMPTY_KEY = 'tq_plus_fame_empty_opening_v1';
+  var DEMO_ALBUMS_JSON = '[["AOI",3200],["透明な夜",8500]]';
+  var DEMO_LIVES_JSON = '[["下北泽 Shelter",85],["渋谷 CLUB QUATTRO",350],["Zepp Haneda",1200]]';
   var data = {};
   var meta = {}; /* pathKey -> { varName, comment } */
   var view = 'json';
@@ -379,27 +381,20 @@
         changed = true;
       }
     }
-    if (!localStorage.getItem(FAME_DEMO_KEY)) {
-      var albumsEmpty = !data.名气.专辑 || !data.名气.专辑.length;
-      var liveEmpty = !data.名气.Live || !data.名气.Live.length;
-      if (albumsEmpty || liveEmpty) {
-        var demoAlbums = normalizeFameAlbumList(defFame.专辑);
-        var demoLive = normalizeFameLiveList(defFame.Live);
-        if (albumsEmpty && demoAlbums.length) {
-          data.名气.专辑 = clone(demoAlbums);
-          changed = true;
-        }
-        if (liveEmpty && demoLive.length) {
-          data.名气.Live = clone(demoLive);
-          changed = true;
-        }
-        if (changed) {
-          try {
-            localStorage.setItem(FAME_DEMO_KEY, '1');
-          } catch (e) {}
-          console.info('[天青 变量] 已填入名气示例数据（专辑 / Live）');
-        }
+    if (!localStorage.getItem(FAME_EMPTY_KEY)) {
+      var albumsNow = JSON.stringify(data.名气.专辑 || []);
+      var liveNow = JSON.stringify(data.名气.Live || []);
+      if (albumsNow === DEMO_ALBUMS_JSON) {
+        data.名气.专辑 = [];
+        changed = true;
       }
+      if (liveNow === DEMO_LIVES_JSON) {
+        data.名气.Live = [];
+        changed = true;
+      }
+      try {
+        localStorage.setItem(FAME_EMPTY_KEY, '1');
+      } catch (e) {}
     }
     if (changed) {
       syncAllRegisteredKeys();

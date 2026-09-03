@@ -72,19 +72,38 @@
     var user = resolveUserName();
     var timeLabel = formatGameTimeLabel();
     var hasTimeMacro = /\{\{\s*(time|game_time|line_time)\s*\}\}/i.test(tpl);
+    var fameApi = window.天青_stat_data;
+    var followers = '0';
+    var tongjie = '0';
+    if (fameApi && typeof fameApi.getByPath === 'function') {
+      var f = parseInt(fameApi.getByPath('名气.twitter'), 10);
+      var t = parseInt(fameApi.getByPath('名气.同接'), 10);
+      if (!isNaN(f)) followers = String(f);
+      if (!isNaN(t)) tongjie = String(t);
+    }
     var out = String(tpl)
       .replace(/\{\{\s*user\s*\}\}/g, user)
       .replace(/\{\{\s*hook\s*\}\}/g, hookText)
       .replace(/\{\{\s*(time|game_time|line_time)\s*\}\}/gi, timeLabel)
       .replace(/\{\{\s*recent\s*\}\}/g, '')
-      .replace(/\{\{\s*message\s*\}\}/g, hookText);
+      .replace(/\{\{\s*message\s*\}\}/g, hookText)
+      .replace(/\{\{\s*twitter\s*\}\}/g, followers)
+      .replace(/\{\{\s*同接\s*\}\}/g, tongjie);
     if (hookText && out.indexOf(hookText) < 0 && !/\{\{\s*hook\s*\}\}/.test(tpl)) {
       out = out.trim() + '\n\n[本回合钩子]\n' + hookText;
     }
     if (!hasTimeMacro) {
       out = '[当前游戏时间]\n' + timeLabel + '\n\n' + out.trim();
     }
+    if (opts.extra) {
+      out = out.trim() + '\n\n' + String(opts.extra).trim();
+    }
     return out;
+  }
+
+  /** 自动裁剪 <trends>，避免这次生成改写热搜 */
+  function clipTrendsBlock(raw) {
+    return String(raw == null ? '' : raw).replace(/<trends\b[^>]*>[\s\S]*?(<\/trends>|$)/gi, '');
   }
 
   function avatarSvg(name, color) {
@@ -406,8 +425,12 @@
 
   /**
    * 主线 <summernight_hook><twitter|…> 触发
+   * @param {string} hookText
+   * @param {{ allowTrends?: boolean, extra?: string }} [opts]
    */
-  async function generateFromHook(hookText) {
+  async function generateFromHook(hookText, opts) {
+    opts = opts || {};
+    var allowTrends = opts.allowTrends !== false;
     if (!String(hookText || '').trim()) return null;
     if (generating) {
       console.warn('[Twitter] 正在生成中，跳过钩子');
@@ -434,7 +457,7 @@
       }
     }
 
-    var filled = fillTwitterPrompt({ hook: hookText });
+    var filled = fillTwitterPrompt({ hook: hookText, extra: opts.extra });
     if (!filled) {
       console.warn('[Twitter] 钩子：Twitter 提示词为空');
       return null;
@@ -456,9 +479,10 @@
       if (window.天青_regex && window.天青_regex.applyAiOutput) {
         raw = window.天青_regex.applyAiOutput(raw);
       }
+      if (!allowTrends) raw = clipTrendsBlock(raw);
       var parsed = parseTwitterMessage(raw);
       var tweets = parsed.tweets || [];
-      var trends = parsed.trends || [];
+      var trends = allowTrends ? parsed.trends || [] : [];
       logPhoneAiReply(
         'Twitter 钩子',
         raw,
@@ -474,14 +498,18 @@
         return { raw: raw, tweets: [], trends: [] };
       }
       if (tweets.length) applyTweets(tweets, bindIndex);
-      if (trends.length) applyTrends(trends, bindIndex);
-      toast(
-        tweets.length && trends.length
-          ? 'Twitter 有新动态与热搜'
-          : trends.length
-            ? 'Twitter 热搜已更新'
-            : 'Twitter 有新动态',
-      );
+      if (allowTrends && trends.length) applyTrends(trends, bindIndex);
+      if (!allowTrends) {
+        if (tweets.length) toast('已生成与该趋势相关的推文');
+      } else {
+        toast(
+          tweets.length && trends.length
+            ? 'Twitter 有新动态与热搜'
+            : trends.length
+              ? 'Twitter 热搜已更新'
+              : 'Twitter 有新动态',
+        );
+      }
       return { raw: raw, tweets: tweets, trends: trends };
     } catch (err) {
       console.error('[Twitter] 钩子生成失败', err);
@@ -489,6 +517,44 @@
     } finally {
       generating = false;
     }
+  }
+
+  /** 点击趋势：只生成相关推文，自动裁剪 trends */
+  async function generateFromTrend(trend) {
+    var topic = String((trend && trend.topic) || '').trim();
+    if (!topic) return null;
+    if (generating) {
+      toast('Twitter 正在更新中…');
+      return null;
+    }
+    if (!window.天青_api || !window.天青_api.chat) {
+      toast('请先连接 API');
+      return null;
+    }
+    var cat = String((trend && trend.category) || '').trim();
+    var count = String((trend && trend.count) || '').trim();
+    var hook =
+      '玩家点击了热搜「' +
+      topic +
+      '」' +
+      (cat ? '（' + cat + '）' : '') +
+      (count ? '，当前热度：' + count : '') +
+      '。请生成与该趋势直接相关的推文（官方、粉丝、路人皆可），内容必须紧扣这个话题。';
+    toast('正在加载相关推文');
+    var result = await generateFromHook(hook, {
+      allowTrends: false,
+      extra:
+        '[本次限制]\n禁止输出 <trends>。不要新增或改写任何热搜；前端会自动裁剪趋势块，只保留推文。',
+    });
+    if (!result) {
+      toast('Twitter 生成失败');
+      return null;
+    }
+    if (result.discarded) return result;
+    if (!(result.tweets && result.tweets.length)) {
+      toast('未解析到相关推文，请重试');
+    }
+    return result;
   }
 
   /** 界面右上角刷新：走同一套 LLM 生成 */
@@ -518,7 +584,9 @@
     fillTwitterPrompt: fillTwitterPrompt,
     parseTwitterMessage: parseTwitterMessage,
     parseTrendsBlock: parseTrendsBlock,
+    clipTrendsBlock: clipTrendsBlock,
     generateFromHook: generateFromHook,
+    generateFromTrend: generateFromTrend,
     generateManualRefresh: generateManualRefresh,
     isGenerating: function () {
       return generating;

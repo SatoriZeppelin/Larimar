@@ -348,6 +348,14 @@
   background: var(--tw-hover);
 }
 
+.tq-tw__trend-list.is-busy {
+  pointer-events: none;
+}
+
+.tq-tw__trend.is-busy {
+  opacity: 0.55;
+}
+
 .tq-tw__trend-meta,
 .tq-tw__trend-count {
   font-size: 12px;
@@ -359,6 +367,14 @@
   font-size: 15px;
   font-weight: 700;
   color: var(--tw-text);
+}
+
+.tq-tw__loading {
+  margin: 0;
+  padding: 18px 16px 12px;
+  text-align: center;
+  color: var(--tw-muted);
+  font-size: 13px;
 }
 
 .tq-tw__empty {

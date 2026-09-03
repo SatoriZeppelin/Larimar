@@ -161,6 +161,9 @@
         if (app.id === 'twitch' && window.天青_phone_twitch && window.天青_phone_twitch.sheetHtml) {
           return window.天青_phone_twitch.sheetHtml();
         }
+        if (app.id === 'agency' && window.天青_phone_agency && window.天青_phone_agency.sheetHtml) {
+          return window.天青_phone_agency.sheetHtml();
+        }
         var icon = appsApi.iconHtml(app.id, 'sheet-' + app.id);
         return (
           '<div class="tq-phone__layer tq-phone__sheet" data-app-sheet="' +
@@ -258,6 +261,9 @@
     if (openAppId === 'twitch' && window.天青_phone_twitch && window.天青_phone_twitch.onBack) {
       if (window.天青_phone_twitch.onBack()) return true;
     }
+    if (openAppId === 'agency' && window.天青_phone_agency && window.天青_phone_agency.onBack) {
+      if (window.天青_phone_agency.onBack()) return true;
+    }
     return false;
   }
 
@@ -285,6 +291,9 @@
     }
     if (appId === 'twitch' && window.天青_phone_twitch && window.天青_phone_twitch.onOpen) {
       window.天青_phone_twitch.onOpen();
+    }
+    if (appId === 'agency' && window.天青_phone_agency && window.天青_phone_agency.onOpen) {
+      window.天青_phone_agency.onOpen();
     }
     var bar = $('tq-phone-home-bar');
     if (bar) bar.setAttribute('aria-label', '返回主屏幕');

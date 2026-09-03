@@ -86,13 +86,59 @@
     return '深夜';
   }
 
-  function readFameStage() {
+  function readFameStat(path, fallback) {
     var api = window.天青_stat_data;
     if (api && api.getByPath) {
-      var s = api.getByPath('名气.阶段');
-      if (s) return String(s);
+      var v = api.getByPath(path);
+      if (v !== undefined && v !== null && v !== '') return v;
     }
-    return '地下偶像期';
+    return fallback;
+  }
+
+  function readFameSummary() {
+    var twitter = readFameStat('名气.twitter', 0);
+    var tongjie = readFameStat('名气.同接', 0);
+    var albums = readFameStat('名气.专辑', []);
+    var live = readFameStat('名气.Live', []);
+    var agency = window.天青_phone_agency;
+    var normAlbums =
+      agency && typeof agency.normalizeAlbumList === 'function'
+        ? agency.normalizeAlbumList(albums)
+        : albums;
+    var normLive =
+      agency && typeof agency.normalizeLiveList === 'function'
+        ? agency.normalizeLiveList(live)
+        : live;
+    var albumText =
+      Array.isArray(normAlbums) && normAlbums.length
+        ? normAlbums
+            .map(function (row) {
+              var sales = parseInt(row[1], 10) || 0;
+              return row[0] + (sales ? '（首发 ' + sales + '）' : '');
+            })
+            .join('、')
+        : '暂无';
+    var liveText = '暂无';
+    if (Array.isArray(normLive) && normLive.length) {
+      var last = normLive[normLive.length - 1];
+      liveText =
+        normLive.length +
+        ' 场（最近 ' +
+        String(last[0] || '—') +
+        ' ' +
+        (parseInt(last[1], 10) || 0) +
+        ' 人）';
+    }
+    return (
+      'Twitter 粉丝 ' +
+      twitter +
+      '，直播同接 ' +
+      tongjie +
+      '，已发行专辑 ' +
+      albumText +
+      '，Live ' +
+      liveText
+    );
   }
 
   function fillTwitchPrompt(opts) {
@@ -114,7 +160,9 @@
       .replace(/\{\{\s*(time|game_time|line_time)\s*\}\}/gi, timeLabel)
       .replace(/\{\{\s*recent\s*\}\}/g, '')
       .replace(/\{\{\s*message\s*\}\}/g, hookText)
-      .replace(/\{\{\s*stage\s*\}\}/g, readFameStage());
+      .replace(/\{\{\s*stage\s*\}\}/g, readFameSummary())
+      .replace(/\{\{\s*twitter\s*\}\}/g, String(readFameStat('名气.twitter', 0)))
+      .replace(/\{\{\s*同接\s*\}\}/g, String(readFameStat('名气.同接', 0)));
     if (hookText && out.indexOf(hookText) < 0 && !/\{\{\s*hook\s*\}\}/.test(tpl)) {
       out = out.trim() + '\n\n[本回合钩子]\n' + hookText;
     }
@@ -145,7 +193,6 @@
       form: '杂谈',
       bg: '宿舍',
       title: '',
-      stage: readFameStage(),
       band: hourToBand(readGameParts().h),
       expr: '微笑',
       modules: [],

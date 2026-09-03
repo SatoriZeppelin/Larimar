@@ -17,9 +17,9 @@
   var LINE_PROMPT_VER_KEY = 'tq_plus_phone_prompt_line_ver';
   var TWITTER_PROMPT_VER = 4;
   var TWITTER_PROMPT_VER_KEY = 'tq_plus_phone_prompt_twitter_ver';
-  var AGENCY_PROMPT_VER = 1;
+  var AGENCY_PROMPT_VER = 7;
   var AGENCY_PROMPT_VER_KEY = 'tq_plus_phone_prompt_agency_ver';
-  var TWITCH_PROMPT_VER = 2;
+  var TWITCH_PROMPT_VER = 3;
   var TWITCH_PROMPT_VER_KEY = 'tq_plus_phone_prompt_twitch_ver';
 
   var DEFAULT_PROMPTS = {
@@ -86,12 +86,26 @@
       '\n' +
       '直接输出 <twitter_message>：',
     agency:
-      '[独立任务 · 事务所界面，忽略之前的角色扮演格式]\n' +
-      '（在此编写事务所相关生成提示词。可用占位符：{{user}} 等）\n',
+      '[事务所 App · 说明]\n' +
+      '界面读取 stat_data 名气字段，不调用 LLM。\n' +
+      '\n' +
+      '变量：\n' +
+      '- 名气.twitter：Twitter/X 粉丝数（整数）\n' +
+      '- 名气.同接：最近直播同接（整数）\n' +
+      '- 名气.专辑：每条 [专辑名称, 首发销量]；新专辑用 _.append 追加\n' +
+      '- 名气.Live：每条 [Live 地点, 参加人数]；新现场用 _.append 追加\n' +
+      '\n' +
+      '更新示例：\n' +
+      "_.add('stat_data.名气.twitter', 120)\n" +
+      "_.set('stat_data.名气.同接', 256)\n" +
+      "_.append('stat_data.名气.Live', ['渋谷 CLUB QUATTRO', 350])\n" +
+      "_.append('stat_data.名气.专辑', ['AOI', 1200])\n" +
+      '\n' +
+      '本栏仅作设定备忘，不会作为钩子提示词发送。\n',
     twitch:
       '[ Twitch 直播片段生成]\n' +
       '根据本回合钩子，生成天青（Larimar）的一场短直播切片。风格贴近真实弹幕直播：观众吐槽、天青直球回应、偶尔 SC。\n' +
-      '当前名气阶段：{{stage}}\n' +
+      '当前名气数据：{{twitter}} 粉丝 · 同接 {{同接}}\n' +
       '形式通常为「杂谈」或「唱歌」；背景优先「宿舍」或「录音室」。\n' +
       '天青表情名必须来自立绘表（如 微笑/得意/俏皮/星星眼/卖萌/不满/害羞…；穿婚纱时用 婚纱* 前缀）。\n' +
       '\n' +

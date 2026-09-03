@@ -1,0 +1,195 @@
+/* 事务所 · 名气变量仪表盘 */
+
+.tq-agency-sheet {
+  background: #eef3f5;
+  color: #22333f;
+}
+
+.tq-agency {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  font-family: inherit;
+}
+
+.tq-agency__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 14px 88px;
+}
+
+.tq-agency__hero {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  aspect-ratio: 16 / 10;
+  background: #dfe9ec;
+  box-shadow: 0 8px 24px rgba(34, 51, 63, 0.12);
+}
+
+.tq-agency__hero::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 46%;
+  background: linear-gradient(to top, rgba(15, 28, 36, 0.62), transparent);
+  pointer-events: none;
+}
+
+.tq-agency__hero-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center 20%;
+}
+
+.tq-agency__hero--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #059669 0%, #34d399 100%);
+  color: #fff;
+}
+
+.tq-agency__hero--fallback::after {
+  display: none;
+}
+
+.tq-agency__hero-title {
+  position: absolute;
+  left: 14px;
+  bottom: 12px;
+  z-index: 1;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.tq-agency__stats {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.tq-agency__stat {
+  flex: 1;
+  background: #fff;
+  border: 1px solid #e3ebee;
+  border-radius: 14px;
+  padding: 12px 10px 10px;
+  text-align: center;
+}
+
+.tq-agency__stat-k {
+  font-size: 11px;
+  color: #8a99a3;
+  margin-bottom: 4px;
+  line-height: 1.35;
+}
+
+.tq-agency__stat-v {
+  font-size: 17px;
+  font-weight: 800;
+  color: #22333f;
+  line-height: 1.3;
+}
+
+.tq-agency__card {
+  background: #fff;
+  border: 1px solid #e3ebee;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.tq-agency__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.tq-agency__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8a99a3;
+  letter-spacing: 0.08em;
+}
+
+.tq-agency__badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #268ba0;
+  background: rgba(58, 168, 189, 0.12);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+.tq-agency__empty {
+  font-size: 12px;
+  color: #9fb0b8;
+  line-height: 1.65;
+  padding: 8px 2px 2px;
+}
+
+.tq-agency__records {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tq-agency__record {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #22333f;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: #f4f8fa;
+  border: 1px solid #e3ebee;
+}
+
+.tq-agency__record-idx {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: rgba(58, 168, 189, 0.15);
+  color: #268ba0;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tq-agency__record-main {
+  font-weight: 600;
+  line-height: 1.35;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.tq-agency__record-sub {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #268ba0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.tq-agency__card--live {
+  border-color: rgba(58, 168, 189, 0.35);
+}

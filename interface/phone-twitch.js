@@ -146,21 +146,28 @@
     return String(n);
   }
 
-  function viewersOf(data, progress) {
-    var st = STAGE_BAND[readFameStage(data)] || STAGE_BAND['地下偶像期'];
-    var s = String((data && data.form) || '') + String((data && data.bg) || '') + String((data && data.title) || '');
-    var lo = st.v[0] + (hash(s + 'v', Math.max(1, (st.v[1] - st.v[0]) >> 1)) || 0);
-    var p = typeof progress === 'number' ? progress : 0.55;
-    return Math.round(lo + (st.peak - lo) * 0.55 * p);
-  }
-
-  function readFameStage(data) {
+  function readTongjie() {
     var api = window.天青_stat_data;
     if (api && api.getByPath) {
-      var s = api.getByPath('名气.阶段');
-      if (s) return String(s);
+      var n = parseInt(api.getByPath('名气.同接'), 10);
+      if (!isNaN(n) && n > 0) return n;
     }
-    return (data && data.stage) || (session && session.stage) || '地下偶像期';
+    return 0;
+  }
+
+  function viewersOf(data, progress) {
+    var base = readTongjie();
+    if (base > 0) {
+      var p = typeof progress === 'number' ? progress : 0.55;
+      var s = String((data && data.form) || '') + String((data && data.bg) || '') + String((data && data.title) || '');
+      var jitter = hash(s + 'v', Math.max(1, Math.round(base * 0.08))) - Math.round(base * 0.04);
+      return Math.max(1, Math.round(base * (0.82 + 0.28 * p) + jitter));
+    }
+    var st = STAGE_BAND['地下偶像期'];
+    var s2 = String((data && data.form) || '') + String((data && data.bg) || '') + String((data && data.title) || '');
+    var lo = st.v[0] + (hash(s2 + 'v', Math.max(1, (st.v[1] - st.v[0]) >> 1)) || 0);
+    var p2 = typeof progress === 'number' ? progress : 0.55;
+    return Math.round(lo + (st.peak - lo) * 0.55 * p2);
   }
 
   function resolveBgUrl(place, band) {

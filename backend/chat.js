@@ -102,6 +102,9 @@
     var data = window.天青_parse.parseGal(raw);
     logAiReply(raw, data, { source: '主线' });
 
+    if (data && data.variablesRaw && window.天青_variable_commands) {
+      window.天青_variable_commands.applyRaw(data.variablesRaw);
+    }
     if (window.天青_phone_twitter && typeof window.天青_phone_twitter.decayTrendsForMainLine === 'function') {
       window.天青_phone_twitter.decayTrendsForMainLine();
     }

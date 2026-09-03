@@ -9,7 +9,8 @@
   var KEY = 'tq_plus_variables';
   var VIEW_KEY = 'tq_plus_variables_view';
   var SEED_KEY = 'tq_plus_variables_seed';
-  var SEED_VER = 'variables-default-v5';
+  var SEED_VER = 'variables-default-v10';
+  var FAME_DEMO_KEY = 'tq_plus_fame_demo_v1';
   var data = {};
   var meta = {}; /* pathKey -> { varName, comment } */
   var view = 'json';
@@ -262,6 +263,150 @@
     } catch (e) {}
     console.info('[天青 变量] 已载入默认基础变量');
     return true;
+  }
+
+  /** 旧 [场数, 人数] / 字符串列表 → 新分组数组 */
+  function normalizeFameLiveList(raw) {
+    if (!Array.isArray(raw)) {
+      if (typeof raw === 'number' && !isNaN(raw) && raw > 0) return [];
+      return [];
+    }
+    if (
+      raw.length === 2 &&
+      !Array.isArray(raw[0]) &&
+      typeof raw[0] === 'number' &&
+      typeof raw[1] === 'number'
+    ) {
+      var audience = parseInt(raw[1], 10) || 0;
+      return audience > 0 ? [['', audience]] : [];
+    }
+    var out = [];
+    raw.forEach(function (item) {
+      if (!Array.isArray(item) || item.length < 2) return;
+      var place = String(item[0] == null ? '' : item[0]).trim();
+      var count = parseInt(item[1], 10) || 0;
+      if (!place && !count) return;
+      out.push([place, count]);
+    });
+    return out;
+  }
+
+  function normalizeFameAlbumList(raw) {
+    if (!Array.isArray(raw)) return [];
+    if (raw.length && !Array.isArray(raw[0])) {
+      return raw
+        .map(function (name) {
+          var n = String(name == null ? '' : name).trim();
+          return n ? [n, 0] : null;
+        })
+        .filter(Boolean);
+    }
+    var out = [];
+    raw.forEach(function (item) {
+      if (!Array.isArray(item) || item.length < 2) return;
+      var name = String(item[0] == null ? '' : item[0]).trim();
+      var sales = parseInt(item[1], 10) || 0;
+      if (!name) return;
+      out.push([name, sales]);
+    });
+    return out;
+  }
+
+  /** 为已有存档补齐 名气 新字段（不覆盖已有值） */
+  function migrateFameFields() {
+    var defaults = loadDefaultVariables();
+    if (!defaults || !defaults.名气 || typeof defaults.名气 !== 'object') return false;
+    if (!data.名气 || typeof data.名气 !== 'object' || Array.isArray(data.名气)) {
+      data.名气 = clone(defaults.名气);
+      syncAllRegisteredKeys();
+      saveLocal();
+      return true;
+    }
+    var defFame = defaults.名气;
+    var defMeta = loadDefaultVariablesPackage();
+    defMeta = defMeta && defMeta.meta ? defMeta.meta : {};
+    var changed = false;
+    Object.keys(defFame).forEach(function (k) {
+      if (data.名气[k] === undefined) {
+        data.名气[k] = clone(defFame[k]);
+        changed = true;
+      }
+    });
+    Object.keys(defMeta).forEach(function (k) {
+      if (k.indexOf('名气\u0000') !== 0) return;
+      if (!meta[k] || (!meta[k].varName && !meta[k].comment)) {
+        meta[k] = clone(defMeta[k]);
+        changed = true;
+      }
+    });
+    if (data.名气.阶段 !== undefined) {
+      delete data.名气.阶段;
+      changed = true;
+    }
+    if (meta['名气\u0000阶段']) {
+      delete meta['名气\u0000阶段'];
+      changed = true;
+    }
+    var live = data.名气.Live;
+    var albums = data.名气.专辑;
+    var normalizedLive = normalizeFameLiveList(live);
+    var normalizedAlbums = normalizeFameAlbumList(albums);
+    if (JSON.stringify(live) !== JSON.stringify(normalizedLive)) {
+      data.名气.Live = normalizedLive;
+      changed = true;
+    }
+    if (JSON.stringify(albums) !== JSON.stringify(normalizedAlbums)) {
+      data.名气.专辑 = normalizedAlbums;
+      changed = true;
+    }
+    if (meta['名气\u0000Live']) {
+      var liveComment = meta['名气\u0000Live'].comment || '';
+      if (liveComment.indexOf('地点') < 0 || liveComment.indexOf('append') < 0) {
+        meta['名气\u0000Live'] = clone(defMeta['名气\u0000Live'] || {
+          varName: '名气.Live',
+          comment: '每条 [地点, 参加人数]；新现场用 _.append(\'stat_data.名气.Live\', ["地点", 人数]) 追加',
+        });
+        changed = true;
+      }
+    }
+    if (meta['名气\u0000专辑']) {
+      var albumComment = meta['名气\u0000专辑'].comment || '';
+      if (albumComment.indexOf('首发销量') < 0 || albumComment.indexOf('append') < 0) {
+        meta['名气\u0000专辑'] = clone(defMeta['名气\u0000专辑'] || {
+          varName: '名气.专辑',
+          comment: '每条 [专辑名称, 首发销量]；新专辑用 _.append(\'stat_data.名气.专辑\', ["名称", 销量]) 追加',
+        });
+        changed = true;
+      }
+    }
+    if (!localStorage.getItem(FAME_DEMO_KEY)) {
+      var albumsEmpty = !data.名气.专辑 || !data.名气.专辑.length;
+      var liveEmpty = !data.名气.Live || !data.名气.Live.length;
+      if (albumsEmpty || liveEmpty) {
+        var demoAlbums = normalizeFameAlbumList(defFame.专辑);
+        var demoLive = normalizeFameLiveList(defFame.Live);
+        if (albumsEmpty && demoAlbums.length) {
+          data.名气.专辑 = clone(demoAlbums);
+          changed = true;
+        }
+        if (liveEmpty && demoLive.length) {
+          data.名气.Live = clone(demoLive);
+          changed = true;
+        }
+        if (changed) {
+          try {
+            localStorage.setItem(FAME_DEMO_KEY, '1');
+          } catch (e) {}
+          console.info('[天青 变量] 已填入名气示例数据（专辑 / Live）');
+        }
+      }
+    }
+    if (changed) {
+      syncAllRegisteredKeys();
+      saveLocal();
+      console.info('[天青 变量] 已补齐名气新字段');
+    }
+    return changed;
   }
 
   /** 同步文本区 + 本地持久化 */
@@ -905,9 +1050,11 @@
   }
 
   function clearDropMarks() {
-    document.querySelectorAll('.var-tree-row.is-drop-into, .var-tree-row.is-drop-before, .var-tree-row.is-drop-after').forEach(function (el) {
-      el.classList.remove('is-drop-into', 'is-drop-before', 'is-drop-after');
-    });
+    document
+      .querySelectorAll('.var-tree-row.is-drop-into, .var-tree-row.is-drop-before, .var-tree-row.is-drop-after')
+      .forEach(function (el) {
+        el.classList.remove('is-drop-into', 'is-drop-before', 'is-drop-after');
+      });
     var root = $('var-tree');
     if (root) root.classList.remove('is-drop-root');
   }
@@ -1101,7 +1248,10 @@
       if (d === depth - 1) {
         guideHtml += '<span class="var-guide-elbow">' + (isLast ? '└──' : '├──') + '</span>';
       } else {
-        guideHtml += '<span class="var-guide-rail">' + (ancestorLast[d] ? '&nbsp;&nbsp;&nbsp;&nbsp;' : '│&nbsp;&nbsp;&nbsp;') + '</span>';
+        guideHtml +=
+          '<span class="var-guide-rail">' +
+          (ancestorLast[d] ? '&nbsp;&nbsp;&nbsp;&nbsp;' : '│&nbsp;&nbsp;&nbsp;') +
+          '</span>';
       }
     }
     guides.innerHTML = guideHtml;
@@ -1173,7 +1323,7 @@
     } else if (typeof value === 'boolean') {
       var boolSel = document.createElement('select');
       boolSel.className = 'var-tree-value var-tree-value-select';
-      ;[
+      [
         { v: 'true', t: 'true' },
         { v: 'false', t: 'false' },
       ].forEach(function (item) {
@@ -1337,6 +1487,7 @@
     applyViewUi();
     reload();
     if (ensureDefaultVariables()) refreshUi();
+    else if (migrateFameFields()) refreshUi();
 
     document.querySelectorAll('.var-view-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {

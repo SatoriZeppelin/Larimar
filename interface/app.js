@@ -171,6 +171,9 @@
         : null;
     if (picked && picked.raw) window.天青_opening = picked.raw;
     var data = window.天青_parse.parseGal(demo);
+    if (data && data.variablesRaw && window.天青_variable_commands) {
+      window.天青_variable_commands.applyRaw(data.variablesRaw);
+    }
     if (window.天青_save && window.天青_save.save) {
       window.天青_save.save({
         messages: [{ role: 'assistant', content: demo, at: Date.now() }],

@@ -39,7 +39,7 @@
   var APPS = [
     { id: 'line', label: 'LINE', title: 'LINE', desc: '与天青的 LINE 私聊与群组聊天。' },
     { id: 'twitter', label: 'Twitter', title: 'Twitter', desc: '推文时间线与趋势热榜。' },
-    { id: 'agency', label: '事务所', title: '事务所', desc: '名气与任务数据将在这里显示。' },
+    { id: 'agency', label: '事务所', title: '事务所', desc: 'Twitter、同接、专辑与 Live 名气数据。' },
     { id: 'twitch', label: 'Twitch', title: 'Twitch', desc: 'Twitch 直播 · 聊天与回放。' },
   ];
 

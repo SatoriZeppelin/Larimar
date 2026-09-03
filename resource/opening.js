@@ -104,7 +104,6 @@
         _.set('stat_data.时间.具体时间', [16, 0])
         _.set('stat_data.时间.星期', '一')
         _.set('stat_data.地点', '校园')
-        _.set('stat_data.名气.阶段', '地下偶像期')
         </summernight_variables>
     </UpdateVariable>
 </summernight>`;
@@ -179,7 +178,6 @@
         _.set('stat_data.时间.具体时间', [14, 0])
         _.set('stat_data.时间.星期', '二')
         _.set('stat_data.地点', '事务所办公室')
-        _.set('stat_data.名气.阶段', '地下偶像期')
         </summernight_variables>
     </UpdateVariable>
 </summernight>`;
@@ -300,7 +298,6 @@
         _.set('stat_data.时间.具体时间', [12, 0])
         _.set('stat_data.时间.星期', '六')
         _.set('stat_data.地点', '教堂')
-        _.set('stat_data.名气.阶段', '正式出道期')
         </summernight_variables>
     </UpdateVariable>
 </summernight>`;

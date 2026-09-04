@@ -14,6 +14,23 @@
     console.info('[Twitter]', msg);
   }
 
+  function appParseRaw(raw) {
+    if (window.天青_hooks && typeof window.天青_hooks.stripHookBlock === 'function') {
+      return window.天青_hooks.stripHookBlock(raw);
+    }
+    return raw;
+  }
+
+  async function dispatchSecondaryIfPrimary(raw, secondary) {
+    if (secondary || !raw) return;
+    if (!window.天青_hooks || typeof window.天青_hooks.dispatchSecondaryFromRaw !== 'function') return;
+    try {
+      await window.天青_hooks.dispatchSecondaryFromRaw(raw);
+    } catch (e) {
+      console.warn('[Twitter] 二级钩子失败', e);
+    }
+  }
+
   function logPhoneAiReply(source, raw, summary, detail) {
     if (window.天青_chat && typeof window.天青_chat.logAiReply === 'function') {
       window.天青_chat.logAiReply(raw, null, {
@@ -97,6 +114,9 @@
     }
     if (opts.extra) {
       out = out.trim() + '\n\n' + String(opts.extra).trim();
+    }
+    if (!opts.secondary && window.天青_hooks && typeof window.天青_hooks.appendPrimaryHookPrompt === 'function') {
+      out = window.天青_hooks.appendPrimaryHookPrompt(out);
     }
     return out;
   }
@@ -431,6 +451,7 @@
   async function generateFromHook(hookText, opts) {
     opts = opts || {};
     var allowTrends = opts.allowTrends !== false;
+    var secondary = !!opts.secondary;
     if (!String(hookText || '').trim()) return null;
     if (generating) {
       console.warn('[Twitter] 正在生成中，跳过钩子');
@@ -457,20 +478,21 @@
       }
     }
 
-    var filled = fillTwitterPrompt({ hook: hookText, extra: opts.extra });
+    var filled = fillTwitterPrompt({ hook: hookText, extra: opts.extra, secondary: secondary });
     if (!filled) {
       console.warn('[Twitter] 钩子：Twitter 提示词为空');
       return null;
     }
 
     generating = true;
+    var result = null;
     try {
       var messages =
         window.天青_prompt_builder.buildTwitterHookChatMessages
           ? window.天青_prompt_builder.buildTwitterHookChatMessages({ twitterPrompt: filled })
           : window.天青_prompt_builder.buildLineHookChatMessages({ linePrompt: filled });
       console.info(
-        '[Twitter] 钩子调用 LLM · messages=',
+        '[Twitter] ' + (secondary ? '二级' : '') + '钩子调用 LLM · messages=',
         messages.length,
         '· hook=',
         String(hookText).slice(0, 80),
@@ -479,23 +501,26 @@
       if (window.天青_regex && window.天青_regex.applyAiOutput) {
         raw = window.天青_regex.applyAiOutput(raw);
       }
+      var hookRaw = raw;
       if (!allowTrends) raw = clipTrendsBlock(raw);
-      var parsed = parseTwitterMessage(raw);
+      var parsed = parseTwitterMessage(appParseRaw(raw));
       var tweets = parsed.tweets || [];
       var trends = allowTrends ? parsed.trends || [] : [];
       logPhoneAiReply(
-        'Twitter 钩子',
-        raw,
+        secondary ? 'Twitter 二级钩子' : 'Twitter 钩子',
+        hookRaw,
         'tweets=' + tweets.length + ' trends=' + trends.length,
         parsed,
       );
       if (!bindIndexStillValid(bindIndex)) {
         console.info('[Twitter] 钩子：主线已回退，丢弃本轮结果');
-        return { raw: raw, tweets: [], trends: [], discarded: true };
+        result = { raw: hookRaw, tweets: [], trends: [], discarded: true };
+        return result;
       }
       if (!tweets.length && !trends.length) {
         console.warn('[Twitter] 钩子：未解析到 <twitter_message>', raw);
-        return { raw: raw, tweets: [], trends: [] };
+        result = { raw: hookRaw, tweets: [], trends: [] };
+        return result;
       }
       if (tweets.length) applyTweets(tweets, bindIndex);
       if (allowTrends && trends.length) applyTrends(trends, bindIndex);
@@ -510,12 +535,16 @@
               : 'Twitter 有新动态',
         );
       }
-      return { raw: raw, tweets: tweets, trends: trends };
+      result = { raw: hookRaw, tweets: tweets, trends: trends };
+      return result;
     } catch (err) {
       console.error('[Twitter] 钩子生成失败', err);
       return null;
     } finally {
       generating = false;
+      if (result && !result.discarded) {
+        await dispatchSecondaryIfPrimary(result.raw, secondary);
+      }
     }
   }
 

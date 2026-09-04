@@ -718,14 +718,16 @@
   function sheetHtml() {
     return (
       '<div class="tq-phone__layer tq-phone__sheet tq-line" data-app-sheet="line" aria-hidden="true">' +
+      '<div class="tq-line__pages">' +
       '<div class="tq-line__view tq-line__list is-active" data-line-view="list">' +
       '<div class="tq-line__top">' +
       '<button type="button" class="tq-line__nav-back" data-phone-back aria-label="返回主屏幕">‹</button>' +
       '<span class="tq-line__top-title">聊天</span>' +
       '<span class="tq-line__top-actions">' +
       '<span class="tq-line__unread-badge" id="tq-line-header-badge" hidden aria-hidden="true"></span>' +
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
-      '</span></div>' +
+      '<button type="button" class="tq-line__head-tool" data-line-tool="search-all" aria-label="查找全部聊天">' +
+      '<svg class="tq-line__tool" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
+      '</button></span></div>' +
       '<div class="tq-line__chats" id="tq-line-chats"></div></div>' +
       '<div class="tq-line__view tq-line__room" data-line-view="room" hidden>' +
       '<div class="tq-line__room-head">' +
@@ -747,7 +749,7 @@
       '<input type="text" class="tq-line__input" id="tq-line-input" placeholder="Aa" autocomplete="off" />' +
       '<button type="button" class="tq-line__send-btn" id="tq-line-send" aria-label="发送" title="发送">' +
       '<svg viewBox="0 0 24 24" fill="none"><path d="M5 12h12M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
-      '</div></div></div>' +
+      '</div></div></div></div>' +
       roomOverlaysHtml() +
       '</div></div>'
     );
@@ -906,13 +908,15 @@
     }
   }
 
-  function openChat(id) {
+  function openChat(id, opts) {
+    opts = opts || {};
     activeChatId = id;
     setStickerPanelOpen(false);
     closeRoomTools();
     showView('room');
     renderRoom();
     markChatRead(id);
+    if (opts.skipFocus) return;
     var input = document.getElementById('tq-line-input');
     if (input) {
       input.value = '';
@@ -920,6 +924,16 @@
         input.focus({ preventScroll: true });
       }, 50);
     }
+  }
+
+  function openChatAtMessage(chatId, msgIndex) {
+    if (!chatId) return;
+    openChat(chatId, { skipFocus: true });
+    setTimeout(function () {
+      if (window.天青_phone_line_tools && typeof window.天青_phone_line_tools.scrollToMsg === 'function') {
+        window.天青_phone_line_tools.scrollToMsg(msgIndex);
+      }
+    }, 40);
   }
 
   var REPLY_IDLE_MS = 10000;
@@ -1058,6 +1072,7 @@
       onCallConnect: function (chat) {
         console.info('[LINE] 通话连接钩子待实现', chat && chat.name);
       },
+      openChatAtMessage: openChatAtMessage,
     });
   }
 

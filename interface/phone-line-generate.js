@@ -15,6 +15,23 @@
     console.info('[LINE]', msg);
   }
 
+  function appParseRaw(raw) {
+    if (window.天青_hooks && typeof window.天青_hooks.stripHookBlock === 'function') {
+      return window.天青_hooks.stripHookBlock(raw);
+    }
+    return raw;
+  }
+
+  async function dispatchSecondaryIfPrimary(raw, secondary) {
+    if (secondary || !raw) return;
+    if (!window.天青_hooks || typeof window.天青_hooks.dispatchSecondaryFromRaw !== 'function') return;
+    try {
+      await window.天青_hooks.dispatchSecondaryFromRaw(raw);
+    } catch (e) {
+      console.warn('[LINE] 二级钩子失败', e);
+    }
+  }
+
   function logPhoneAiReply(source, raw, summary, detail) {
     if (window.天青_chat && typeof window.天青_chat.logAiReply === 'function') {
       window.天青_chat.logAiReply(raw, null, {
@@ -108,6 +125,9 @@
     /* 模板未写时间宏时，自动前置当前游戏时间 */
     if (!hasTimeMacro) {
       out = '[当前游戏时间]\n' + timeLabel + '\n\n' + out.trim();
+    }
+    if (!opts.secondary && window.天青_hooks && typeof window.天青_hooks.appendPrimaryHookPrompt === 'function') {
+      out = window.天青_hooks.appendPrimaryHookPrompt(out);
     }
     return out;
   }
@@ -247,6 +267,7 @@
     }
 
     generating = true;
+    var result = null;
     try {
       var messages = window.天青_prompt_builder.buildLineChatMessages({
         linePrompt: filled,
@@ -259,16 +280,18 @@
         raw = window.天青_regex.applyAiOutput(raw);
       }
       var g = lineApiReadGame();
-      var items = parseLineMessage(raw, g.day);
+      var items = parseLineMessage(appParseRaw(raw), g.day);
       logPhoneAiReply('LINE', raw, 'items=' + items.length, items);
       if (!bindIndexStillValid(bindIndex)) {
         console.info('[LINE] 主线已回退，丢弃本轮结果');
-        return { raw: raw, items: [], discarded: true };
+        result = { raw: raw, items: [], discarded: true };
+        return result;
       }
       if (!items.length) {
         console.warn('[LINE] 未解析到 <line_message> 条目', raw);
         toast('天青没有回上来…');
-        return { raw: raw, items: [] };
+        result = { raw: raw, items: [] };
+        return result;
       }
       /* 无时间戳时用游戏时间兜底 */
       items.forEach(function (it) {
@@ -279,13 +302,17 @@
         if (it.day == null) it.day = g.day;
       });
       appendInboundMessages(chatId, items, bindIndex);
-      return { raw: raw, items: items };
+      result = { raw: raw, items: items };
+      return result;
     } catch (err) {
       console.error('[LINE] 生成失败', err);
       toast(String((err && err.message) || err || '生成失败'));
       return null;
     } finally {
       generating = false;
+      if (result && !result.discarded) {
+        await dispatchSecondaryIfPrimary(result.raw, false);
+      }
     }
   }
 
@@ -294,8 +321,11 @@
    * 组装：预设 + 手机上下文 + 系统设置-手机-LINE 提示词（含钩子）
    * @param {string} chatId
    * @param {string} hookText
+   * @param {{ secondary?: boolean }} [opts]
    */
-  async function generateFromHook(chatId, hookText) {
+  async function generateFromHook(chatId, hookText, opts) {
+    opts = opts || {};
+    var secondary = !!opts.secondary;
     if (!chatId || !String(hookText || '').trim()) return null;
     if (generating) {
       console.warn('[LINE] 正在生成中，跳过钩子');
@@ -334,33 +364,41 @@
       }
     }
 
-    var filled = fillLinePrompt(chat, { hook: hookText });
+    var filled = fillLinePrompt(chat, { hook: hookText, secondary: secondary });
     if (!filled) {
       console.warn('[LINE] 钩子：LINE 提示词为空');
       return null;
     }
 
     generating = true;
+    var result = null;
     try {
       var messages = window.天青_prompt_builder.buildLineHookChatMessages({
         linePrompt: filled,
         chatId: chatId,
       });
-      console.info('[LINE] 钩子调用 LLM · messages=', messages.length, '· hook=', hookText.slice(0, 80));
+      console.info(
+        '[LINE] ' + (secondary ? '二级' : '') + '钩子调用 LLM · messages=',
+        messages.length,
+        '· hook=',
+        hookText.slice(0, 80),
+      );
       var raw = await window.天青_api.chat({ messages: messages });
       if (window.天青_regex && window.天青_regex.applyAiOutput) {
         raw = window.天青_regex.applyAiOutput(raw);
       }
       var g = lineApiReadGame();
-      var items = parseLineMessage(raw, g.day);
-      logPhoneAiReply('LINE 钩子', raw, 'items=' + items.length, items);
+      var items = parseLineMessage(appParseRaw(raw), g.day);
+      logPhoneAiReply(secondary ? 'LINE 二级钩子' : 'LINE 钩子', raw, 'items=' + items.length, items);
       if (!bindIndexStillValid(bindIndex)) {
         console.info('[LINE] 钩子：主线已回退，丢弃本轮结果');
-        return { raw: raw, items: [], discarded: true };
+        result = { raw: raw, items: [], discarded: true };
+        return result;
       }
       if (!items.length) {
         console.warn('[LINE] 钩子：未解析到 <line_message>', raw);
-        return { raw: raw, items: [] };
+        result = { raw: raw, items: [] };
+        return result;
       }
       items.forEach(function (it) {
         if (it.h == null || it.m == null) {
@@ -370,12 +408,16 @@
         if (it.day == null) it.day = g.day;
       });
       appendInboundMessages(chatId, items, bindIndex);
-      return { raw: raw, items: items };
+      result = { raw: raw, items: items };
+      return result;
     } catch (err) {
       console.error('[LINE] 钩子生成失败', err);
       return null;
     } finally {
       generating = false;
+      if (result && !result.discarded) {
+        await dispatchSecondaryIfPrimary(result.raw, secondary);
+      }
     }
   }
 

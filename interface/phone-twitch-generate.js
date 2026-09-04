@@ -13,6 +13,23 @@
     console.info('[Twitch]', msg);
   }
 
+  function appParseRaw(raw) {
+    if (window.天青_hooks && typeof window.天青_hooks.stripHookBlock === 'function') {
+      return window.天青_hooks.stripHookBlock(raw);
+    }
+    return raw;
+  }
+
+  async function dispatchSecondaryIfPrimary(raw, secondary) {
+    if (secondary || !raw) return;
+    if (!window.天青_hooks || typeof window.天青_hooks.dispatchSecondaryFromRaw !== 'function') return;
+    try {
+      await window.天青_hooks.dispatchSecondaryFromRaw(raw);
+    } catch (e) {
+      console.warn('[Twitch] 二级钩子失败', e);
+    }
+  }
+
   function logPhoneAiReply(source, raw, summary, detail) {
     if (window.天青_chat && typeof window.天青_chat.logAiReply === 'function') {
       window.天青_chat.logAiReply(raw, null, {
@@ -168,6 +185,9 @@
     }
     if (!hasTimeMacro) {
       out = '[当前游戏时间]\n' + timeLabel + '\n\n' + out.trim();
+    }
+    if (!opts.secondary && window.天青_hooks && typeof window.天青_hooks.appendPrimaryHookPrompt === 'function') {
+      out = window.天青_hooks.appendPrimaryHookPrompt(out);
     }
     return out;
   }
@@ -341,7 +361,9 @@
     return '玩家手动刷新 Twitch 直播：请生成与天青（Larimar）当前日常相关的一场短直播切片。';
   }
 
-  async function runTwitchGeneration(hookText, sourceLabel) {
+  async function runTwitchGeneration(hookText, sourceLabel, opts) {
+    opts = opts || {};
+    var secondary = !!opts.secondary;
     if (!String(hookText || '').trim()) return null;
     if (generating) {
       console.warn('[Twitch] 正在生成中，跳过');
@@ -375,13 +397,14 @@
       }
     }
 
-    var filled = fillTwitchPrompt({ hook: hookText });
+    var filled = fillTwitchPrompt({ hook: hookText, secondary: secondary });
     if (!filled) {
       console.warn('[Twitch] Twitch 提示词为空');
       return null;
     }
 
     generating = true;
+    var result = null;
     try {
       var messages;
       if (window.天青_prompt_builder.buildTwitchHookChatMessages) {
@@ -407,7 +430,7 @@
       if (window.天青_regex && window.天青_regex.applyAiOutput) {
         raw = window.天青_regex.applyAiOutput(raw);
       }
-      var session = parseTwitchMessage(raw);
+      var session = parseTwitchMessage(appParseRaw(raw));
       logPhoneAiReply(
         sourceLabel,
         raw,
@@ -416,24 +439,35 @@
       );
       if (!bindIndexStillValid(bindIndex)) {
         console.info('[Twitch] 主线已回退，丢弃本轮结果');
-        return { raw: raw, session: null, discarded: true };
+        result = { raw: raw, session: null, discarded: true };
+        return result;
       }
       if (!session) {
         console.warn('[Twitch] 未解析到直播内容', raw);
-        return { raw: raw, session: null };
+        result = { raw: raw, session: null };
+        return result;
       }
       applySession(session, bindIndex);
-      return { raw: raw, session: session };
+      result = { raw: raw, session: session };
+      return result;
     } catch (err) {
       console.error('[Twitch] 生成失败', err);
       return null;
     } finally {
       generating = false;
+      if (result && !result.discarded) {
+        await dispatchSecondaryIfPrimary(result.raw, secondary);
+      }
     }
   }
 
-  async function generateFromHook(hookText) {
-    var result = await runTwitchGeneration(hookText, 'Twitch 钩子');
+  async function generateFromHook(hookText, opts) {
+    opts = opts || {};
+    var result = await runTwitchGeneration(
+      hookText,
+      opts.secondary ? 'Twitch 二级钩子' : 'Twitch 钩子',
+      opts,
+    );
     if (result && result.session) toast('天青开播了');
     return result;
   }

@@ -5,6 +5,7 @@
 (function () {
   var ctx = null;
   var openOverlay = '';
+  var searchScope = 'room'; /* room | all */
 
   var DEFAULT_PROFILE = {
     gender: '女',
@@ -46,19 +47,27 @@
     });
   }
 
+  function searchHint() {
+    if (searchScope === 'all') return '输入关键字查找全部聊天记录';
+    var chat = activeChat();
+    return '输入关键字查找与 ' + ctx.esc((chat && chat.name) || '对方') + ' 的聊天';
+  }
+
   function showOverlay(name) {
+    var nextScope = name === 'search-all' ? 'all' : 'room';
+    if (name === 'search-all') name = 'search';
     if (name === 'profile') {
       var chat = activeChat();
       if (chat && chat.type === 'group') return;
     }
     closeOverlay();
+    searchScope = nextScope;
     openOverlay = name;
     var el = $('tq-line-overlay-' + name);
     if (el) el.hidden = false;
     if (name === 'search') {
       var input = $('tq-line-search-input');
       var results = $('tq-line-search-results');
-      var chat = activeChat();
       if (input) {
         input.value = '';
         setTimeout(function () {
@@ -66,10 +75,7 @@
         }, 30);
       }
       if (results) {
-        results.innerHTML =
-          '<p class="tq-line__tool-hint">输入关键字查找与 ' +
-          ctx.esc((chat && chat.name) || '对方') +
-          ' 的聊天</p>';
+        results.innerHTML = '<p class="tq-line__tool-hint">' + searchHint() + '</p>';
       }
     }
     if (name === 'calendar') renderCalendar();
@@ -114,44 +120,70 @@
       });
   }
 
+  function allChats() {
+    var store = ctx && ctx.loadStore ? ctx.loadStore() : null;
+    var chats = store && store.chats ? store.chats : {};
+    var ids = ['tianqing', 'group'].filter(function (id) {
+      return !!chats[id];
+    });
+    Object.keys(chats).forEach(function (id) {
+      if (ids.indexOf(id) < 0) ids.push(id);
+    });
+    return ids
+      .map(function (id) {
+        return chats[id];
+      })
+      .filter(Boolean);
+  }
+
+  function chatsToSearch() {
+    if (searchScope === 'all') return allChats();
+    var chat = activeChat();
+    return chat ? [chat] : [];
+  }
+
   function runSearch(keyword) {
     var box = $('tq-line-search-results');
     if (!box) return;
-    var chat = activeChat();
-    if (!chat) {
+    var chats = chatsToSearch();
+    if (!chats.length) {
       box.innerHTML = '<p class="tq-line__tool-empty">暂无聊天记录</p>';
       return;
     }
     var q = String(keyword || '').trim().toLowerCase();
     if (!q) {
-      box.innerHTML = '<p class="tq-line__tool-hint">输入关键字查找与 ' + ctx.esc(chat.name) + ' 的聊天</p>';
+      box.innerHTML = '<p class="tq-line__tool-hint">' + searchHint() + '</p>';
       return;
     }
     var hits = [];
-    (chat.messages || []).forEach(function (m, i) {
-      var text = msgText(m).toLowerCase();
-      if (text.indexOf(q) >= 0) {
-        hits.push({ i: i, m: m, preview: msgText(m) });
-      }
+    chats.forEach(function (chat) {
+      (chat.messages || []).forEach(function (m, i) {
+        var preview = msgText(m);
+        if (String(preview).toLowerCase().indexOf(q) >= 0) {
+          hits.push({ chat: chat, i: i, m: m, preview: preview });
+        }
+      });
     });
     if (!hits.length) {
       box.innerHTML = '<p class="tq-line__tool-empty">没有找到相关消息</p>';
       return;
     }
+    var showChatName = searchScope === 'all' || chats.length > 1;
     box.innerHTML = hits
       .map(function (hit) {
         var stamp = ctx.msgStamp(hit.m);
-        var who = hit.m.me ? '你' : hit.m.name || chat.name;
+        var who = hit.m.me ? '你' : hit.m.name || hit.chat.name;
+        var meta = showChatName
+          ? ctx.esc(hit.chat.name) + ' · ' + ctx.esc(who) + ' · 第' + stamp.day + '天 ' + ctx.esc(ctx.formatClock(hit.m))
+          : ctx.esc(who) + ' · 第' + stamp.day + '天 ' + ctx.esc(ctx.formatClock(hit.m));
         return (
-          '<button type="button" class="tq-line__search-hit" data-line-search-hit="' +
+          '<button type="button" class="tq-line__search-hit" data-line-search-chat="' +
+          ctx.esc(hit.chat.id) +
+          '" data-line-search-hit="' +
           hit.i +
           '">' +
           '<span class="tq-line__search-hit-meta">' +
-          ctx.esc(who) +
-          ' · 第' +
-          stamp.day +
-          '天 ' +
-          ctx.esc(ctx.formatClock(hit.m)) +
+          meta +
           '</span>' +
           '<span class="tq-line__search-hit-text">' +
           ctx.esc(hit.preview) +
@@ -313,8 +345,14 @@
       if (hit) {
         e.preventDefault();
         e.stopPropagation();
-        scrollToMsg(parseInt(hit.getAttribute('data-line-search-hit') || '-1', 10));
+        var chatId = hit.getAttribute('data-line-search-chat') || (activeChat() && activeChat().id) || '';
+        var idx = parseInt(hit.getAttribute('data-line-search-hit') || '-1', 10);
         closeOverlay();
+        if (ctx && typeof ctx.openChatAtMessage === 'function') {
+          ctx.openChatAtMessage(chatId, idx);
+        } else {
+          scrollToMsg(idx);
+        }
         return;
       }
       var dayBtn = e.target.closest('[data-line-cal-day]');
@@ -344,6 +382,7 @@
     overlaysHtml: overlaysHtml,
     bind: bind,
     closeOverlay: closeOverlay,
+    scrollToMsg: scrollToMsg,
     isOpen: function () {
       return !!openOverlay;
     },

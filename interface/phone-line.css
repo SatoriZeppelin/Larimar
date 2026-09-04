@@ -7,6 +7,14 @@
   flex-direction: column;
 }
 
+.tq-line__pages {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
 .tq-line__view {
   display: none;
   flex-direction: column;

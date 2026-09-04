@@ -116,7 +116,7 @@
       '<div class="tq-agency" id="tq-agency">' +
       '<div class="tq-phone__sheet-head">' +
       '<button type="button" class="tq-phone__sheet-back" data-phone-back aria-label="返回主屏幕">‹</button>' +
-      '<span class="tq-phone__sheet-title">事务所 · 名气</span></div>' +
+      '<span class="tq-phone__sheet-title">HOOK</span></div>' +
       '<div class="tq-agency__body" id="tq-agency-body"></div></div></div>'
     );
   }

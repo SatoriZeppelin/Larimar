@@ -8,8 +8,8 @@
   var APPS = [
     { id: 'line', label: 'LINE' },
     { id: 'twitter', label: 'Twitter' },
-    { id: 'agency', label: '事务所' },
     { id: 'twitch', label: 'Twitch' },
+    { id: 'agency', label: 'HOOK' },
   ];
 
   /* 升高版本号 → 下次加载强制用 DEFAULT_PROMPTS 覆盖本地对应项 */
@@ -17,16 +17,16 @@
   var LINE_PROMPT_VER_KEY = 'tq_plus_phone_prompt_line_ver';
   var TWITTER_PROMPT_VER = 5;
   var TWITTER_PROMPT_VER_KEY = 'tq_plus_phone_prompt_twitter_ver';
-  var AGENCY_PROMPT_VER = 7;
+  var AGENCY_PROMPT_VER = 8;
   var AGENCY_PROMPT_VER_KEY = 'tq_plus_phone_prompt_agency_ver';
-  var TWITCH_PROMPT_VER = 3;
+  var TWITCH_PROMPT_VER = 4;
   var TWITCH_PROMPT_VER_KEY = 'tq_plus_phone_prompt_twitch_ver';
 
   var DEFAULT_PROMPTS = {
     line: "[ LINE 私聊回复]\n你现在是天青，在 LINE 上回复制作人（{{user}}）的私聊。天青是透明直球、心口如一的偶像，喜欢直接表达。\n\n[ 回复格式 ]文字和表情包可以混合使用，但一行只允许存在一种形式：\n  - 文字：直接写出口语化的短信内容（不要动作/旁白/括号/markdown），但注意不可过于繁琐和过于跳跃性的在多个话题来回跳跃\n  - 表情包：在单独一行启用，包含以下字段: 不知道、不行、举白旗、从墙边探头、从纸箱里探头、低落、叹气、害怕或哭泣、少女祈祷中、开心、得意、思考、点赞、生气、疑问\n  - 格式统一为：<天青|回复|小时:分钟>\n  - 表情为慎重使用的文化符号，切勿隔一行使用一个，正常一段对话只可使用1-2次\n  - 控制每次回复的信息为6句以内（不含表情）\n\n  example:\n    <line_message>\n        <天青|普~罗~丢~色~|17:20>\n        <天青|生气|17:20> #此处的生气调用生气表情包\n        <天青|为什么不回我！|17:21>\n    </line_message>\n\n[最近的对话]\n{{line_recent_message}}\n\n直接输出天青的回复：",
     twitter: "[ Twitter / X 动态生成]\n根据本回合钩子，生成与天青（Larimar）相关的 Twitter/X 内容，风格贴近真实社交平台。\n当前 Larimar 粉丝约 {{twitter}}，互动必须匹配这个数字。\n可同时输出多个账号发帖（官方、粉丝、路人等），评论只保留最精华的几条（每帖不超过 5 条）。\n回复人数须 ≥ 列出的评论条数。tag 数量与措辞贴合发帖者性格。\n趋势允许使用同一名称作为热度追加。\n\n[ 输出格式 ]\n<twitter_message>\n    <twitter_account>\n        账号名称|账号ID|小时:分钟|查看人数\n        <twitter_context>正文</twitter_context>\n        <twitter_tag>#tag |转推人数|喜欢人数|回复人数</twitter_tag>\n        评论账号|评论账号ID|评论\n    </twitter_account>\n    <trends>\n        <趋势名|趋势贴文>\n    </trends>\n</twitter_message>\n\nexample:\n<twitter_message>\n    <twitter_account>\n        Larimar|larimar_official|16:20|280\n        <twitter_context>排练结束～嗓子有点哑，但今天副歌那段抓到感觉了！制作人听了会不会夸我？ 💙</twitter_context>\n        <twitter_tag>#排练日常 #新曲制作中 |6|28|5</twitter_tag>\n        海纹石收藏家|larimar_fan01|夸！！副歌那段真的会单曲循环！\n        小夏|natsu_live|天青老师请收下我的膝盖（不是\n    </twitter_account>\n    <trends>\n        <#海纹石蓝|0.02>\n        <#今晚livehouse|0.05>\n    </trends>\n</twitter_message>\n\n[本回合钩子]\n{{hook}}\n\n直接输出 <twitter_message>：",
-    agency: "[事务所 App · 说明]\n界面读取 stat_data 名气字段，不调用 LLM。\n\n变量：\n- 名气.twitter：Twitter/X 粉丝数（整数）\n- 名气.同接：最近直播同接（整数）\n- 名气.专辑：每条 [专辑名称, 首发销量]；新专辑用 _.append 追加\n- 名气.Live：每条 [Live 地点, 参加人数]；新现场用 _.append 追加\n\n更新示例：\n_.add('stat_data.名气.twitter', 120)\n_.set('stat_data.名气.同接', 256)\n_.append('stat_data.名气.Live', ['渋谷 CLUB QUATTRO', 350])\n_.append('stat_data.名气.专辑', ['AOI', 1200])\n\n本栏仅作设定备忘，不会作为钩子提示词发送。\n",
-    twitch: "[ Twitch 直播片段生成]\n根据本回合钩子，生成天青（Larimar）的一场短直播切片。风格贴近真实弹幕直播：观众吐槽、天青直球回应、偶尔 SC。\n当前名气数据：{{twitter}} 粉丝 · 同接 {{同接}}\n形式通常为「杂谈」或「唱歌」；背景优先「宿舍」或「录音室」。\n天青表情名必须来自立绘表（如 微笑/得意/俏皮/星星眼/卖萌/不满/害羞…；穿婚纱时用 婚纱* 前缀）。\n\n[ 输出格式 ]\n<twitch_message>\n    <live|形式|背景|标题>\n    <dm|观众ID|弹幕内容>\n    <天青|表情|「台词」>\n    <旁白|镜头旁白（可选）>\n    <sc|观众ID|金额|醒目留言>\n</twitch_message>\n\n规则：\n- 只输出 <twitch_message>，不要解释\n- 总模块约 10～18 条；弹幕与天青台词交错，弹幕可连发数条再接一句天青\n- 观众 ID 像真实网名；弹幕口语、短句\n- SC 金额只用 30/50/100/500/1000/2000\n- 内容紧扣钩子，可轻度提到制作人，但不要喧宾夺主\n\nexample:\n<twitch_message>\n    <live|杂谈|宿舍|深夜小电台>\n    <dm|柠檬汽水不加冰|p桑浓度预警>\n    <dm|第一排的位置是我的|她每次提到制作人表情都不一样>\n    <天青|微笑|「他真的很厉害的。」>\n    <dm|困困困|稍微>\n    <dm|柠檬汽水不加冰|以天青的性格，稍微=吹了半小时>\n    <天青|得意|「你们不要笑啦，我说真的！」>\n    <sc|海纹石收藏家|100|加油 Larimar！>\n</twitch_message>\n\n[本回合钩子]\n{{hook}}\n\n直接输出 <twitch_message>：",
+    agency: "[ HOOK · 主线钩子]\n思考本次生成的手机APP内容会不会导致其他手机APP的更新，慎重思考并权衡利弊后再输出，此为非常重要事项，切勿多次生成和输出。\n\n[ 输出格式 ]\n<summernight_hook>\n    <APP名称|本回合该 App 要生成什么的简略描写>\n</summernight_hook>\n\n规则：\n- 一条钩子一行：<line|…> / <twitter|…> / <twitch|…>\n- 本回合不需要手机动静时，可留空 <summernight_hook></summernight_hook>\n- 同一块里可并写多条，系统会按顺序分别生成\n\nexample:\n① 天青正在Twitter发牢骚，结果不小心用官方号发出去了，立刻Line夺命连环call给{{user}}求求解决办法。\n<summernight_hook>\n    <line|天青信息轰炸{{user}}，让他看twitter并且求他想想办法。>\n</summernight_hook>\n\n② 天青和{{user}}在line聊天，被提醒是不是今天忘记开播了，立刻火急火燎的在twitter发致歉声明，同时Twitch潦草开播。\n<summernight_hook>\n    <twitter|天青发送略微推迟的正式开播通知>\n    <twitch|天青慌慌张张的打开摄像头>\n</summernight_hook>",
+    twitch: "[ Twitch 直播片段生成]\n根据本回合钩子，生成天青（Larimar）的一场短直播切片。风格贴近真实弹幕直播：观众吐槽、天青直球回应、偶尔 SC。\n当前 Larimar 粉丝约 {{twitter}}，同接约 {{同接}}，弹幕热度和 SC 规格须匹配这个体量。\n形式通常为「杂谈」或「唱歌」；背景优先「宿舍」或「录音室」。\n天青表情名必须来自立绘表（如 微笑/得意/俏皮/星星眼/卖萌/不满/害羞…）。\n\n[ 输出格式 ]\n<twitch_message>\n    <live|形式|背景|标题>\n    <dm|观众ID|弹幕内容>\n    <天青|表情|「台词」>\n    <旁白|镜头旁白（可选）>\n    <sc|观众ID|金额|醒目留言>\n</twitch_message>\n\n规则：\n- 只输出 <twitch_message>，不要解释\n- 总模块约 50 条以下；弹幕与天青台词交错，弹幕可连发数条再接一句天青\n- 观众 ID 像真实网名；弹幕口语、短句\n- SC 金额只用 30/50/100/500/1000/2000\n- 内容紧扣钩子，不要喧宾夺主\n\nexample:\n<twitch_message>\n    <live|杂谈|宿舍|深夜小电台>\n    <dm|柠檬汽水不加冰|p桑浓度预警>\n    <dm|第一排的位置是我的|她每次提到制作人表情都不一样>\n    <天青|微笑|「他真的很厉害的。」>\n    <dm|困困困|稍微>\n    <dm|柠檬汽水不加冰|以天青的性格，稍微=吹了半小时>\n    <天青|得意|「你们不要笑啦，我说真的！」>\n    <sc|海纹石收藏家|100|加油 Larimar！>\n</twitch_message>\n\n[本回合钩子]\n{{hook}}\n\n直接输出 <twitch_message>：",
   };
 
   var store = { prompts: {} };

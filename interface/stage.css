@@ -4526,6 +4526,10 @@ html.tq-cg-hide-fab #stage.is-cg-view .gal-phone-fab {
   height: 18px;
 }
 
+#settings-panel .settings-api-status[data-state='loading'] {
+  color: rgba(42, 111, 158, 0.95);
+}
+
 #settings-panel .settings-api-status[data-state='ok'] {
   color: #1f8f4e;
 }
@@ -4706,6 +4710,207 @@ html.tq-cg-hide-fab #stage.is-cg-view .gal-phone-fab {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+#settings-panel .settings-api.settings-api-multi {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 18px;
+}
+
+#settings-panel .api-profiles-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+#settings-panel .api-section-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: rgba(26, 26, 26, 0.88);
+}
+
+#settings-panel .api-profiles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+#settings-panel .api-profile-card {
+  border: 1px solid rgba(42, 111, 158, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35) inset;
+  overflow: hidden;
+}
+
+#settings-panel .api-profile-card.is-disabled {
+  opacity: 0.78;
+}
+
+#settings-panel .api-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 12px 12px 8px;
+  cursor: pointer;
+}
+
+#settings-panel .api-card-toggle {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  border: 0;
+  background: transparent;
+  color: rgba(26, 26, 26, 0.55);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+#settings-panel .api-card-chevron {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid currentColor;
+  transition: transform 0.15s ease;
+}
+
+#settings-panel .api-profile-card.is-expanded .api-card-chevron {
+  transform: rotate(180deg);
+}
+
+#settings-panel .api-card-head-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#settings-panel .api-card-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+#settings-panel .api-card-title {
+  font-weight: 700;
+  color: rgba(26, 26, 26, 0.9);
+}
+
+#settings-panel .api-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+#settings-panel .api-badge-enabled.is-on {
+  border-color: rgba(42, 111, 158, 0.7);
+  color: #2a6f9e;
+  background: rgba(42, 111, 158, 0.06);
+}
+
+#settings-panel .api-badge-enabled.is-off {
+  border-color: rgba(26, 26, 26, 0.22);
+  color: rgba(26, 26, 26, 0.5);
+  background: transparent;
+}
+
+#settings-panel .api-card-sub {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: rgba(26, 26, 26, 0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#settings-panel .api-card-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+#settings-panel .api-icon-btn {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(26, 26, 26, 0.55);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+#settings-panel .api-icon-btn:hover {
+  background: rgba(42, 111, 158, 0.12);
+  color: rgba(26, 26, 26, 0.85);
+}
+
+#settings-panel .api-icon-danger:hover {
+  background: rgba(180, 50, 50, 0.12);
+  color: rgba(150, 30, 30, 0.95);
+}
+
+#settings-panel .api-card-body {
+  padding: 0 14px 14px;
+  border-top: 1px solid rgba(42, 111, 158, 0.16);
+}
+
+#settings-panel .api-card-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 10px;
+}
+
+#settings-panel .api-advanced-toggle {
+  margin-top: 10px;
+  padding: 8px 0;
+  border: 0;
+  border-top: 1px dashed rgba(42, 111, 158, 0.22);
+  background: transparent;
+  color: rgba(26, 26, 26, 0.7);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+#settings-panel .api-advanced {
+  padding-top: 4px;
+}
+
+#settings-panel .api-routes-panel {
+  width: 100%;
+  padding: 14px 14px 6px;
+  border: 1px solid rgba(42, 111, 158, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.32);
+  box-sizing: border-box;
+}
+
+#settings-panel .api-routes-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+
+@media (max-width: 720px) {
+  #settings-panel .api-routes-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 #settings-panel .settings-api-col {
@@ -5573,6 +5778,284 @@ html.tq-cg-hide-fab #stage.is-cg-view .gal-phone-fab {
 #settings-panel .prompt-panel {
   flex: 1;
   min-height: 0;
+}
+
+/* 提示词：外层世界书列表负责纵向滚动 */
+#settings-panel #prompt-book-list.preset-list,
+#settings-panel .prompt-book-list.preset-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: 12px;
+}
+
+#settings-panel .prompt-book-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#settings-panel .prompt-book-card {
+  border: 1px solid rgba(42, 111, 158, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.42);
+  flex-shrink: 0;
+  /* 勿 hidden：展开条目很高时会被裁切且无法滚到内容区 */
+  overflow: visible;
+}
+
+#settings-panel .prompt-book-card.is-off {
+  opacity: 0.72;
+}
+
+#settings-panel .prompt-book-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 10px 10px 6px;
+}
+
+#settings-panel .prompt-book-toggle,
+#settings-panel .prompt-book-main {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+#settings-panel .prompt-book-toggle {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: rgba(26, 26, 26, 0.55);
+}
+
+#settings-panel .prompt-book-chevron {
+  display: inline-flex;
+  transition: transform 0.15s ease;
+}
+
+#settings-panel .prompt-book-card.is-expanded .prompt-book-chevron {
+  transform: rotate(180deg);
+}
+
+#settings-panel .prompt-book-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 4px;
+}
+
+#settings-panel .prompt-book-title {
+  font-weight: 700;
+  color: rgba(26, 26, 26, 0.9);
+}
+
+#settings-panel .prompt-book-meta {
+  font-size: 0.78rem;
+  color: rgba(26, 26, 26, 0.5);
+}
+
+#settings-panel .prompt-book-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+#settings-panel .prompt-book-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  border: none;
+}
+
+#settings-panel .prompt-book-tool-btn {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(42, 111, 158, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.55);
+  color: rgba(26, 26, 26, 0.7);
+  cursor: pointer;
+  padding: 0;
+}
+
+#settings-panel .prompt-book-tool-btn:hover {
+  border-color: rgba(42, 111, 158, 0.55);
+  color: #2a6f9e;
+  background: rgba(42, 111, 158, 0.08);
+}
+
+#settings-panel .prompt-card .regex-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 覆盖 is-st-form 对 hit/title 的 min-width:0，避免名字被裁成空白 */
+#settings-panel .prompt-card .regex-card-hit,
+#settings-panel.is-st-form .prompt-card .regex-card-hit {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex: 1 1 12ch;
+  min-width: 12ch;
+  max-width: 100%;
+  width: auto;
+  overflow: hidden;
+  align-items: center;
+  gap: 8px;
+}
+
+#settings-panel .prompt-card .regex-card-index,
+#settings-panel.is-st-form .prompt-card .regex-card-index {
+  flex: 0 0 auto;
+}
+
+#settings-panel .prompt-card .regex-card-main,
+#settings-panel.is-st-form .prompt-card .regex-card-main {
+  flex: 1 1 auto;
+  min-width: 10ch;
+  overflow: hidden;
+  gap: 0;
+}
+
+#settings-panel .prompt-card .regex-card-title-row,
+#settings-panel.is-st-form .prompt-card .regex-card-title-row {
+  min-width: 10ch;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+#settings-panel .prompt-card .regex-card-title,
+#settings-panel.is-st-form .prompt-card .regex-card-title {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 10ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: rgba(26, 26, 26, 0.9);
+}
+
+#settings-panel .prompt-card .regex-card-chevron {
+  display: none !important;
+}
+
+/* 上移/下移易挤换行；拖动手柄已可排序 */
+#settings-panel .prompt-card .preset-move {
+  display: none;
+}
+
+#settings-panel .prompt-card-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  /* 偏宽：空间不够时整块换到下一行，把横向空间让给名字 */
+  flex: 1 1 18rem;
+  min-width: min(100%, 12rem);
+  margin-left: auto;
+  max-width: 100%;
+}
+
+#settings-panel .prompt-card-cols {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-top: 0;
+}
+
+#settings-panel .prompt-col-strategy {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(42, 111, 158, 0.45);
+  color: #2a6f9e;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#settings-panel .prompt-col-strategy.is-constant {
+  border-color: rgba(42, 111, 158, 0.7);
+  background: rgba(42, 111, 158, 0.08);
+}
+
+#settings-panel .prompt-col-pos {
+  width: auto;
+  min-width: 7.2rem;
+  max-width: 8.5rem;
+  height: 30px;
+  padding: 0 8px;
+  font-size: 0.78rem;
+  flex: 0 0 auto;
+}
+
+#settings-panel .prompt-col-num {
+  width: 3.6rem;
+  height: 30px;
+  padding: 0 4px;
+  font-size: 0.78rem;
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+#settings-panel .prompt-card .regex-card-side {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+/* 条目列表随内容增高，滚动交给外层世界书列表 */
+#settings-panel .prompt-entry-list.preset-list,
+#settings-panel .prompt-entry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid rgba(42, 111, 158, 0.14);
+  flex: none;
+  min-height: 0;
+  max-height: none;
+  height: auto;
+  overflow: visible;
+}
+
+#settings-panel .prompt-entry-list[hidden] {
+  display: none !important;
 }
 
 #settings-panel .phone-sys-hint {
@@ -8228,4 +8711,88 @@ html.tq-cg-hide-fab #stage.is-cg-view .gal-phone-fab {
     flex: 1 1 auto;
     min-width: 0;
   }
+
+  /* 提示词条目不受酒馆单行裁切：名字保留，右侧可换行 */
+  #settings-panel.is-st-form .prompt-card .regex-card-top {
+    display: flex !important;
+    flex-wrap: wrap;
+    grid-template-columns: none;
+  }
+
+  #settings-panel.is-st-form .prompt-card .regex-card-hit {
+    flex: 1 1 12ch !important;
+    min-width: 12ch !important;
+  }
+
+  #settings-panel.is-st-form .prompt-card .regex-card-title {
+    min-width: 10ch !important;
+  }
+}
+
+/* 提示词条目：覆盖 is-st-form 三列 grid（中间 minmax(0,1fr) 会被右侧控件挤没名字） */
+#settings-panel.is-st-form .prompt-card .regex-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  grid-template-columns: none;
+  column-gap: unset;
+  row-gap: unset;
+  width: 100%;
+  min-width: 0;
+}
+
+#settings-panel.is-st-form .prompt-card .regex-card-hit {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex: 1 1 12ch;
+  min-width: 12ch;
+  max-width: 100%;
+  width: auto;
+  overflow: hidden;
+  align-items: center;
+  gap: 8px;
+}
+
+#settings-panel.is-st-form .prompt-card .regex-card-main {
+  flex: 1 1 auto;
+  min-width: 10ch;
+  overflow: hidden;
+  gap: 0;
+}
+
+#settings-panel.is-st-form .prompt-card .regex-card-title-row {
+  min-width: 10ch;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+#settings-panel.is-st-form .prompt-card .regex-card-title {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 10ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: rgba(26, 26, 26, 0.9);
+}
+
+#settings-panel.is-st-form .prompt-card .prompt-card-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 1 1 18rem;
+  min-width: min(100%, 12rem);
+  margin-left: auto;
+  max-width: 100%;
+}
+
+#settings-panel.is-st-form .prompt-card .regex-card-side {
+  flex: 0 0 auto;
+  margin-left: 0;
 }

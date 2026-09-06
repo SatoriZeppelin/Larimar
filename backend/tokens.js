@@ -13,8 +13,12 @@
 
   function getModelName() {
     try {
-      if (window.天青_api && window.天青_api.loadConfig) {
-        return String(window.天青_api.loadConfig().model || '').trim();
+      if (window.天青_api) {
+        var cfg =
+          typeof window.天青_api.resolveConfig === 'function'
+            ? window.天青_api.resolveConfig('main')
+            : window.天青_api.loadConfig && window.天青_api.loadConfig();
+        return String((cfg && cfg.model) || '').trim();
       }
     } catch (e) {}
     return '';

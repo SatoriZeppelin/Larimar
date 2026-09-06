@@ -390,7 +390,11 @@
     if (window.天青_tokens && window.天青_tokens.ensureReady) {
       try {
         var model =
-          window.天青_api && window.天青_api.loadConfig ? window.天青_api.loadConfig().model : '';
+          window.天青_api && window.天青_api.resolveConfig
+            ? window.天青_api.resolveConfig('twitch').model
+            : window.天青_api && window.天青_api.loadConfig
+              ? window.天青_api.loadConfig().model
+              : '';
         await window.天青_tokens.ensureReady(model);
       } catch (e) {
         console.warn('[Twitch] tokenizer 预加载失败', e);
@@ -426,7 +430,7 @@
         '· hook=',
         String(hookText).slice(0, 80),
       );
-      var raw = await window.天青_api.chat({ messages: messages });
+      var raw = await window.天青_api.chat({ messages: messages, route: 'twitch' });
       if (window.天青_regex && window.天青_regex.applyAiOutput) {
         raw = window.天青_regex.applyAiOutput(raw);
       }
@@ -442,9 +446,14 @@
         result = { raw: raw, session: null, discarded: true };
         return result;
       }
-      if (!session) {
-        console.warn('[Twitch] 未解析到直播内容', raw);
-        result = { raw: raw, session: null };
+      var api = window.天青_api;
+      var hasTag = api && api.hasXmlPair && api.hasXmlPair(raw, 'twitch_message');
+      var hasMods = session && Array.isArray(session.modules) && session.modules.length > 0;
+      if (!hasTag || !hasMods) {
+        if (api && api.reportFormatError) {
+          api.reportFormatError('Twitch', '<twitch_message>…</twitch_message>', raw);
+        }
+        result = { raw: raw, session: null, formatError: true };
         return result;
       }
       applySession(session, bindIndex);
@@ -452,10 +461,13 @@
       return result;
     } catch (err) {
       console.error('[Twitch] 生成失败', err);
+      if (window.天青_settings && window.天青_settings.showError) {
+        window.天青_settings.showError(err);
+      }
       return null;
     } finally {
       generating = false;
-      if (result && !result.discarded) {
+      if (result && !result.discarded && !result.formatError) {
         await dispatchSecondaryIfPrimary(result.raw, secondary);
       }
     }
@@ -487,7 +499,7 @@
       toast('直播生成失败');
       return null;
     }
-    if (result.discarded) return result;
+    if (result.discarded || result.formatError) return result;
     if (!result.session) {
       toast('未解析到直播内容，请重试');
       return result;

@@ -275,7 +275,7 @@
         chatId: chatId,
       });
       console.info('[LINE] 调用 LLM · messages=', messages.length);
-      var raw = await window.天青_api.chat({ messages: messages });
+      var raw = await window.天青_api.chat({ messages: messages, route: 'line' });
       if (window.天青_regex && window.天青_regex.applyAiOutput) {
         raw = window.天青_regex.applyAiOutput(raw);
       }
@@ -287,10 +287,17 @@
         result = { raw: raw, items: [], discarded: true };
         return result;
       }
-      if (!items.length) {
-        console.warn('[LINE] 未解析到 <line_message> 条目', raw);
-        toast('天青没有回上来…');
-        result = { raw: raw, items: [] };
+      var api = window.天青_api;
+      if (
+        !api ||
+        !api.hasXmlPair ||
+        !api.hasXmlPair(raw, 'line_message') ||
+        !items.length
+      ) {
+        if (api && api.reportFormatError) {
+          api.reportFormatError('LINE', '<line_message>…</line_message>', raw);
+        }
+        result = { raw: raw, items: [], formatError: true };
         return result;
       }
       /* 无时间戳时用游戏时间兜底 */
@@ -306,11 +313,15 @@
       return result;
     } catch (err) {
       console.error('[LINE] 生成失败', err);
-      toast(String((err && err.message) || err || '生成失败'));
+      if (window.天青_settings && window.天青_settings.showError) {
+        window.天青_settings.showError(err);
+      } else {
+        toast(String((err && err.message) || err || '生成失败'));
+      }
       return null;
     } finally {
       generating = false;
-      if (result && !result.discarded) {
+      if (result && !result.discarded && !result.formatError) {
         await dispatchSecondaryIfPrimary(result.raw, false);
       }
     }
@@ -357,7 +368,11 @@
     if (window.天青_tokens && window.天青_tokens.ensureReady) {
       try {
         var model =
-          window.天青_api && window.天青_api.loadConfig ? window.天青_api.loadConfig().model : '';
+          window.天青_api && window.天青_api.resolveConfig
+            ? window.天青_api.resolveConfig('line').model
+            : window.天青_api && window.天青_api.loadConfig
+              ? window.天青_api.loadConfig().model
+              : '';
         await window.天青_tokens.ensureReady(model);
       } catch (e) {
         console.warn('[LINE] 钩子：tokenizer 预加载失败', e);
@@ -383,7 +398,7 @@
         '· hook=',
         hookText.slice(0, 80),
       );
-      var raw = await window.天青_api.chat({ messages: messages });
+      var raw = await window.天青_api.chat({ messages: messages, route: 'line' });
       if (window.天青_regex && window.天青_regex.applyAiOutput) {
         raw = window.天青_regex.applyAiOutput(raw);
       }
@@ -395,9 +410,17 @@
         result = { raw: raw, items: [], discarded: true };
         return result;
       }
-      if (!items.length) {
-        console.warn('[LINE] 钩子：未解析到 <line_message>', raw);
-        result = { raw: raw, items: [] };
+      var api = window.天青_api;
+      if (
+        !api ||
+        !api.hasXmlPair ||
+        !api.hasXmlPair(raw, 'line_message') ||
+        !items.length
+      ) {
+        if (api && api.reportFormatError) {
+          api.reportFormatError('LINE', '<line_message>…</line_message>', raw);
+        }
+        result = { raw: raw, items: [], formatError: true };
         return result;
       }
       items.forEach(function (it) {
@@ -412,10 +435,13 @@
       return result;
     } catch (err) {
       console.error('[LINE] 钩子生成失败', err);
+      if (window.天青_settings && window.天青_settings.showError) {
+        window.天青_settings.showError(err);
+      }
       return null;
     } finally {
       generating = false;
-      if (result && !result.discarded) {
+      if (result && !result.discarded && !result.formatError) {
         await dispatchSecondaryIfPrimary(result.raw, secondary);
       }
     }

@@ -99,9 +99,11 @@
       runGenerate(c);
     };
     var apiCfg =
-      window.天青_api && window.天青_api.loadConfig
-        ? window.天青_api.loadConfig()
-        : {};
+      window.天青_api && window.天青_api.resolveConfig
+        ? window.天青_api.resolveConfig('main')
+        : window.天青_api && window.天青_api.loadConfig
+          ? window.天青_api.loadConfig()
+          : {};
     var liveStage = !!(apiCfg.stream && apiCfg.streamDisplay !== false);
     try {
       if (liveStage && window.天青_stage && window.天青_stage.beginStreamRound) {

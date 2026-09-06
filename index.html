@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Noto+Serif+SC:wght@500;600;700&family=ZCOOL+QingKe+HuangYou&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="interface/stage.css?v=20260826j" />
+    <link rel="stylesheet" href="interface/stage.css?v=20260906g" />
     <link rel="stylesheet" href="interface/phone.css?v=20260720j" />
     <link rel="stylesheet" href="interface/phone-line.css?v=20260904a" />
     <link rel="stylesheet" href="interface/phone-twitter.css?v=20260903d" />
@@ -1050,256 +1050,36 @@
             </nav>
             <div class="settings-subcontent">
               <div class="settings-subpane active" data-subpane="api">
-                <section class="settings-l3 settings-api">
-                  <div class="settings-api-col">
-                    <div class="settings-l4">
-                      <h4 class="settings-l4-title">URL</h4>
-                      <input
-                        type="text"
-                        class="tq-input"
-                        id="cfg-api-base"
-                        placeholder="https://api.openai.com/v1"
-                        autocomplete="off"
-                        spellcheck="false"
-                      />
-                    </div>
-
-                    <div class="settings-l4">
-                      <h4 class="settings-l4-title">密钥</h4>
-                      <div class="tq-field">
-                        <input
-                          type="password"
-                          class="tq-input tq-input-has-icon"
-                          id="cfg-api-key"
-                          placeholder="sk-..."
-                          autocomplete="off"
-                          spellcheck="false"
-                        />
-                        <button
-                          type="button"
-                          class="tq-field-icon"
-                          id="btn-api-key-vis"
-                          data-visible="0"
-                          aria-label="显示密钥"
-                          title="显示密钥"
-                        ></button>
-                      </div>
-                    </div>
-
-                    <div class="settings-l4">
-                      <h4 class="settings-l4-title">模型</h4>
-                      <div class="tq-model-field" id="cfg-api-model-wrap">
-                        <div class="tq-field">
-                          <input
-                            type="text"
-                            class="tq-input tq-input-has-icon"
-                            id="cfg-api-model"
-                            placeholder="连接后选择，也可手动填写"
-                            autocomplete="off"
-                            spellcheck="false"
-                          />
-                          <button
-                            type="button"
-                            class="tq-field-icon tq-field-caret"
-                            id="btn-api-model-menu"
-                            aria-label="选择模型"
-                            title="选择模型"
-                            aria-expanded="false"
-                            aria-controls="cfg-api-model-menu"
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              width="14"
-                              height="14"
-                              aria-hidden="true"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path fill="currentColor" d="M6.2 9.2h11.6L12 16.4 6.2 9.2z" />
-                            </svg>
-                          </button>
-                        </div>
-                        <ul class="tq-model-menu" id="cfg-api-model-menu" hidden role="listbox"></ul>
-                      </div>
-                    </div>
-
-                    <div class="settings-api-actions">
-                      <button type="button" class="tq-action-btn" id="btn-api-connect">连接</button>
-                      <button type="button" class="tq-action-btn" id="btn-api-test">发送测试消息</button>
-                    </div>
-
-                    <label class="tq-check-row" for="cfg-api-auto-connect">
-                      <input type="checkbox" id="cfg-api-auto-connect" />
-                      <span class="tq-check-box" aria-hidden="true"></span>
-                      <span class="tq-check-label">自动连接到上次的服务器</span>
-                    </label>
-
-                    <div class="settings-api-status" id="api-status" data-state="idle">
-                      <span class="api-status-icon" id="api-status-icon"></span>
-                      <span class="api-status-text" id="api-status-text">未连接</span>
-                    </div>
-
-                    <div class="settings-l4 settings-api-stream-opts">
-                      <label class="tq-check-row" for="cfg-api-stream">
-                        <input type="checkbox" id="cfg-api-stream" />
-                        <span class="tq-check-box" aria-hidden="true"></span>
-                        <span class="tq-check-label">流式传输</span>
-                      </label>
-                      <label class="tq-check-row" for="cfg-api-stream-display">
-                        <input type="checkbox" id="cfg-api-stream-display" checked />
-                        <span class="tq-check-box" aria-hidden="true"></span>
-                        <span class="tq-check-label">流式显示</span>
-                      </label>
-                      <p class="tq-hint">
-                        随着回复的生成，逐词逐句地接收结果。<br />
-                        关闭后，回复将在完成后一次性返回。
-                      </p>
-                    </div>
+                <section class="settings-l3 settings-api settings-api-multi">
+                  <div class="api-profiles-toolbar">
+                    <h3 class="api-section-title">API 接口</h3>
+                    <button type="button" class="tq-action-btn" id="btn-api-add">添加接口</button>
                   </div>
+                  <div class="api-profiles-list" id="api-profiles-list"></div>
 
-                  <div class="settings-api-col">
+                  <div class="api-routes-panel">
+                    <h3 class="api-section-title">路由绑定</h3>
                     <div class="settings-l4">
-                      <h4 class="settings-l4-title">上下文长度</h4>
-                      <div class="tq-slider" data-slider="api-context">
-                        <div class="tq-range-wrap">
-                          <input
-                            type="range"
-                            class="tq-range"
-                            id="cfg-api-context"
-                            min="1024"
-                            max="2000000"
-                            step="1024"
-                            value="200000"
-                          />
-                        </div>
-                        <input
-                          type="text"
-                          class="tq-slider-num tq-slider-num-wide"
-                          id="cfg-api-context-num"
-                          inputmode="numeric"
-                          value="200000"
-                        />
+                      <h4 class="settings-l4-title">默认接口</h4>
+                      <select class="tq-select" id="cfg-api-default-profile"></select>
+                    </div>
+                    <div class="api-routes-grid">
+                      <div class="settings-l4">
+                        <h4 class="settings-l4-title">主线</h4>
+                        <select class="tq-select" id="cfg-api-route-main" data-route="main"></select>
                       </div>
-                    </div>
-
-                    <div class="settings-l4">
-                      <h4 class="settings-l4-title">最大回复长度</h4>
-                      <input
-                        type="text"
-                        class="tq-input"
-                        id="cfg-api-max-tokens"
-                        inputmode="numeric"
-                        placeholder="4096"
-                        autocomplete="off"
-                        spellcheck="false"
-                      />
-                    </div>
-
-                    <div class="settings-l4">
-                      <h4 class="settings-l4-title">温度</h4>
-                      <div class="tq-slider" data-slider="api-temp">
-                        <div class="tq-range-wrap">
-                          <input
-                            type="range"
-                            class="tq-range"
-                            id="cfg-api-temp"
-                            min="0"
-                            max="2"
-                            step="0.01"
-                            value="0.90"
-                          />
-                        </div>
-                        <input
-                          type="text"
-                          class="tq-slider-num tq-slider-num-wide"
-                          id="cfg-api-temp-num"
-                          inputmode="decimal"
-                          value="0.90"
-                        />
+                      <div class="settings-l4">
+                        <h4 class="settings-l4-title">LINE</h4>
+                        <select class="tq-select" id="cfg-api-route-line" data-route="line"></select>
                       </div>
-                    </div>
-
-                    <div class="settings-l4">
-                      <h4 class="settings-l4-title">频率惩罚</h4>
-                      <div class="tq-slider" data-slider="api-freq">
-                        <div class="tq-range-wrap">
-                          <input
-                            type="range"
-                            class="tq-range"
-                            id="cfg-api-freq"
-                            min="-2"
-                            max="2"
-                            step="0.01"
-                            value="0.00"
-                          />
-                        </div>
-                        <input
-                          type="text"
-                          class="tq-slider-num tq-slider-num-wide"
-                          id="cfg-api-freq-num"
-                          inputmode="decimal"
-                          value="0.00"
-                        />
+                      <div class="settings-l4">
+                        <h4 class="settings-l4-title">Twitter</h4>
+                        <select class="tq-select" id="cfg-api-route-twitter" data-route="twitter"></select>
                       </div>
-                    </div>
-
-                    <div class="settings-l4">
-                      <h4 class="settings-l4-title">存在惩罚</h4>
-                      <div class="tq-slider" data-slider="api-pres">
-                        <div class="tq-range-wrap">
-                          <input
-                            type="range"
-                            class="tq-range"
-                            id="cfg-api-pres"
-                            min="-2"
-                            max="2"
-                            step="0.01"
-                            value="0.00"
-                          />
-                        </div>
-                        <input
-                          type="text"
-                          class="tq-slider-num tq-slider-num-wide"
-                          id="cfg-api-pres-num"
-                          inputmode="decimal"
-                          value="0.00"
-                        />
+                      <div class="settings-l4">
+                        <h4 class="settings-l4-title">Twitch</h4>
+                        <select class="tq-select" id="cfg-api-route-twitch" data-route="twitch"></select>
                       </div>
-                    </div>
-
-                    <div class="settings-l4">
-                      <h4 class="settings-l4-title">Top P</h4>
-                      <div class="tq-slider" data-slider="api-top-p">
-                        <div class="tq-range-wrap">
-                          <input
-                            type="range"
-                            class="tq-range"
-                            id="cfg-api-top-p"
-                            min="0"
-                            max="1"
-                            step="0.01"
-                            value="1.00"
-                          />
-                        </div>
-                        <input
-                          type="text"
-                          class="tq-slider-num tq-slider-num-wide"
-                          id="cfg-api-top-p-num"
-                          inputmode="decimal"
-                          value="1.00"
-                        />
-                      </div>
-                    </div>
-
-                    <div class="settings-l4">
-                      <h4 class="settings-l4-title">推理强度</h4>
-                      <select class="tq-select" id="cfg-api-reasoning">
-                        <option value="auto">自动</option>
-                        <option value="minimal">极低</option>
-                        <option value="low">低</option>
-                        <option value="medium">中</option>
-                        <option value="high">高</option>
-                        <option value="xhigh" selected>极高</option>
-                      </select>
                     </div>
                   </div>
                 </section>
@@ -1543,9 +1323,9 @@
                   </div>
                   <div class="preset-panel char-wb-panel prompt-panel">
                     <div class="preset-list-wrap">
-                      <ul class="preset-list regex-list" id="prompt-list"></ul>
+                      <ul class="preset-list prompt-book-list" id="prompt-book-list"></ul>
                       <p class="tq-hint preset-list-empty" id="prompt-list-empty">
-                        新增或导入世界书后，条目将显示在这里
+                        默认会显示「默认提示词」；导入世界书将新增一本
                       </p>
                     </div>
                   </div>
@@ -1875,24 +1655,24 @@
     <script src="backend/parse.js"></script>
     <script src="backend/state.js"></script>
     <script src="backend/persona.js"></script>
-    <script src="backend/api.js?v=20260903h"></script>
+    <script src="backend/api.js?v=20260905c"></script>
     <script src="backend/preset.js"></script>
     <script src="backend/stat-data.js"></script>
-    <script src="backend/prompt-builder.js?v=20260903j"></script>
+    <script src="backend/prompt-builder.js?v=20260905f"></script>
     <script src="backend/regex.js"></script>
     <script src="backend/save.js?v=20260809a"></script>
-    <script src="backend/chat.js?v=20260902g"></script>
+    <script src="backend/chat.js?v=20260905a"></script>
     <script src="backend/hooks.js?v=20260904c"></script>
 
     <script src="interface/stage.js?v=20260809h"></script>
     <script src="interface/phone-apps.js?v=20260904b"></script>
     <script src="interface/phone-line-room-tools.js?v=20260904a"></script>
     <script src="interface/phone-line.js?v=20260904a"></script>
-    <script src="interface/phone-line-generate.js?v=20260904c"></script>
+    <script src="interface/phone-line-generate.js?v=20260905a"></script>
     <script src="interface/phone-twitter.js?v=20260903i"></script>
-    <script src="interface/phone-twitter-generate.js?v=20260904c"></script>
+    <script src="interface/phone-twitter-generate.js?v=20260905a"></script>
     <script src="interface/phone-twitch.js?v=20260903i"></script>
-    <script src="interface/phone-twitch-generate.js?v=20260904c"></script>
+    <script src="interface/phone-twitch-generate.js?v=20260905a"></script>
     <script src="interface/phone-agency.js?v=20260904b"></script>
     <script src="interface/phone-layout-preview.js"></script>
     <script src="interface/phone.js?v=20260902a"></script>
@@ -1901,10 +1681,10 @@
     <script src="interface/opening-select.js?v=20260826i"></script>
     <script src="interface/title.js?v=20260809d"></script>
     <script src="interface/asset-preload.js?v=20260809g"></script>
-    <script src="interface/settings-api.js?v=20260809a"></script>
+    <script src="interface/settings-api.js?v=20260905e"></script>
     <script src="interface/settings-preset.js"></script>
     <script src="interface/settings-regex.js"></script>
-    <script src="interface/settings-prompt.js?v=20260903g"></script>
+    <script src="interface/settings-prompt.js?v=20260906e"></script>
     <script src="interface/settings-variable.js?v=20260903a"></script>
     <script src="backend/variable-commands.js?v=20260902g"></script>
     <script src="interface/settings-image.js"></script>
@@ -1912,7 +1692,7 @@
     <script src="interface/settings-user.js"></script>
     <script src="interface/settings-opening.js?v=20260826f"></script>
     <script src="interface/settings-character.js"></script>
-    <script src="interface/settings.js?v=20260826a"></script>
+    <script src="interface/settings.js?v=20260905a"></script>
     <script src="interface/app.js?v=20260902g"></script>
   </body>
 </html>

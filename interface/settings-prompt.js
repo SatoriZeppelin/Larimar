@@ -1,16 +1,18 @@
 /**
- * 系统设置 · 提示词（世界书分条目，解析/字段对齐角色设置）
+ * 系统设置 · 提示词（按世界书二级分组）
  * 含不可删除的「变量列表」词条，内容由变量树自动生成
  * 对外：window.天青_settings_prompt
  */
 (function () {
   var KEY = 'tq_plus_system_prompts';
   var SEED_KEY = 'tq_plus_prompt_wb_seed';
-  var SEED_VER = 'prompt-default-wb-v4';
+  var SEED_VER = 'prompt-default-wb-v5';
   var FAME_STAGE_KEY = 'tq_plus_prompt_drop_fame_stage_v1';
   var STAT_DATA_UID = 'tq_locked_stat_data';
-  var store = { entries: [] };
-  var expandedId = null;
+  var BASE_BOOK_NAME = '默认提示词';
+  var LEGACY_BASE_BOOK_NAME = '基础提示词';
+  var store = { books: [], expandedBookId: null };
+  var expandedIds = Object.create(null);
   var pendingImport = null;
   var drag = null;
   var LONG_PRESS_MS = 180;
@@ -30,9 +32,69 @@
     return 'wb_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
   }
 
+  function makeBookId() {
+    return 'book_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+  }
+
+  function books() {
+    if (!store || !Array.isArray(store.books)) store.books = [];
+    return store.books;
+  }
+
+  function findBook(id) {
+    var list = books();
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].id) === String(id)) return list[i];
+    }
+    return null;
+  }
+
+  function findBookIndex(id) {
+    var list = books();
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].id) === String(id)) return i;
+    }
+    return -1;
+  }
+
+  /** 当前展开的世界书（条目增删改都作用于此） */
+  function activeBook() {
+    return findBook(store.expandedBookId) || null;
+  }
+
   function entries() {
-    if (!Array.isArray(store.entries)) store.entries = [];
-    return store.entries;
+    var b = activeBook();
+    if (!b) return [];
+    if (!Array.isArray(b.entries)) b.entries = [];
+    return b.entries;
+  }
+
+  function setActiveEntries(list) {
+    var b = activeBook();
+    if (!b) return;
+    b.entries = Array.isArray(list) ? list : [];
+  }
+
+  function normalizeBook(b) {
+    b = b && typeof b === 'object' ? b : {};
+    return {
+      id: String(b.id || makeBookId()),
+      name: String(b.name != null ? b.name : '未命名世界书').trim() || '未命名世界书',
+      enabled: b.enabled !== false,
+      entries: Array.isArray(b.entries) ? b.entries.map(migrateLegacy) : [],
+    };
+  }
+
+  function uniqueBookName(name) {
+    var base = String(name || '世界书').trim() || '世界书';
+    var names = {};
+    books().forEach(function (b) {
+      names[String(b.name || '')] = 1;
+    });
+    if (!names[base]) return base;
+    var n = 2;
+    while (names[base + ' (' + n + ')']) n++;
+    return base + ' (' + n + ')';
   }
 
   function entryUid(entry, index) {
@@ -50,7 +112,18 @@
 
   function findEntry(id) {
     var i = findIndex(id);
-    return i < 0 ? null : store.entries[i];
+    return i < 0 ? null : entries()[i];
+  }
+
+  function findBookContainingEntry(uid) {
+    var list = books();
+    for (var i = 0; i < list.length; i++) {
+      var ents = list[i].entries || [];
+      for (var j = 0; j < ents.length; j++) {
+        if (ents[j] && String(ents[j].uid) === String(uid)) return list[i];
+      }
+    }
+    return null;
   }
 
   function ensureEntryShape(entry, index) {
@@ -128,13 +201,35 @@
   function loadStore() {
     try {
       var raw = localStorage.getItem(KEY);
-      if (!raw) return { entries: [] };
+      if (!raw) return { books: [], expandedBookId: null };
       var o = JSON.parse(raw);
-      if (!o || !Array.isArray(o.entries)) return { entries: [] };
-      o.entries = o.entries.map(migrateLegacy);
-      return o;
+      if (!o || typeof o !== 'object') return { books: [], expandedBookId: null };
+
+      /* 新结构 */
+      if (Array.isArray(o.books)) {
+        var booksNorm = o.books.map(normalizeBook);
+        var expanded = o.expandedBookId != null ? String(o.expandedBookId) : null;
+        if (expanded && !booksNorm.some(function (b) { return b.id === expanded; })) expanded = null;
+        return { books: booksNorm, expandedBookId: expanded };
+      }
+
+      /* 旧扁平 entries → 一本「基础提示词」 */
+      if (Array.isArray(o.entries)) {
+        return {
+          books: [
+            normalizeBook({
+              id: 'book_base',
+              name: BASE_BOOK_NAME,
+              enabled: true,
+              entries: o.entries,
+            }),
+          ],
+          expandedBookId: null,
+        };
+      }
+      return { books: [], expandedBookId: null };
     } catch (err) {
-      return { entries: [] };
+      return { books: [], expandedBookId: null };
     }
   }
 
@@ -162,8 +257,8 @@
   }
 
   /**
-   * 首次 / 仅有「变量列表」时：写入内嵌基础提示词
-   * 已有其它条目则跳过；仅有锁定词条时会补种（修复旧缓存/旧 seed）
+   * 首次：写入「基础提示词」世界书
+   * 已有其它世界书/条目则跳过
    */
   function ensureDefaultPrompts() {
     var seeded = '';
@@ -171,11 +266,15 @@
       seeded = localStorage.getItem(SEED_KEY) || '';
     } catch (e) {}
 
-    var list = entries();
-    var custom = list.filter(function (e) {
-      return e && e.uid !== STAT_DATA_UID;
+    var list = books();
+    var hasCustom = list.some(function (b) {
+      if (!b) return false;
+      if (b.name !== BASE_BOOK_NAME) return true;
+      return (b.entries || []).some(function (e) {
+        return e && e.uid !== STAT_DATA_UID;
+      });
     });
-    if (custom.length) {
+    if (hasCustom) {
       if (seeded !== SEED_VER) {
         try {
           localStorage.setItem(SEED_KEY, SEED_VER);
@@ -184,15 +283,34 @@
       return false;
     }
 
-    /* 无自定义条目：即使旧版 seed 已写，仍补种一次（v2） */
-    if (seeded === SEED_VER) return false;
+    if (seeded === SEED_VER && list.length) return false;
 
     var defaults = loadDefaultPromptEntries();
     if (!defaults.length) {
       console.warn('[天青 提示词] 默认基础提示词未加载（检查 default-prompt-worldbook.js）');
       return false;
     }
-    store.entries = defaults;
+
+    var base = list.find(function (b) {
+      return b && b.name === BASE_BOOK_NAME;
+    });
+    if (!base) {
+      base = normalizeBook({
+        id: 'book_base',
+        name: BASE_BOOK_NAME,
+        enabled: true,
+        entries: defaults,
+      });
+      store.books = [base];
+    } else {
+      var onlyStat = (base.entries || []).every(function (e) {
+        return !e || e.uid === STAT_DATA_UID;
+      });
+      if (onlyStat || !(base.entries || []).length) {
+        base.entries = defaults;
+      }
+    }
+    store.expandedBookId = null;
     saveStore();
     try {
       localStorage.setItem(SEED_KEY, SEED_VER);
@@ -206,15 +324,16 @@
     try {
       if (localStorage.getItem(FAME_STAGE_KEY)) return false;
     } catch (e) {}
-    var list = entries();
     var changed = false;
     var from = "_.set('stat_data.名气.阶段', '地下偶像期')";
     var to = "_.set('stat_data.名气.twitter', 1000)";
-    list.forEach(function (e) {
-      if (!e || typeof e.content !== 'string') return;
-      if (e.content.indexOf(from) < 0) return;
-      e.content = e.content.split(from).join(to);
-      changed = true;
+    books().forEach(function (b) {
+      (b.entries || []).forEach(function (e) {
+        if (!e || typeof e.content !== 'string') return;
+        if (e.content.indexOf(from) < 0) return;
+        e.content = e.content.split(from).join(to);
+        changed = true;
+      });
     });
     try {
       localStorage.setItem(FAME_STAGE_KEY, '1');
@@ -282,12 +401,24 @@
   /** 确保存在不可删除的「变量列表」词条；AUTO 时刷新捕获内容 */
   function syncStatDataPrompt(opt) {
     opt = opt || {};
-    var list = entries();
+    var book = findBookContainingEntry(STAT_DATA_UID);
+    if (!book) {
+      book =
+        books().find(function (b) {
+          return b && b.name === BASE_BOOK_NAME;
+        }) || books()[0];
+    }
+    if (!book) {
+      book = normalizeBook({ id: 'book_base', name: BASE_BOOK_NAME, enabled: true, entries: [] });
+      store.books = [book];
+    }
+    if (!Array.isArray(book.entries)) book.entries = [];
+
     var content = buildStatDataContent();
     var kept = null;
     var keptIdx = -1;
     var others = [];
-    list.forEach(function (e, i) {
+    book.entries.forEach(function (e, i) {
       if (e && e.uid === STAT_DATA_UID) {
         if (!kept) {
           kept = e;
@@ -312,7 +443,7 @@
       var insertAt = Math.min(keptIdx, others.length);
       others.splice(insertAt, 0, entry);
     }
-    store.entries = others;
+    book.entries = others;
     saveStore();
     if (!opt.silent) renderList();
     else {
@@ -345,10 +476,64 @@
   function keysBadge(entry) {
     if (entry && entry.constant) return '常驻';
     var keys = (entry && entry.key) || [];
-    if (!keys.length) return '无关键词';
+    if (!keys.length) return '关键词';
     var s = keys.slice(0, 3).join(', ');
     if (keys.length > 3) s += '…';
     return s;
+  }
+
+  function positionShortLabel(entry) {
+    var v = positionSelectValue(entry);
+    var map = {
+      '0': '角色定义前',
+      '1': '角色定义后',
+      '5': '↑EM',
+      '6': '↓EM',
+      '2': '作者注释前',
+      '3': '作者注释后',
+      '4:0': '@D 系统',
+      '4:1': '@D 用户',
+      '4:2': '@D AI',
+    };
+    return map[v] || v;
+  }
+
+  function migrateLegacyBookNames() {
+    var changed = false;
+    books().forEach(function (b) {
+      if (!b) return;
+      if (String(b.name) === LEGACY_BASE_BOOK_NAME) {
+        b.name = BASE_BOOK_NAME;
+        changed = true;
+      }
+    });
+    if (changed) saveStore();
+    return changed;
+  }
+
+  function setEntryExpanded(id, open) {
+    id = String(id || '');
+    if (!id) return;
+    if (open) expandedIds[id] = true;
+    else delete expandedIds[id];
+  }
+
+  function isEntryExpanded(id) {
+    return !!expandedIds[String(id || '')];
+  }
+
+  function expandAllEntriesInBook(book) {
+    if (!book || !Array.isArray(book.entries)) return;
+    book.entries.forEach(function (e, i) {
+      setEntryExpanded(entryUid(e, i), true);
+    });
+  }
+
+  function collapseAllEntriesInBook(book) {
+    if (!book || !Array.isArray(book.entries)) return;
+    book.entries.forEach(function (e, i) {
+      setEntryExpanded(entryUid(e, i), false);
+    });
   }
 
   function previewText(entry) {
@@ -477,7 +662,14 @@
     el = card.querySelector('[data-field="automationId"]');
     if (el) setStr('automationId', String(el.value || '').trim());
     el = card.querySelector('[data-field="constant"]');
-    if (el && !locked) setBool('constant', el.checked);
+    if (el && !locked) {
+      setBool('constant', el.checked);
+      var strategyEl = card.querySelector('.prompt-col-strategy');
+      if (strategyEl) {
+        strategyEl.textContent = entry.constant ? '常驻' : '关键词';
+        strategyEl.classList.toggle('is-constant', !!entry.constant);
+      }
+    }
     el = card.querySelector('[data-field="excludeRecursion"]');
     if (el) setBool('excludeRecursion', el.checked);
     el = card.querySelector('[data-field="preventRecursion"]');
@@ -490,25 +682,27 @@
     if (!changed) return false;
 
     var title = card.querySelector('.regex-card-title');
-    var preview = card.querySelector('.regex-card-preview');
-    var badge = card.querySelector('.regex-place');
+    var strategyEl = card.querySelector('.prompt-col-strategy');
     var meta = card.querySelector('.char-wb-meta');
     var name = entry.comment || (entry.key && entry.key[0]) || '未命名条目';
     if (title) {
       title.textContent = name;
       title.title = name;
     }
-    if (preview) {
-      var pv = previewText(entry);
-      preview.textContent = pv;
-      preview.hidden = !pv;
-      preview.title = pv;
-    }
-    if (badge) {
-      badge.textContent = keysBadge(entry);
-      badge.classList.toggle('is-constant', !!entry.constant);
+    if (strategyEl) {
+      strategyEl.textContent = entry.constant ? '常驻' : '关键词';
+      strategyEl.classList.toggle('is-constant', !!entry.constant);
     }
     if (meta) meta.textContent = '(词符: ' + approxTokens(entry.content) + ') (UID: ' + entry.uid + ')';
+    /* 同步摘要列 */
+    var sumPos = card.querySelector('[data-summary="position"]');
+    if (sumPos) sumPos.value = positionSelectValue(entry);
+    var sumDepth = card.querySelector('[data-summary="depth"]');
+    if (sumDepth) sumDepth.value = entry.depth != null ? entry.depth : 4;
+    var sumOrder = card.querySelector('[data-summary="order"]');
+    if (sumOrder) sumOrder.value = entry.order != null ? entry.order : 100;
+    var sumProb = card.querySelector('[data-summary="probability"]');
+    if (sumProb) sumProb.value = entry.probability != null ? entry.probability : 100;
     return true;
   }
 
@@ -517,9 +711,9 @@
   }
 
   function flushOpen() {
-    var list = $('prompt-list');
-    if (!list) return;
-    list.querySelectorAll('.prompt-card').forEach(function (card) {
+    var root = $('prompt-book-list') || $('prompt-list');
+    if (!root) return;
+    root.querySelectorAll('.prompt-card').forEach(function (card) {
       if (card.querySelector('[data-field]') && writeFromBody(card)) saveStore();
     });
   }
@@ -598,18 +792,143 @@
   }
 
   function renderList() {
-    var list = $('prompt-list');
+    var root = $('prompt-book-list') || $('prompt-list');
     var empty = $('prompt-list-empty');
     var svg = window.天青_svg;
-    if (!list) return;
-    var items = entries();
-    list.innerHTML = '';
-    if (empty) empty.style.display = items.length ? 'none' : '';
+    if (!root) return;
+    root.innerHTML = '';
+    var bookList = books();
+    if (empty) empty.style.display = bookList.length ? 'none' : '';
 
-    items.forEach(function (entry, index) {
+    bookList.forEach(function (book, bookIndex) {
+      if (!book) return;
+      if (!book.id) book.id = makeBookId();
+      if (!Array.isArray(book.entries)) book.entries = [];
+      var bookOpen = String(store.expandedBookId) === String(book.id);
+      var bookOn = book.enabled !== false;
+
+      var bookLi = document.createElement('li');
+      bookLi.className =
+        'prompt-book-card' + (bookOpen ? ' is-expanded' : '') + (bookOn ? '' : ' is-off');
+      bookLi.dataset.bookId = book.id;
+
+      var head = document.createElement('div');
+      head.className = 'prompt-book-head';
+
+      var toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'prompt-book-toggle';
+      toggleBtn.setAttribute('data-act', 'book-expand');
+      toggleBtn.setAttribute('aria-expanded', bookOpen ? 'true' : 'false');
+      toggleBtn.title = bookOpen ? '收起' : '展开';
+      var chevron = document.createElement('span');
+      chevron.className = 'prompt-book-chevron';
+      chevron.setAttribute('aria-hidden', 'true');
+      if (svg && svg.chevron) svg.mount(chevron, svg.chevron);
+      toggleBtn.appendChild(chevron);
+
+      var main = document.createElement('button');
+      main.type = 'button';
+      main.className = 'prompt-book-main';
+      main.setAttribute('data-act', 'book-expand');
+      var title = document.createElement('span');
+      title.className = 'prompt-book-title';
+      title.textContent = book.name || '未命名世界书';
+      title.title = book.name || '';
+      var meta = document.createElement('span');
+      meta.className = 'prompt-book-meta';
+      meta.textContent = book.entries.length + ' 条';
+      main.appendChild(title);
+      main.appendChild(meta);
+
+      var side = document.createElement('div');
+      side.className = 'prompt-book-side';
+
+      if (bookOpen) {
+        var tools = document.createElement('div');
+        tools.className = 'prompt-book-tools';
+
+        var addTool = document.createElement('button');
+        addTool.type = 'button';
+        addTool.className = 'prompt-book-tool-btn';
+        addTool.title = '创建新条目';
+        addTool.setAttribute('data-act', 'book-add-entry');
+        addTool.setAttribute('aria-label', '创建新条目');
+        addTool.innerHTML =
+          '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>';
+
+        var openAll = document.createElement('button');
+        openAll.type = 'button';
+        openAll.className = 'prompt-book-tool-btn';
+        openAll.title = '打开所有条目';
+        openAll.setAttribute('data-act', 'book-expand-all');
+        openAll.setAttribute('aria-label', '打开所有条目');
+        openAll.innerHTML =
+          '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+
+        var closeAll = document.createElement('button');
+        closeAll.type = 'button';
+        closeAll.className = 'prompt-book-tool-btn';
+        closeAll.title = '关闭所有条目';
+        closeAll.setAttribute('data-act', 'book-collapse-all');
+        closeAll.setAttribute('aria-label', '关闭所有条目');
+        closeAll.innerHTML =
+          '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+
+        tools.appendChild(addTool);
+        tools.appendChild(openAll);
+        tools.appendChild(closeAll);
+        side.appendChild(tools);
+      }
+
+      var nameBtn = document.createElement('button');
+      nameBtn.type = 'button';
+      nameBtn.className = 'prompt-book-tool-btn';
+      nameBtn.title = '重命名';
+      nameBtn.setAttribute('data-act', 'book-rename');
+      nameBtn.setAttribute('aria-label', '重命名');
+      if (svg && svg.pencil) svg.mount(nameBtn, svg.pencil);
+
+      var sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'preset-switch' + (bookOn ? ' is-on' : '');
+      sw.title = bookOn ? '已启用' : '已关闭';
+      sw.setAttribute('data-act', 'book-toggle');
+      sw.setAttribute('aria-pressed', bookOn ? 'true' : 'false');
+
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'preset-icon-btn char-wb-delete-btn';
+      delBtn.title = '删除世界书';
+      delBtn.setAttribute('data-act', 'book-delete');
+      delBtn.disabled = bookList.length <= 1;
+      if (svg && svg.trash) svg.mount(delBtn, svg.trash);
+
+      side.appendChild(nameBtn);
+      side.appendChild(sw);
+      side.appendChild(delBtn);
+
+      head.appendChild(toggleBtn);
+      head.appendChild(main);
+      head.appendChild(side);
+      bookLi.appendChild(head);
+
+      var list = document.createElement('ul');
+      list.className = 'preset-list regex-list prompt-entry-list';
+      list.hidden = !bookOpen;
+      list.setAttribute('data-book-id', book.id);
+
+      var items = book.entries;
+      if (!bookOpen) {
+        bookLi.appendChild(list);
+        root.appendChild(bookLi);
+        return;
+      }
+
+      items.forEach(function (entry, index) {
       ensureEntryShape(entry, index);
       var id = entryUid(entry, index);
-      var open = String(expandedId) === String(id);
+      var open = isEntryExpanded(id);
       var on = entry.enabled !== false;
 
       var li = document.createElement('li');
@@ -656,21 +975,8 @@
       title.textContent = name;
       title.title = name;
 
-      var badge = document.createElement('span');
-      badge.className = 'regex-place' + (entry.constant ? ' is-constant' : '');
-      badge.textContent = keysBadge(entry);
-
       titleRow.appendChild(title);
-      titleRow.appendChild(badge);
       main.appendChild(titleRow);
-
-      var pv = previewText(entry);
-      var preview = document.createElement('div');
-      preview.className = 'regex-card-preview';
-      preview.textContent = pv;
-      preview.title = pv;
-      preview.hidden = !pv;
-      main.appendChild(preview);
 
       var chevron = document.createElement('span');
       chevron.className = 'regex-card-chevron';
@@ -680,6 +986,67 @@
       hit.appendChild(idx);
       hit.appendChild(main);
       hit.appendChild(chevron);
+
+      var cols = document.createElement('div');
+      cols.className = 'prompt-card-cols';
+      cols.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+      });
+      cols.addEventListener('mousedown', function (ev) {
+        ev.stopPropagation();
+      });
+
+      var strategy = document.createElement('span');
+      strategy.className =
+        'prompt-col prompt-col-strategy' + (entry.constant ? ' is-constant' : '');
+      strategy.title = '触发策略';
+      strategy.textContent = entry.constant ? '常驻' : '关键词';
+      cols.appendChild(strategy);
+
+      var posSel = document.createElement('select');
+      posSel.className = 'tq-select prompt-col-pos';
+      posSel.setAttribute('data-summary', 'position');
+      posSel.title = '插入位置';
+      posSel.innerHTML =
+        '<option value="0">角色定义前</option>' +
+        '<option value="1">角色定义后</option>' +
+        '<option value="5">↑EM</option>' +
+        '<option value="6">↓EM</option>' +
+        '<option value="2">作者注释前</option>' +
+        '<option value="3">作者注释后</option>' +
+        '<option value="4:0">@D 系统</option>' +
+        '<option value="4:1">@D 用户</option>' +
+        '<option value="4:2">@D AI</option>';
+      posSel.value = positionSelectValue(entry);
+      cols.appendChild(posSel);
+
+      var depthInp = document.createElement('input');
+      depthInp.type = 'number';
+      depthInp.className = 'tq-input prompt-col-num';
+      depthInp.setAttribute('data-summary', 'depth');
+      depthInp.title = '深度';
+      depthInp.min = '0';
+      depthInp.value = entry.depth != null ? entry.depth : 4;
+      cols.appendChild(depthInp);
+
+      var orderInp = document.createElement('input');
+      orderInp.type = 'number';
+      orderInp.className = 'tq-input prompt-col-num';
+      orderInp.setAttribute('data-summary', 'order');
+      orderInp.title = '顺序';
+      orderInp.value = entry.order != null ? entry.order : 100;
+      if (locked) orderInp.readOnly = true;
+      cols.appendChild(orderInp);
+
+      var probInp = document.createElement('input');
+      probInp.type = 'number';
+      probInp.className = 'tq-input prompt-col-num';
+      probInp.setAttribute('data-summary', 'probability');
+      probInp.title = '触发概率 %';
+      probInp.min = '0';
+      probInp.max = '100';
+      probInp.value = entry.probability != null ? entry.probability : 100;
+      cols.appendChild(probInp);
 
       var side = document.createElement('div');
       side.className = 'regex-card-side';
@@ -741,8 +1108,14 @@
       } else {
         side.appendChild(delBtn);
       }
+
+      var right = document.createElement('div');
+      right.className = 'prompt-card-right';
+      right.appendChild(cols);
+      right.appendChild(side);
+
       top.appendChild(hit);
-      top.appendChild(side);
+      top.appendChild(right);
       li.appendChild(top);
 
       var body = document.createElement('div');
@@ -835,17 +1208,30 @@
       fillEntryBody(body, entry);
       li.appendChild(body);
       list.appendChild(li);
+      });
+
+      bookLi.appendChild(list);
+      root.appendChild(bookLi);
     });
   }
 
   function addEntry() {
+    var book = activeBook();
+    if (!book) {
+      if (!books().length) {
+        toast('请先导入或等待默认世界书加载');
+        return;
+      }
+      store.expandedBookId = books()[0].id;
+      book = activeBook();
+    }
     var list = entries();
     var entry = makeBlankEntry(list.length ? (list[list.length - 1].order || 100) + 1 : 100);
     list.push(entry);
-    expandedId = String(entry.uid);
+    setEntryExpanded(String(entry.uid), true);
     saveStore();
     renderList();
-    toast('已新增条目');
+    toast('已新增条目到「' + (book.name || '世界书') + '」');
   }
 
   function duplicateEntry(id) {
@@ -863,7 +1249,7 @@
     delete clone.locked;
     clone.comment = (src.comment || '条目') + '（副本）';
     list.splice(i + 1, 0, clone);
-    expandedId = String(clone.uid);
+    setEntryExpanded(String(clone.uid), true);
     saveStore();
     renderList();
     toast('已复制条目');
@@ -888,20 +1274,23 @@
   function applyImport(mode) {
     if (!pendingImport || !pendingImport.entries) return;
     var incoming = pendingImport.entries.slice();
-    var name = pendingImport.name || '世界书';
-    if (mode === 'overwrite') {
-      store.entries = incoming;
-      toast('已覆盖导入「' + name + '」（' + incoming.length + ' 条）');
-    } else {
-      store.entries = entries().concat(incoming);
-      toast('已追加导入「' + name + '」（+' + incoming.length + ' 条，共 ' + store.entries.length + ' 条）');
-    }
+    var name = uniqueBookName(pendingImport.name || '世界书');
+    /* 导入一律新增一本世界书（覆盖/追加语义已废弃） */
+    var book = normalizeBook({
+      id: makeBookId(),
+      name: name,
+      enabled: true,
+      entries: incoming,
+    });
+    books().push(book);
+    store.expandedBookId = book.id;
+    expandedIds = Object.create(null);
     pendingImport = null;
-    expandedId = null;
     saveStore();
     syncStatDataPrompt({ silent: true });
     renderList();
     closeOverwriteModal(false);
+    toast('已导入世界书「' + name + '」（' + incoming.length + ' 条）');
   }
 
   function parseImportFile(file) {
@@ -927,8 +1316,7 @@
         var nameHint = String(file.name || '').replace(/\.json$/i, '');
         var name = (json && json.name) || nameHint || '世界书';
         pendingImport = { entries: list, name: name };
-        if (entries().length) openOverwriteModal();
-        else applyImport('overwrite');
+        applyImport('new');
       } catch (err) {
         console.warn('[天青 提示词] import worldbook', err);
         toast(String((err && err.message) || err));
@@ -955,12 +1343,17 @@
       toast('世界书导出模块未加载');
       return;
     }
-    var list = entries();
+    var book = activeBook();
+    if (!book) {
+      toast('请先展开要导出的世界书');
+      return;
+    }
+    var list = book.entries || [];
     if (!list.length) {
       toast('没有可导出的条目');
       return;
     }
-    var name = '提示词';
+    var name = book.name || '提示词';
     var payload = api.exportWorldbook(list, name);
     var blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: 'application/json;charset=utf-8',
@@ -1092,7 +1485,8 @@
   }
 
   function beginDrag(card, pointerId, clientX, clientY) {
-    var list = $('prompt-list');
+    var list = card && card.closest ? card.closest('.prompt-entry-list') : null;
+    if (!list) list = $('prompt-book-list') || $('prompt-list');
     if (!list || !card || !drag || drag.active) return;
     var rect = card.getBoundingClientRect();
     var placeholder = document.createElement('li');
@@ -1128,8 +1522,8 @@
     if (!drag) return;
     clearDragTimer();
     endDragListeners();
-    var list = $('prompt-list');
     var card = drag.card;
+    var list = (card && card.closest && card.closest('.prompt-entry-list')) || $('prompt-book-list') || $('prompt-list');
     var placeholder = drag.placeholder;
     var wasActive = drag.active;
     var handle = card && card.querySelector('.preset-drag-handle');
@@ -1145,6 +1539,9 @@
     drag = null;
     if (!wasActive || !commit || !list) return;
 
+    var bookId = list.getAttribute('data-book-id');
+    if (bookId) store.expandedBookId = bookId;
+
     var map = {};
     entries().forEach(function (entry, i) {
       map[entryUid(entry, i)] = entry;
@@ -1155,7 +1552,7 @@
       if (entry) next.push(entry);
     });
     if (!next.length) return;
-    store.entries = next;
+    setActiveEntries(next);
     saveStore();
     renderList();
   }
@@ -1174,7 +1571,7 @@
       if (!drag || !drag.active) return;
     }
     e.preventDefault();
-    var list = $('prompt-list');
+    var list = drag.card && drag.card.closest ? drag.card.closest('.prompt-entry-list') : null;
     if (!list || !drag.card) return;
     positionFloatingCard(drag.card, e.clientX, e.clientY);
     autoScrollList(list, e.clientY);
@@ -1193,8 +1590,10 @@
     if (!handle) return;
     if (e.button != null && e.button !== 0) return;
     var card = handle.closest('.prompt-card');
-    var list = $('prompt-list');
+    var list = card && card.closest ? card.closest('.prompt-entry-list') : null;
     if (!card || !list) return;
+    var bookId = list.getAttribute('data-book-id');
+    if (bookId) store.expandedBookId = bookId;
     e.preventDefault();
     e.stopPropagation();
     finishDrag(false);
@@ -1229,14 +1628,91 @@
     if (e.target && e.target.closest && e.target.closest('.preset-drag-handle')) return;
     var btn = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
     if (!btn || btn.disabled) return;
+    var act = btn.getAttribute('data-act');
+
+    if (act && act.indexOf('book-') === 0) {
+      var bookCard = btn.closest('.prompt-book-card');
+      var bookId = bookCard && bookCard.dataset.bookId;
+      var book = findBook(bookId);
+      if (act === 'book-expand') {
+        flushOpen();
+        store.expandedBookId = String(store.expandedBookId) === String(bookId) ? null : bookId;
+        expandedIds = Object.create(null);
+        saveStore();
+        renderList();
+        return;
+      }
+      if (act === 'book-add-entry') {
+        if (bookId) store.expandedBookId = bookId;
+        addEntry();
+        return;
+      }
+      if (act === 'book-expand-all') {
+        if (!book) return;
+        store.expandedBookId = bookId;
+        expandAllEntriesInBook(book);
+        renderList();
+        return;
+      }
+      if (act === 'book-collapse-all') {
+        if (!book) return;
+        collapseAllEntriesInBook(book);
+        renderList();
+        return;
+      }
+      if (act === 'book-toggle') {
+        if (!book) return;
+        book.enabled = book.enabled === false;
+        saveStore();
+        renderList();
+        return;
+      }
+      if (act === 'book-rename') {
+        if (!book) return;
+        var nextName = window.prompt('世界书名称', book.name || '');
+        if (nextName == null) return;
+        nextName = String(nextName).trim().slice(0, 48);
+        if (!nextName) return;
+        book.name = nextName;
+        saveStore();
+        renderList();
+        return;
+      }
+      if (act === 'book-delete') {
+        if (books().length <= 1) {
+          toast('至少保留一本世界书');
+          return;
+        }
+        if (!book) return;
+        var askBook = window.天青_settings && window.天青_settings.confirm ? window.天青_settings.confirm : null;
+        var runDelBook = function () {
+          store.books = books().filter(function (b) {
+            return String(b.id) !== String(bookId);
+          });
+          if (String(store.expandedBookId) === String(bookId)) store.expandedBookId = null;
+          expandedIds = Object.create(null);
+          saveStore();
+          syncStatDataPrompt({ silent: true });
+          renderList();
+          toast('已删除世界书');
+        };
+        if (askBook) askBook('确定删除世界书「' + (book.name || '') + '」及其全部条目吗？', runDelBook);
+        else if (window.confirm('确定删除世界书「' + (book.name || '') + '」及其全部条目吗？')) runDelBook();
+      }
+      return;
+    }
+
     var row = btn.closest('.prompt-card');
     if (!row) return;
-    var act = btn.getAttribute('data-act');
+    var entryList = row.closest('.prompt-entry-list');
+    if (entryList && entryList.getAttribute('data-book-id')) {
+      store.expandedBookId = entryList.getAttribute('data-book-id');
+    }
     var entry = findEntry(row.dataset.id);
 
     if (act === 'expand') {
       flushOpen();
-      expandedId = String(expandedId) === String(row.dataset.id) ? null : row.dataset.id;
+      setEntryExpanded(row.dataset.id, !isEntryExpanded(row.dataset.id));
       renderList();
       return;
     }
@@ -1296,17 +1772,15 @@
         toast('变量列表词条不可删除');
         return;
       }
-      var label =
-        (entry && (entry.comment || (entry.key && entry.key[0]))) || '该条目';
-      var ask =
-        window.天青_settings && window.天青_settings.confirm
-          ? window.天青_settings.confirm
-          : null;
+      var label = (entry && (entry.comment || (entry.key && entry.key[0]))) || '该条目';
+      var ask = window.天青_settings && window.天青_settings.confirm ? window.天青_settings.confirm : null;
       var run = function () {
-        store.entries = entries().filter(function (item, i) {
-          return entryUid(item, i) !== String(row.dataset.id);
-        });
-        if (String(expandedId) === String(row.dataset.id)) expandedId = null;
+        setActiveEntries(
+          entries().filter(function (item, i) {
+            return entryUid(item, i) !== String(row.dataset.id);
+          }),
+        );
+        if (isEntryExpanded(row.dataset.id)) setEntryExpanded(row.dataset.id, false);
         saveStore();
         renderList();
         toast('已删除条目');
@@ -1319,11 +1793,40 @@
   function onListChange(e) {
     var card = e.target && e.target.closest ? e.target.closest('.prompt-card') : null;
     if (!card) return;
+    var summary = e.target.getAttribute && e.target.getAttribute('data-summary');
+    if (summary) {
+      var entry = findEntry(card.dataset.id);
+      if (!entry) return;
+      ensureEntryShape(entry, 0);
+      var locked = isStatDataEntry(entry);
+      if (summary === 'position') applyPositionSelect(entry, e.target.value);
+      else if (summary === 'depth') {
+        var d = Number(e.target.value);
+        entry.depth = isNaN(d) ? 4 : d;
+      } else if (summary === 'order' && !locked) {
+        var o = Number(e.target.value);
+        entry.order = isNaN(o) ? 100 : o;
+      } else if (summary === 'probability') {
+        var p = Number(e.target.value);
+        entry.probability = isNaN(p) ? 100 : Math.max(0, Math.min(100, p));
+      }
+      var body = card.querySelector('.regex-card-body');
+      if (body && !body.hidden) {
+        var bodyEl = body.querySelector('[data-field="' + summary + '"]');
+        if (bodyEl) {
+          if (summary === 'position') bodyEl.value = positionSelectValue(entry);
+          else bodyEl.value = entry[summary] == null ? '' : String(entry[summary]);
+        }
+      }
+      saveStore();
+      return;
+    }
     if (e.target.getAttribute('data-field')) syncFromBody(card);
   }
 
   function bind() {
     store = loadStore();
+    migrateLegacyBookNames();
     ensureDefaultPrompts();
     migrateDropFameStage();
     var svg = window.天青_svg;
@@ -1338,7 +1841,7 @@
     var importBtn = $('btn-prompt-import');
     var exportBtn = $('btn-prompt-export');
     var importFile = $('cfg-prompt-file');
-    var list = $('prompt-list');
+    var list = $('prompt-book-list') || $('prompt-list');
     if (addBtn) addBtn.addEventListener('click', addEntry);
     if (importBtn && importFile) {
       importBtn.addEventListener('click', function () {

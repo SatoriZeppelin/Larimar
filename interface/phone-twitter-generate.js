@@ -471,7 +471,11 @@
     if (window.天青_tokens && window.天青_tokens.ensureReady) {
       try {
         var model =
-          window.天青_api && window.天青_api.loadConfig ? window.天青_api.loadConfig().model : '';
+          window.天青_api && window.天青_api.resolveConfig
+            ? window.天青_api.resolveConfig('twitter').model
+            : window.天青_api && window.天青_api.loadConfig
+              ? window.天青_api.loadConfig().model
+              : '';
         await window.天青_tokens.ensureReady(model);
       } catch (e) {
         console.warn('[Twitter] 钩子：tokenizer 预加载失败', e);
@@ -497,7 +501,7 @@
         '· hook=',
         String(hookText).slice(0, 80),
       );
-      var raw = await window.天青_api.chat({ messages: messages });
+      var raw = await window.天青_api.chat({ messages: messages, route: 'twitter' });
       if (window.天青_regex && window.天青_regex.applyAiOutput) {
         raw = window.天青_regex.applyAiOutput(raw);
       }
@@ -517,9 +521,13 @@
         result = { raw: hookRaw, tweets: [], trends: [], discarded: true };
         return result;
       }
-      if (!tweets.length && !trends.length) {
-        console.warn('[Twitter] 钩子：未解析到 <twitter_message>', raw);
-        result = { raw: hookRaw, tweets: [], trends: [] };
+      var api = window.天青_api;
+      var hasTag = api && api.hasXmlPair && api.hasXmlPair(hookRaw, 'twitter_message');
+      if (!hasTag || (!tweets.length && !trends.length)) {
+        if (api && api.reportFormatError) {
+          api.reportFormatError('Twitter', '<twitter_message>…</twitter_message>', hookRaw);
+        }
+        result = { raw: hookRaw, tweets: [], trends: [], formatError: true };
         return result;
       }
       if (tweets.length) applyTweets(tweets, bindIndex);
@@ -539,10 +547,13 @@
       return result;
     } catch (err) {
       console.error('[Twitter] 钩子生成失败', err);
+      if (window.天青_settings && window.天青_settings.showError) {
+        window.天青_settings.showError(err);
+      }
       return null;
     } finally {
       generating = false;
-      if (result && !result.discarded) {
+      if (result && !result.discarded && !result.formatError) {
         await dispatchSecondaryIfPrimary(result.raw, secondary);
       }
     }
@@ -579,7 +590,7 @@
       toast('Twitter 生成失败');
       return null;
     }
-    if (result.discarded) return result;
+    if (result.discarded || result.formatError) return result;
     if (!(result.tweets && result.tweets.length)) {
       toast('未解析到相关推文，请重试');
     }
@@ -602,7 +613,7 @@
       toast('Twitter 刷新失败');
       return null;
     }
-    if (result.discarded) return result;
+    if (result.discarded || result.formatError) return result;
     if (!(result.tweets && result.tweets.length) && !(result.trends && result.trends.length)) {
       toast('未解析到新推文，请重试');
     }

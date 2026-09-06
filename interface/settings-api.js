@@ -1,12 +1,14 @@
 /**
- * 系统设置 · API 页
- * 连接模式固定为自动判断（界面不展示）
+ * 系统设置 · API 页（多套命名接口 + 路由绑定）
  * 对外：window.天青_settings_api
  */
 (function () {
-  var keyTimer = null;
-  var busy = false;
-  var modelIds = [];
+  var keyTimers = Object.create(null);
+  var busyId = '';
+  var modelIdsByProfile = Object.create(null);
+  var expandedIds = Object.create(null);
+  var advancedOpen = Object.create(null);
+  var bound = false;
 
   function $(id) {
     return document.getElementById(id);
@@ -22,16 +24,6 @@
     }
   }
 
-  function modeLabel(m) {
-    return { direct: '直连' }[m] || '直连';
-  }
-
-  function normalizeCmp(u) {
-    return String(u || '')
-      .trim()
-      .replace(/\/+$/, '');
-  }
-
   function clampNum(n, min, max, fallback) {
     n = Number(n);
     if (!isFinite(n)) return fallback;
@@ -40,6 +32,27 @@
 
   function fmt2(n) {
     return clampNum(n, -Infinity, Infinity, 0).toFixed(2);
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function hostOf(url) {
+    try {
+      var u = String(url || '').trim();
+      if (!u) return '';
+      if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+      return new URL(u).host || '';
+    } catch (e) {
+      return String(url || '')
+        .replace(/^https?:\/\//i, '')
+        .split('/')[0];
+    }
   }
 
   function setRangePct(rangeEl) {
@@ -52,86 +65,87 @@
     rangeEl.style.setProperty('--tq-pct', pct + '%');
   }
 
-  function bindIntSlider(rangeId, numId, onChange) {
-    var range = $(rangeId);
-    var num = $(numId);
-    if (!range || !num) return;
-    function fromRange() {
-      num.value = String(Math.round(Number(range.value) || 0));
-      setRangePct(range);
-      if (onChange) onChange();
+  function store() {
+    return (api() && api().loadStore && api().loadStore()) || { profiles: [], routes: {}, defaultProfileId: '', activeProfileId: '' };
+  }
+
+  function setStatus(profileId, state, text) {
+    var card = document.querySelector('.api-profile-card[data-id="' + profileId + '"]');
+    if (!card) return;
+    var el = card.querySelector('.settings-api-status');
+    var txt = card.querySelector('.api-status-text');
+    if (el) el.setAttribute('data-state', state || 'idle');
+    if (txt) txt.textContent = text || '';
+  }
+
+  function fillRouteSelects() {
+    var st = store();
+    var profiles = st.profiles || [];
+    var defSel = $('cfg-api-default-profile');
+    if (defSel) {
+      defSel.innerHTML = profiles
+        .map(function (p) {
+          return (
+            '<option value="' +
+            esc(p.id) +
+            '"' +
+            (p.id === st.defaultProfileId ? ' selected' : '') +
+            '>' +
+            esc(p.name) +
+            (p.enabled === false ? '（已禁用）' : '') +
+            '</option>'
+          );
+        })
+        .join('');
     }
-    function fromNum() {
-      var v = Math.round(clampNum(num.value, range.min, range.max, Number(range.min) || 0));
-      num.value = String(v);
-      range.value = String(v);
-      setRangePct(range);
-      if (onChange) onChange();
-    }
-    range.addEventListener('input', fromRange);
-    num.addEventListener('change', fromNum);
-    num.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        fromNum();
-        num.blur();
-      }
+    ['main', 'line', 'twitter', 'twitch'].forEach(function (route) {
+      var sel = $('cfg-api-route-' + route);
+      if (!sel) return;
+      var cur = (st.routes && st.routes[route]) || '';
+      var opts =
+        '<option value="">使用默认</option>' +
+        profiles
+          .map(function (p) {
+            return (
+              '<option value="' +
+              esc(p.id) +
+              '"' +
+              (p.id === cur ? ' selected' : '') +
+              '>' +
+              esc(p.name) +
+              (p.enabled === false ? '（已禁用）' : '') +
+              '</option>'
+            );
+          })
+          .join('');
+      sel.innerHTML = opts;
     });
   }
 
-  function bindFloatSlider(rangeId, numId, onChange) {
-    var range = $(rangeId);
-    var num = $(numId);
-    if (!range || !num) return;
-    function fromRange() {
-      num.value = fmt2(range.value);
-      setRangePct(range);
-      if (onChange) onChange();
-    }
-    function fromNum() {
-      var v = clampNum(num.value, range.min, range.max, Number(range.value) || 0);
-      v = Math.round(v * 100) / 100;
-      num.value = fmt2(v);
-      range.value = String(v);
-      setRangePct(range);
-      if (onChange) onChange();
-    }
-    range.addEventListener('input', fromRange);
-    num.addEventListener('change', fromNum);
-    num.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        fromNum();
-        num.blur();
-      }
-    });
-  }
-
-  function readDomConfig() {
-    var cur = (api() && api().loadConfig()) || {};
-    var baseUrl = (($('cfg-api-base') || {}).value || '').trim();
-    var autoEl = $('cfg-api-auto-connect');
-    var streamEl = $('cfg-api-stream');
-    var streamDisplayEl = $('cfg-api-stream-display');
-    var reasoning = $('cfg-api-reasoning');
-    var cfg = Object.assign({}, cur, {
-      mode: 'direct',
-      resolvedMode: 'direct',
+  function readCardConfig(card, prev) {
+    prev = prev || {};
+    var baseUrl = ((card.querySelector('[data-f="baseUrl"]') || {}).value || '').trim();
+    var protocol = ((card.querySelector('[data-f="protocol"]') || {}).value || prev.protocol || 'openai').trim();
+    var cfg = Object.assign({}, prev, {
+      id: card.getAttribute('data-id'),
+      name: ((card.querySelector('[data-f="name"]') || {}).value || prev.name || '新接口').trim() || '新接口',
+      enabled: !!(card.querySelector('[data-f="enabled"]') || {}).checked,
+      protocol: protocol,
       baseUrl: baseUrl,
-      apiKey: (($('cfg-api-key') || {}).value || '').trim(),
-      model: (($('cfg-api-model') || {}).value || '').trim() || cur.model,
-      autoConnect: !!(autoEl && autoEl.checked),
-      stream: !!(streamEl && streamEl.checked),
-      streamDisplay: !!(streamDisplayEl && streamDisplayEl.checked),
-      contextLength: clampNum(($('cfg-api-context') || {}).value, 1024, 2000000, cur.contextLength || 200000),
-      maxTokens: clampNum(($('cfg-api-max-tokens') || {}).value, 1, 2000000, cur.maxTokens || 4096),
-      temperature: clampNum(($('cfg-api-temp') || {}).value, 0, 2, cur.temperature != null ? cur.temperature : 0.9),
-      frequencyPenalty: clampNum(($('cfg-api-freq') || {}).value, -2, 2, cur.frequencyPenalty || 0),
-      presencePenalty: clampNum(($('cfg-api-pres') || {}).value, -2, 2, cur.presencePenalty || 0),
-      topP: clampNum(($('cfg-api-top-p') || {}).value, 0, 1, cur.topP != null ? cur.topP : 1),
-      reasoningEffort: (reasoning && reasoning.value) || cur.reasoningEffort || 'xhigh',
+      apiKey: ((card.querySelector('[data-f="apiKey"]') || {}).value || '').trim(),
+      model: ((card.querySelector('[data-f="model"]') || {}).value || '').trim() || prev.model,
+      autoConnect: !!(card.querySelector('[data-f="autoConnect"]') || {}).checked,
+      stream: !!(card.querySelector('[data-f="stream"]') || {}).checked,
+      streamDisplay: !!(card.querySelector('[data-f="streamDisplay"]') || {}).checked,
+      contextLength: clampNum((card.querySelector('[data-f="contextLength"]') || {}).value, 1024, 2000000, prev.contextLength || 200000),
+      maxTokens: clampNum((card.querySelector('[data-f="maxTokens"]') || {}).value, 1, 2000000, prev.maxTokens || 4096),
+      temperature: clampNum((card.querySelector('[data-f="temperature"]') || {}).value, 0, 2, prev.temperature != null ? prev.temperature : 1),
+      frequencyPenalty: clampNum((card.querySelector('[data-f="frequencyPenalty"]') || {}).value, -2, 2, prev.frequencyPenalty || 0),
+      presencePenalty: clampNum((card.querySelector('[data-f="presencePenalty"]') || {}).value, -2, 2, prev.presencePenalty || 0),
+      topP: clampNum((card.querySelector('[data-f="topP"]') || {}).value, 0, 1, prev.topP != null ? prev.topP : 0.99),
+      reasoningEffort: ((card.querySelector('[data-f="reasoningEffort"]') || {}).value || prev.reasoningEffort || 'xhigh'),
     });
-    if (normalizeCmp(cur.baseUrl) !== normalizeCmp(baseUrl)) {
+    if (String(prev.baseUrl || '') !== baseUrl || String(prev.protocol || 'openai') !== protocol) {
       cfg.chatPath = '';
       cfg.modelsPath = '';
     }
@@ -139,385 +153,568 @@
     return cfg;
   }
 
-  function saveFromDom() {
-    if (!api()) return null;
-    var cfg = readDomConfig();
-    api().saveConfig(cfg);
+  function saveCard(card) {
+    if (!api() || !card) return null;
+    var id = card.getAttribute('data-id');
+    var st = store();
+    var prev = null;
+    for (var i = 0; i < st.profiles.length; i++) {
+      if (st.profiles[i].id === id) {
+        prev = st.profiles[i];
+        break;
+      }
+    }
+    var cfg = readCardConfig(card, prev || {});
+    st.profiles = st.profiles.map(function (p) {
+      return p.id === id ? cfg : p;
+    });
+    st.activeProfileId = id;
+    api().saveStore(st);
+    var title = card.querySelector('.api-card-title');
+    if (title) title.textContent = cfg.name;
+    var sub = card.querySelector('.api-card-sub');
+    if (sub) sub.textContent = [cfg.model, hostOf(cfg.baseUrl)].filter(Boolean).join(' · ') || '未配置';
+    var badge = card.querySelector('.api-badge-enabled');
+    if (badge) {
+      badge.textContent = cfg.enabled ? '已启用' : '已禁用';
+      badge.classList.toggle('is-on', !!cfg.enabled);
+      badge.classList.toggle('is-off', !cfg.enabled);
+    }
+    fillRouteSelects();
     return cfg;
   }
 
-  function fillDom() {
-    if (!api()) return;
-    var cfg = api().normalizeConfig ? api().normalizeConfig(api().loadConfig()) : api().loadConfig();
-    var base = $('cfg-api-base');
-    var key = $('cfg-api-key');
-    var model = $('cfg-api-model');
-    var auto = $('cfg-api-auto-connect');
-    var stream = $('cfg-api-stream');
-    var streamDisplay = $('cfg-api-stream-display');
-    var maxTok = $('cfg-api-max-tokens');
-    var reasoning = $('cfg-api-reasoning');
-    if (base) base.value = cfg.baseUrl || '';
-    if (key) key.value = cfg.apiKey || '';
-    if (model) model.value = cfg.model || '';
-    if (auto) auto.checked = !!cfg.autoConnect;
-    if (stream) stream.checked = !!cfg.stream;
-    if (streamDisplay) streamDisplay.checked = cfg.streamDisplay !== false;
-    if (maxTok) maxTok.value = String(cfg.maxTokens != null ? cfg.maxTokens : 4096);
-    if (reasoning) reasoning.value = cfg.reasoningEffort || 'xhigh';
-
-    var pairs = [
-      ['cfg-api-context', 'cfg-api-context-num', cfg.contextLength, false],
-      ['cfg-api-temp', 'cfg-api-temp-num', cfg.temperature, true],
-      ['cfg-api-freq', 'cfg-api-freq-num', cfg.frequencyPenalty, true],
-      ['cfg-api-pres', 'cfg-api-pres-num', cfg.presencePenalty, true],
-      ['cfg-api-top-p', 'cfg-api-top-p-num', cfg.topP, true],
-    ];
-    pairs.forEach(function (row) {
-      var r = $(row[0]);
-      var n = $(row[1]);
-      var v = row[2];
-      if (r) {
-        r.value = String(v);
-        setRangePct(r);
-      }
-      if (n) n.value = row[3] ? fmt2(v) : String(Math.round(Number(v) || 0));
-    });
-
-    if (cfg.model) ensureModelOption(cfg.model);
-    renderModelMenu({ showAll: true });
-  }
-
-  function ensureModelOption(id) {
-    if (!id) return;
-    if (modelIds.indexOf(id) < 0) modelIds.push(id);
-  }
-
-  function matchedModels(query, showAll) {
-    var q = String(query || '')
-      .trim()
-      .toLowerCase();
-    if (showAll || !q) return modelIds.slice();
-    return modelIds.filter(function (id) {
-      return String(id).toLowerCase().indexOf(q) >= 0;
-    });
-  }
-
-  function renderModelMenu(opts) {
-    var menu = $('cfg-api-model-menu');
-    var input = $('cfg-api-model');
-    if (!menu) return;
-    opts = opts || {};
-    var current = (input && input.value) || '';
-    var list = matchedModels(opts.query != null ? opts.query : current, !!opts.showAll);
-    menu.innerHTML = '';
-    if (!modelIds.length) {
-      var empty = document.createElement('li');
-      empty.className = 'tq-model-empty';
-      empty.textContent = '请先连接以加载模型';
-      menu.appendChild(empty);
-      return;
-    }
-    if (!list.length) {
-      var none = document.createElement('li');
-      none.className = 'tq-model-empty';
-      none.textContent = '无匹配模型';
-      menu.appendChild(none);
-      return;
-    }
-    list.forEach(function (id) {
-      var li = document.createElement('li');
-      li.setAttribute('role', 'option');
-      li.dataset.value = id;
-      li.textContent = id;
-      if (id === current) li.classList.add('is-active');
-      menu.appendChild(li);
-    });
-  }
-
-  function fillModels(ids, preferred) {
-    var input = $('cfg-api-model');
-    var keep = preferred || (input && input.value) || (api() && api().loadConfig().model) || '';
-    modelIds = (ids || []).slice();
-    if (keep && modelIds.indexOf(keep) < 0) modelIds.unshift(keep);
-    if (input) {
-      if (keep) input.value = keep;
-      else if (modelIds[0]) input.value = modelIds[0];
-    }
-    renderModelMenu({ showAll: true });
-    saveFromDom();
-  }
-
-  function closeModelMenu() {
-    var wrap = $('cfg-api-model-wrap');
-    var menu = $('cfg-api-model-menu');
-    var btn = $('btn-api-model-menu');
+  function closeModelMenu(card) {
+    var wrap = card && card.querySelector('.tq-model-field');
+    var menu = card && card.querySelector('.tq-model-menu');
+    var caret = card && card.querySelector('[data-act="model-menu"]');
     if (wrap) wrap.classList.remove('is-open');
     if (menu) menu.hidden = true;
-    if (btn) btn.setAttribute('aria-expanded', 'false');
+    if (caret) caret.setAttribute('aria-expanded', 'false');
   }
 
-  function openModelMenu(opts) {
-    var wrap = $('cfg-api-model-wrap');
-    var menu = $('cfg-api-model-menu');
-    var btn = $('btn-api-model-menu');
-    renderModelMenu(opts);
-    if (wrap) wrap.classList.add('is-open');
-    if (menu) menu.hidden = false;
-    if (btn) btn.setAttribute('aria-expanded', 'true');
-  }
-
-  function toggleModelMenu() {
-    var menu = $('cfg-api-model-menu');
-    if (menu && !menu.hidden) closeModelMenu();
-    else openModelMenu({ showAll: true });
-  }
-
-  function suggestModelsFromInput() {
-    if (!modelIds.length) {
-      openModelMenu({ showAll: true });
-      return;
-    }
-    openModelMenu({ showAll: false });
-  }
-
-  function selectModel(id) {
-    var input = $('cfg-api-model');
-    if (!input || !id) return;
-    input.value = id;
-    ensureModelOption(id);
-    saveFromDom();
-    closeModelMenu();
-    renderModelMenu({ showAll: true });
-  }
-
-  function setStatus(ok, text) {
-    var wrap = $('api-status');
-    var icon = $('api-status-icon');
-    var label = $('api-status-text');
-    var svg = window.天青_svg;
-    if (wrap) wrap.setAttribute('data-state', ok === true ? 'ok' : ok === false ? 'fail' : 'idle');
-    if (label) label.textContent = text || (ok === true ? '连接成功' : ok === false ? '连接失败' : '未连接');
-    if (icon && svg) {
-      if (ok === true) svg.mount(icon, svg.check);
-      else if (ok === false) svg.mount(icon, svg.cross);
-      else icon.innerHTML = '';
+  function renderModelMenu(card, opts) {
+    opts = opts || {};
+    var id = card.getAttribute('data-id');
+    var menu = card.querySelector('.tq-model-menu');
+    var input = card.querySelector('[data-f="model"]');
+    if (!menu || !input) return;
+    var ids = modelIdsByProfile[id] || [];
+    var q = opts.showAll ? '' : String(input.value || '').trim().toLowerCase();
+    var filtered = !q
+      ? ids.slice()
+      : ids.filter(function (m) {
+          return String(m).toLowerCase().indexOf(q) >= 0;
+        });
+    if (!filtered.length) {
+      menu.innerHTML = '<li class="tq-model-empty">无匹配模型</li>';
+    } else {
+      menu.innerHTML = filtered
+        .slice(0, 80)
+        .map(function (m) {
+          return '<li role="option" data-value="' + esc(m) + '">' + esc(m) + '</li>';
+        })
+        .join('');
     }
   }
 
-  async function connect() {
-    if (!api() || busy) return;
-    busy = true;
-    setStatus(null, '连接中…');
-    try {
-      saveFromDom();
-      var ids = await api().listModels();
-      fillModels(ids);
-      setStatus(true, '连接成功');
-      var resolved = api().loadConfig().resolvedMode;
-      toast(
-        resolved
-          ? '已连接（' + modeLabel(resolved) + '），模型 ' + ids.length + ' 个'
-          : '已加载 ' + ids.length + ' 个模型',
-      );
-    } catch (e) {
-      console.warn('[天青 API] listModels', e);
-      try {
-        if (window.天青_api && typeof window.天青_api.isDefinitiveUpstreamError === 'function') {
-          if (window.天青_api.isDefinitiveUpstreamError(e)) throw e;
-        } else {
-          var em = String((e && e.message) || e || '');
-          if (/HTTP\s*40[123]\b|HTTP\s*429\b|No Keys|Proxy error|Too Many Requests/i.test(em)) throw e;
-        }
-        saveFromDom();
-        var cfg = api().loadConfig();
-        if (!cfg.model) throw e;
-        await api().testMessage();
-        setStatus(true, '连接成功');
-        toast('未提供模型列表，已用测试消息确认连通');
-      } catch (e2) {
-        console.warn('[天青 API]', e2);
-        setStatus(false, '连接失败');
-        var failMsg = String((e2 && e2.message) || e2 || e || '连接失败');
-        if (failMsg.indexOf('连接失败') !== 0) failMsg = '连接失败：' + failMsg;
-        toast(failMsg.slice(0, 180));
-      }
-    } finally {
-      busy = false;
-    }
+  function openModelMenu(card) {
+    var wrap = card.querySelector('.tq-model-field');
+    var menu = card.querySelector('.tq-model-menu');
+    var caret = card.querySelector('[data-act="model-menu"]');
+    if (!wrap || !menu) return;
+    renderModelMenu(card, { showAll: true });
+    wrap.classList.add('is-open');
+    menu.hidden = false;
+    if (caret) caret.setAttribute('aria-expanded', 'true');
   }
 
-  async function sendTest() {
-    if (!api() || busy) return;
-    busy = true;
-    setStatus(null, '测试中…');
-    try {
-      saveFromDom();
-      var reply = await api().testMessage();
-      setStatus(true, '连接成功');
-      toast('测试成功：' + String(reply || '').slice(0, 40));
-    } catch (e) {
-      console.warn('[天青 API]', e);
-      setStatus(false, '连接失败');
-      var msg = String((e && e.message) || e || '连接失败');
-      if (msg.indexOf('连接失败') !== 0) msg = '连接失败：' + msg;
-      toast(msg.slice(0, 120));
-    } finally {
-      busy = false;
+  function bindCardSlider(card, rangeSel, numSel, isFloat) {
+    var range = card.querySelector(rangeSel);
+    var num = card.querySelector(numSel);
+    if (!range || !num) return;
+    function fromRange() {
+      num.value = isFloat ? fmt2(range.value) : String(Math.round(Number(range.value) || 0));
+      setRangePct(range);
+      saveCard(card);
     }
+    function fromNum() {
+      var v = clampNum(num.value, range.min, range.max, Number(range.value) || 0);
+      if (isFloat) v = Math.round(v * 100) / 100;
+      else v = Math.round(v);
+      num.value = isFloat ? fmt2(v) : String(v);
+      range.value = String(v);
+      setRangePct(range);
+      saveCard(card);
+    }
+    range.addEventListener('input', fromRange);
+    num.addEventListener('change', fromNum);
   }
 
-  function scheduleKeyCheck() {
-    clearTimeout(keyTimer);
-    keyTimer = setTimeout(function () {
-      var cfg = readDomConfig();
-      saveFromDom();
-      if (!cfg.baseUrl) {
-        setStatus(null, '未连接');
+  function cardHtml(p, expanded) {
+    var id = p.id;
+    var protocol = p.protocol || 'openai';
+    var ph =
+      protocol === 'claude'
+        ? 'https://api.anthropic.com'
+        : protocol === 'gemini'
+          ? 'https://generativelanguage.googleapis.com'
+          : 'https://api.openai.com/v1';
+    var sub = [p.model, hostOf(p.baseUrl)].filter(Boolean).join(' · ') || '未配置';
+    var adv = !!advancedOpen[id];
+    return (
+      '<article class="api-profile-card' +
+      (expanded ? ' is-expanded' : '') +
+      (p.enabled === false ? ' is-disabled' : '') +
+      '" data-id="' +
+      esc(id) +
+      '">' +
+      '<header class="api-card-head">' +
+      '<button type="button" class="api-card-toggle" data-act="toggle" aria-expanded="' +
+      (expanded ? 'true' : 'false') +
+      '" title="展开/折叠">' +
+      '<span class="api-card-chevron" aria-hidden="true"></span>' +
+      '</button>' +
+      '<div class="api-card-head-main" data-act="toggle">' +
+      '<div class="api-card-title-row">' +
+      '<span class="api-card-title">' +
+      esc(p.name) +
+      '</span>' +
+      '<span class="api-badge api-badge-enabled ' +
+      (p.enabled !== false ? 'is-on' : 'is-off') +
+      '">' +
+      (p.enabled !== false ? '已启用' : '已禁用') +
+      '</span>' +
+      '</div>' +
+      '<div class="api-card-sub">' +
+      esc(sub) +
+      '</div>' +
+      '</div>' +
+      '<div class="api-card-actions">' +
+      '<button type="button" class="api-icon-btn" data-act="up" title="上移">↑</button>' +
+      '<button type="button" class="api-icon-btn" data-act="down" title="下移">↓</button>' +
+      '<button type="button" class="api-icon-btn" data-act="dup" title="复制">复</button>' +
+      '<button type="button" class="api-icon-btn api-icon-danger" data-act="del" title="删除">×</button>' +
+      '</div>' +
+      '</header>' +
+      '<div class="api-card-body"' +
+      (expanded ? '' : ' hidden') +
+      '>' +
+      '<div class="api-card-fields">' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">名称</h4>' +
+      '<input type="text" class="tq-input" data-f="name" value="' +
+      esc(p.name) +
+      '" autocomplete="off" spellcheck="false" /></div>' +
+      '<label class="tq-check-row" for="api-en-' +
+      esc(id) +
+      '"><input type="checkbox" id="api-en-' +
+      esc(id) +
+      '" data-f="enabled"' +
+      (p.enabled !== false ? ' checked' : '') +
+      ' /><span class="tq-check-box" aria-hidden="true"></span>' +
+      '<span class="tq-check-label">启用接口</span></label>' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">协议</h4>' +
+      '<select class="tq-select" data-f="protocol">' +
+      '<option value="openai"' +
+      (protocol === 'openai' ? ' selected' : '') +
+      '>OpenAI（Chat Completions）</option>' +
+      '<option value="claude"' +
+      (protocol === 'claude' ? ' selected' : '') +
+      '>Claude（Messages）</option>' +
+      '<option value="gemini"' +
+      (protocol === 'gemini' ? ' selected' : '') +
+      '>Gemini（generateContent）</option>' +
+      '</select></div>' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">接口地址</h4>' +
+      '<input type="text" class="tq-input" data-f="baseUrl" value="' +
+      esc(p.baseUrl || '') +
+      '" placeholder="' +
+      esc(ph) +
+      '" autocomplete="off" spellcheck="false" /></div>' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">API Key</h4>' +
+      '<div class="tq-field"><input type="password" class="tq-input tq-input-has-icon" data-f="apiKey" value="' +
+      esc(p.apiKey || '') +
+      '" placeholder="sk-..." autocomplete="off" spellcheck="false" />' +
+      '<button type="button" class="tq-field-icon" data-act="key-vis" data-visible="0" aria-label="显示密钥" title="显示密钥"></button></div></div>' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">模型</h4>' +
+      '<div class="tq-model-field"><div class="tq-field">' +
+      '<input type="text" class="tq-input tq-input-has-icon" data-f="model" value="' +
+      esc(p.model || '') +
+      '" placeholder="连接后选择，也可手动填写" autocomplete="off" spellcheck="false" />' +
+      '<button type="button" class="tq-field-icon tq-field-caret" data-act="model-menu" aria-label="选择模型" title="选择模型" aria-expanded="false">' +
+      '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M6.2 9.2h11.6L12 16.4 6.2 9.2z"/></svg>' +
+      '</button></div><ul class="tq-model-menu" hidden role="listbox"></ul></div>' +
+      '<p class="tq-hint">可直接输入模型名，也可先获取列表后选择。</p></div>' +
+      '<div class="settings-api-actions">' +
+      '<button type="button" class="tq-action-btn" data-act="connect">获取模型列表</button>' +
+      '<button type="button" class="tq-action-btn" data-act="test">发送测试消息</button></div>' +
+      '<label class="tq-check-row"><input type="checkbox" data-f="autoConnect"' +
+      (p.autoConnect ? ' checked' : '') +
+      ' /><span class="tq-check-box" aria-hidden="true"></span><span class="tq-check-label">自动连接</span></label>' +
+      '<div class="settings-api-status" data-state="idle"><span class="api-status-icon"></span><span class="api-status-text">未连接</span></div>' +
+      '<div class="settings-l4 settings-api-stream-opts">' +
+      '<label class="tq-check-row"><input type="checkbox" data-f="stream"' +
+      (p.stream ? ' checked' : '') +
+      ' /><span class="tq-check-box" aria-hidden="true"></span><span class="tq-check-label">流式传输</span></label>' +
+      '<label class="tq-check-row"><input type="checkbox" data-f="streamDisplay"' +
+      (p.streamDisplay !== false ? ' checked' : '') +
+      ' /><span class="tq-check-box" aria-hidden="true"></span><span class="tq-check-label">流式显示</span></label></div>' +
+      '<button type="button" class="api-advanced-toggle" data-act="advanced" aria-expanded="' +
+      (adv ? 'true' : 'false') +
+      '">高级参数</button>' +
+      '<div class="api-advanced"' +
+      (adv ? '' : ' hidden') +
+      '>' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">上下文长度</h4><div class="tq-slider"><div class="tq-range-wrap">' +
+      '<input type="range" class="tq-range" data-f="contextLength" min="1024" max="2000000" step="1024" value="' +
+      esc(p.contextLength) +
+      '" /></div>' +
+      '<input type="text" class="tq-slider-num tq-slider-num-wide" data-f="contextLengthNum" inputmode="numeric" value="' +
+      esc(Math.round(p.contextLength || 0)) +
+      '" /></div></div>' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">最大回复长度</h4>' +
+      '<input type="text" class="tq-input" data-f="maxTokens" inputmode="numeric" value="' +
+      esc(p.maxTokens) +
+      '" autocomplete="off" /></div>' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">温度</h4><div class="tq-slider"><div class="tq-range-wrap">' +
+      '<input type="range" class="tq-range" data-f="temperature" min="0" max="2" step="0.01" value="' +
+      esc(p.temperature) +
+      '" /></div>' +
+      '<input type="text" class="tq-slider-num tq-slider-num-wide" data-f="temperatureNum" inputmode="decimal" value="' +
+      esc(fmt2(p.temperature)) +
+      '" /></div></div>' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">频率惩罚</h4><div class="tq-slider"><div class="tq-range-wrap">' +
+      '<input type="range" class="tq-range" data-f="frequencyPenalty" min="-2" max="2" step="0.01" value="' +
+      esc(p.frequencyPenalty) +
+      '" /></div>' +
+      '<input type="text" class="tq-slider-num tq-slider-num-wide" data-f="frequencyPenaltyNum" inputmode="decimal" value="' +
+      esc(fmt2(p.frequencyPenalty)) +
+      '" /></div></div>' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">存在惩罚</h4><div class="tq-slider"><div class="tq-range-wrap">' +
+      '<input type="range" class="tq-range" data-f="presencePenalty" min="-2" max="2" step="0.01" value="' +
+      esc(p.presencePenalty) +
+      '" /></div>' +
+      '<input type="text" class="tq-slider-num tq-slider-num-wide" data-f="presencePenaltyNum" inputmode="decimal" value="' +
+      esc(fmt2(p.presencePenalty)) +
+      '" /></div></div>' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">Top P</h4><div class="tq-slider"><div class="tq-range-wrap">' +
+      '<input type="range" class="tq-range" data-f="topP" min="0" max="1" step="0.01" value="' +
+      esc(p.topP) +
+      '" /></div>' +
+      '<input type="text" class="tq-slider-num tq-slider-num-wide" data-f="topPNum" inputmode="decimal" value="' +
+      esc(fmt2(p.topP)) +
+      '" /></div></div>' +
+      '<div class="settings-l4"><h4 class="settings-l4-title">推理强度</h4>' +
+      '<select class="tq-select" data-f="reasoningEffort">' +
+      ['auto', 'minimal', 'low', 'medium', 'high', 'xhigh']
+        .map(function (v) {
+          var labels = { auto: '自动', minimal: '极低', low: '低', medium: '中', high: '高', xhigh: '极高' };
+          return (
+            '<option value="' +
+            v +
+            '"' +
+            ((p.reasoningEffort || 'xhigh') === v ? ' selected' : '') +
+            '>' +
+            labels[v] +
+            '</option>'
+          );
+        })
+        .join('') +
+      '</select></div>' +
+      '</div></div></div></article>'
+    );
+  }
+
+  function wireCard(card) {
+    if (!card || card.getAttribute('data-wired') === '1') return;
+    card.setAttribute('data-wired', '1');
+    var id = card.getAttribute('data-id');
+
+    card.querySelectorAll('.tq-range').forEach(function (r) {
+      setRangePct(r);
+    });
+    bindCardSlider(card, '[data-f="contextLength"]', '[data-f="contextLengthNum"]', false);
+    bindCardSlider(card, '[data-f="temperature"]', '[data-f="temperatureNum"]', true);
+    bindCardSlider(card, '[data-f="frequencyPenalty"]', '[data-f="frequencyPenaltyNum"]', true);
+    bindCardSlider(card, '[data-f="presencePenalty"]', '[data-f="presencePenaltyNum"]', true);
+    bindCardSlider(card, '[data-f="topP"]', '[data-f="topPNum"]', true);
+
+    card.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
+      if (!btn || !card.contains(btn)) return;
+      var act = btn.getAttribute('data-act');
+      if (act === 'toggle') {
+        e.preventDefault();
+        expandedIds[id] = !expandedIds[id];
+        if (expandedIds[id] && api() && api().setActiveProfile) api().setActiveProfile(id);
+        render();
         return;
       }
-      connect();
-    }, 650);
-  }
-
-  function syncKeyVisibility() {
-    var btn = $('btn-api-key-vis');
-    var key = $('cfg-api-key');
-    var svg = window.天青_svg;
-    if (!btn || !key || !svg) return;
-    var visible = btn.getAttribute('data-visible') === '1';
-    key.type = visible ? 'text' : 'password';
-    svg.mount(btn, visible ? svg.eye : svg.eyeOff);
-    btn.setAttribute('aria-label', visible ? '隐藏密钥' : '显示密钥');
-    btn.title = visible ? '隐藏密钥' : '显示密钥';
-  }
-
-  function toggleKeyVisibility() {
-    var btn = $('btn-api-key-vis');
-    if (!btn) return;
-    var next = btn.getAttribute('data-visible') === '1' ? '0' : '1';
-    btn.setAttribute('data-visible', next);
-    syncKeyVisibility();
-  }
-
-  function maybeTryAutoConnect() {
-    var cfg = (api() && api().loadConfig()) || {};
-    if (!cfg.autoConnect) return;
-    if (!String(cfg.baseUrl || '').trim()) return;
-    connect();
-  }
-
-  function bind() {
-    fillDom();
-    syncKeyVisibility();
-
-    var svg = window.天青_svg;
-    var base = $('cfg-api-base');
-    var key = $('cfg-api-key');
-    var model = $('cfg-api-model');
-    var vis = $('btn-api-key-vis');
-    var caret = $('btn-api-model-menu');
-    var menu = $('cfg-api-model-menu');
-    var auto = $('cfg-api-auto-connect');
-
-    if (svg && caret) svg.mount(caret, svg.caret);
-
-    if (base) {
-      base.addEventListener('change', function () {
-        saveFromDom();
-      });
-    }
-    if (auto) {
-      auto.addEventListener('change', function () {
-        saveFromDom();
-      });
-    }
-    var stream = $('cfg-api-stream');
-    if (stream) {
-      stream.addEventListener('change', function () {
-        saveFromDom();
-      });
-    }
-    var streamDisplay = $('cfg-api-stream-display');
-    if (streamDisplay) {
-      streamDisplay.addEventListener('change', function () {
-        saveFromDom();
-      });
-    }
-    var maxTok = $('cfg-api-max-tokens');
-    if (maxTok) {
-      maxTok.addEventListener('change', function () {
-        var v = Math.round(clampNum(maxTok.value, 1, 2000000, 4096));
-        maxTok.value = String(v);
-        saveFromDom();
-      });
-    }
-    var reasoning = $('cfg-api-reasoning');
-    if (reasoning) {
-      reasoning.addEventListener('change', function () {
-        saveFromDom();
-      });
-    }
-    bindIntSlider('cfg-api-context', 'cfg-api-context-num', saveFromDom);
-    bindFloatSlider('cfg-api-temp', 'cfg-api-temp-num', saveFromDom);
-    bindFloatSlider('cfg-api-freq', 'cfg-api-freq-num', saveFromDom);
-    bindFloatSlider('cfg-api-pres', 'cfg-api-pres-num', saveFromDom);
-    bindFloatSlider('cfg-api-top-p', 'cfg-api-top-p-num', saveFromDom);
-    if (vis) {
-      vis.addEventListener('click', toggleKeyVisibility);
-    }
-    if (key) {
-      key.addEventListener('input', function () {
-        saveFromDom();
-        scheduleKeyCheck();
-      });
-      key.addEventListener('change', function () {
-        saveFromDom();
-        scheduleKeyCheck();
-      });
-    }
-    if (model) {
-      model.addEventListener('change', function () {
-        saveFromDom();
-      });
-      model.addEventListener('input', function () {
-        saveFromDom();
-        suggestModelsFromInput();
-      });
-      model.addEventListener('focus', function () {
-        if (modelIds.length) suggestModelsFromInput();
-      });
-      model.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') closeModelMenu();
-      });
-    }
-    if (caret) {
-      caret.addEventListener('click', function (e) {
+      if (act === 'advanced') {
+        e.preventDefault();
+        advancedOpen[id] = !advancedOpen[id];
+        var panel = card.querySelector('.api-advanced');
+        if (panel) panel.hidden = !advancedOpen[id];
+        btn.setAttribute('aria-expanded', advancedOpen[id] ? 'true' : 'false');
+        return;
+      }
+      if (act === 'up') {
+        e.preventDefault();
+        api().moveProfile(id, -1);
+        render();
+        return;
+      }
+      if (act === 'down') {
+        e.preventDefault();
+        api().moveProfile(id, 1);
+        render();
+        return;
+      }
+      if (act === 'dup') {
+        e.preventDefault();
+        var copy = api().duplicateProfile(id);
+        if (copy) expandedIds[copy.id] = true;
+        render();
+        return;
+      }
+      if (act === 'del') {
+        e.preventDefault();
+        var st0 = store();
+        if (st0.profiles.length <= 1) {
+          toast('至少保留一套接口');
+          return;
+        }
+        var pname = '';
+        for (var di = 0; di < st0.profiles.length; di++) {
+          if (st0.profiles[di].id === id) {
+            pname = st0.profiles[di].name || '';
+            break;
+          }
+        }
+        if (!window.confirm('删除接口「' + pname + '」？')) return;
+        api().removeProfile(id);
+        delete expandedIds[id];
+        delete advancedOpen[id];
+        delete modelIdsByProfile[id];
+        render();
+        return;
+      }
+      if (act === 'key-vis') {
+        e.preventDefault();
+        var key = card.querySelector('[data-f="apiKey"]');
+        if (!key) return;
+        var show = btn.getAttribute('data-visible') !== '1';
+        key.type = show ? 'text' : 'password';
+        btn.setAttribute('data-visible', show ? '1' : '0');
+        btn.setAttribute('aria-label', show ? '隐藏密钥' : '显示密钥');
+        btn.setAttribute('title', show ? '隐藏密钥' : '显示密钥');
+        return;
+      }
+      if (act === 'model-menu') {
         e.preventDefault();
         e.stopPropagation();
-        toggleModelMenu();
-      });
-    }
+        var wrap = card.querySelector('.tq-model-field');
+        if (wrap && wrap.classList.contains('is-open')) closeModelMenu(card);
+        else openModelMenu(card);
+        return;
+      }
+      if (act === 'connect') {
+        e.preventDefault();
+        connectProfile(id);
+        return;
+      }
+      if (act === 'test') {
+        e.preventDefault();
+        testProfile(id);
+      }
+    });
+
+    card.addEventListener('change', function (e) {
+      var t = e.target;
+      if (!t || !t.getAttribute) return;
+      if (t.getAttribute('data-f')) {
+        saveCard(card);
+        if (t.getAttribute('data-f') === 'protocol') {
+          var base = card.querySelector('[data-f="baseUrl"]');
+          var proto = t.value;
+          if (base) {
+            if (proto === 'claude') base.placeholder = 'https://api.anthropic.com';
+            else if (proto === 'gemini') base.placeholder = 'https://generativelanguage.googleapis.com';
+            else base.placeholder = 'https://api.openai.com/v1';
+          }
+        }
+      }
+    });
+
+    card.addEventListener('input', function (e) {
+      var t = e.target;
+      if (!t || !t.getAttribute) return;
+      var f = t.getAttribute('data-f');
+      if (!f) return;
+      if (f === 'name' || f === 'baseUrl' || f === 'model' || f === 'maxTokens') {
+        saveCard(card);
+      }
+      if (f === 'apiKey') {
+        saveCard(card);
+        scheduleKeyCheck(id);
+      }
+      if (f === 'model') {
+        if (card.querySelector('.tq-model-field.is-open')) renderModelMenu(card);
+      }
+    });
+
+    var menu = card.querySelector('.tq-model-menu');
     if (menu) {
       menu.addEventListener('click', function (e) {
         var li = e.target && e.target.closest ? e.target.closest('li[data-value]') : null;
         if (!li) return;
         e.preventDefault();
-        selectModel(li.dataset.value);
+        var input = card.querySelector('[data-f="model"]');
+        if (input) input.value = li.getAttribute('data-value') || '';
+        saveCard(card);
+        closeModelMenu(card);
+      });
+    }
+  }
+
+  function render() {
+    if (!api()) return;
+    var list = $('api-profiles-list');
+    if (!list) return;
+    var st = store();
+    var profiles = st.profiles || [];
+    if (!Object.keys(expandedIds).length && st.activeProfileId) {
+      expandedIds[st.activeProfileId] = true;
+    }
+    list.innerHTML = profiles
+      .map(function (p) {
+        return cardHtml(p, !!expandedIds[p.id]);
+      })
+      .join('');
+    list.querySelectorAll('.api-profile-card').forEach(wireCard);
+    fillRouteSelects();
+  }
+
+  async function connectProfile(id) {
+    if (!api() || busyId) return;
+    busyId = id;
+    if (api().setActiveProfile) api().setActiveProfile(id);
+    var card = document.querySelector('.api-profile-card[data-id="' + id + '"]');
+    if (card) saveCard(card);
+    setStatus(id, 'loading', '连接中…');
+    try {
+      var ids = await api().listModels({ profileId: id });
+      modelIdsByProfile[id] = ids || [];
+      setStatus(id, 'ok', '已连接 · ' + modelIdsByProfile[id].length + ' 个模型');
+      toast('已获取模型列表');
+      render();
+      expandedIds[id] = true;
+      var card2 = document.querySelector('.api-profile-card[data-id="' + id + '"]');
+      if (card2) {
+        setStatus(id, 'ok', '已连接 · ' + modelIdsByProfile[id].length + ' 个模型');
+        openModelMenu(card2);
+      }
+    } catch (e) {
+      var msg = String((e && e.message) || e || '连接失败');
+      setStatus(id, 'fail', msg.slice(0, 120));
+      toast('连接失败');
+      try {
+        await api().testMessage({ profileId: id });
+        setStatus(id, 'ok', '测试消息成功（模型列表不可用）');
+      } catch (e2) {}
+    } finally {
+      busyId = '';
+    }
+  }
+
+  async function testProfile(id) {
+    if (!api() || busyId) return;
+    busyId = id;
+    if (api().setActiveProfile) api().setActiveProfile(id);
+    var card = document.querySelector('.api-profile-card[data-id="' + id + '"]');
+    if (card) saveCard(card);
+    setStatus(id, 'loading', '发送测试…');
+    try {
+      await api().testMessage({ profileId: id });
+      setStatus(id, 'ok', '测试消息成功');
+      toast('测试成功');
+    } catch (e) {
+      setStatus(id, 'fail', String((e && e.message) || e || '失败').slice(0, 120));
+      toast('测试失败');
+    } finally {
+      busyId = '';
+    }
+  }
+
+  function scheduleKeyCheck(id) {
+    if (keyTimers[id]) clearTimeout(keyTimers[id]);
+    keyTimers[id] = setTimeout(function () {
+      keyTimers[id] = null;
+      var st = store();
+      var p = null;
+      for (var i = 0; i < st.profiles.length; i++) {
+        if (st.profiles[i].id === id) p = st.profiles[i];
+      }
+      if (!p || !p.autoConnect || !p.baseUrl || !p.apiKey) return;
+      connectProfile(id);
+    }, 650);
+  }
+
+  function maybeTryAutoConnect() {
+    var st = store();
+    var p = null;
+    for (var i = 0; i < st.profiles.length; i++) {
+      if (st.profiles[i].id === st.activeProfileId) p = st.profiles[i];
+    }
+    if (!p) p = st.profiles[0];
+    if (!p || !p.autoConnect || !String(p.baseUrl || '').trim() || !String(p.apiKey || '').trim()) return;
+    connectProfile(p.id);
+  }
+
+  function fillDom() {
+    render();
+  }
+
+  function bind() {
+    if (bound) {
+      render();
+      return;
+    }
+    bound = true;
+    render();
+
+    var addBtn = $('btn-api-add');
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        var p = api().addProfile({ name: '新接口' });
+        if (p) expandedIds[p.id] = true;
+        render();
       });
     }
 
-    document.addEventListener('click', function (e) {
-      var wrap = $('cfg-api-model-wrap');
-      if (!wrap || !wrap.classList.contains('is-open')) return;
-      if (wrap.contains(e.target)) return;
-      closeModelMenu();
+    var defSel = $('cfg-api-default-profile');
+    if (defSel) {
+      defSel.addEventListener('change', function () {
+        api().setDefaultProfile(defSel.value);
+        fillRouteSelects();
+      });
+    }
+
+    ['main', 'line', 'twitter', 'twitch'].forEach(function (route) {
+      var sel = $('cfg-api-route-' + route);
+      if (!sel) return;
+      sel.addEventListener('change', function () {
+        api().setRoute(route, sel.value);
+      });
     });
 
-    var btnConnect = $('btn-api-connect');
-    var btnTest = $('btn-api-test');
-    if (btnConnect) btnConnect.addEventListener('click', connect);
-    if (btnTest) btnTest.addEventListener('click', sendTest);
+    document.addEventListener('click', function (e) {
+      document.querySelectorAll('.api-profile-card .tq-model-field.is-open').forEach(function (wrap) {
+        if (wrap.contains(e.target)) return;
+        var card = wrap.closest('.api-profile-card');
+        if (card) closeModelMenu(card);
+      });
+    });
 
     maybeTryAutoConnect();
   }
@@ -525,7 +722,14 @@
   window.天青_settings_api = {
     bind: bind,
     fillDom: fillDom,
-    connect: connect,
-    setStatus: setStatus,
+    connect: function () {
+      var st = store();
+      if (st.activeProfileId) connectProfile(st.activeProfileId);
+    },
+    setStatus: function (state, text) {
+      var st = store();
+      if (st.activeProfileId) setStatus(st.activeProfileId, state, text);
+    },
+    render: render,
   };
 })();

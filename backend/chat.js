@@ -70,7 +70,11 @@
     if (window.天青_tokens && window.天青_tokens.ensureReady) {
       try {
         var model =
-          window.天青_api && window.天青_api.loadConfig ? window.天青_api.loadConfig().model : '';
+          window.天青_api && window.天青_api.resolveConfig
+            ? window.天青_api.resolveConfig('main').model
+            : window.天青_api && window.天青_api.loadConfig
+              ? window.天青_api.loadConfig().model
+              : '';
         await window.天青_tokens.ensureReady(model);
       } catch (e) {
         console.warn('[SummerNight Plus] tokenizer 预加载失败，历史裁剪将使用粗估', e);
@@ -90,16 +94,35 @@
     /* 成功后再写入会话，避免失败污染历史 */
     var raw = await window.天青_api.chat({
       messages: messages,
+      route: 'main',
       onDelta: typeof opts.onDelta === 'function' ? opts.onDelta : undefined,
     });
     if (window.天青_regex && window.天青_regex.applyAiOutput) {
       raw = window.天青_regex.applyAiOutput(raw);
     }
+
+    var api = window.天青_api;
+    if (!api.hasXmlPair || !api.hasXmlPair(raw, 'summernight')) {
+      throw api.makeFormatError
+        ? api.makeFormatError('主线', '<summernight>…</summernight>', raw)
+        : new Error('主线：未返回 <summernight>');
+    }
+
+    var data = window.天青_parse.parseGal(raw);
+    var mods = (data && data.modules) || [];
+    var hasPlayable = mods.some(function (m) {
+      return m && (m.type === 'line' || m.type === 'cg');
+    });
+    if (!hasPlayable) {
+      throw api.makeFormatError
+        ? api.makeFormatError('主线', '<summernight_maintext> 可演出内容', raw)
+        : new Error('主线：无可演出内容');
+    }
+
     window.天青_save.push('user', userLine);
     window.天青_save.push('assistant', raw);
     window.天青_save.setLastRaw(raw);
 
-    var data = window.天青_parse.parseGal(raw);
     logAiReply(raw, data, { source: '主线' });
 
     if (data && data.variablesRaw && window.天青_variable_commands) {

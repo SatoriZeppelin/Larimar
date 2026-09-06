@@ -613,7 +613,17 @@
     if (errOrMsg && typeof errOrMsg === 'object') {
       if (errOrMsg.codeLabel) code = String(errOrMsg.codeLabel);
       else if (errOrMsg.status) code = 'HTTP ' + errOrMsg.status;
-      detail = String(errOrMsg.body || errOrMsg.message || errOrMsg);
+      if (errOrMsg.name === 'FormatError' && errOrMsg.message) {
+        code = String(errOrMsg.codeLabel || '格式错误');
+      }
+      /* 弹窗正文优先展示 API 原文；再附上简短说明 */
+      var body = String(errOrMsg.body || '');
+      var tip = String(errOrMsg.message || '').trim();
+      if (body && tip && body.indexOf(tip) !== 0) {
+        detail = tip + '\n\n—— API 返回 ——\n' + body;
+      } else {
+        detail = body || tip || String(errOrMsg);
+      }
     } else {
       detail = String(errOrMsg || '未知错误');
       var m = detail.match(/\bHTTP\s*(\d{3})\b/i) || detail.match(/\bAPI\s+(\d{3})\b/i);
@@ -762,16 +772,34 @@
       phonePrompts = readJsonStorage('tq_plus_phone_prompts', null);
     }
 
-    /* API：导出连接/生成参数，剔除密钥与模型（及预设/正则相关不在此包） */
-    var apiFull =
-      window.天青_api && typeof window.天青_api.loadConfig === 'function'
-        ? window.天青_api.loadConfig()
-        : readJsonStorage('tq_plus_api', null);
+    /* API：导出多套接口与路由（剔除各 profile 的密钥与模型） */
     var apiPublic = null;
-    if (apiFull && typeof apiFull === 'object') {
-      apiPublic = cloneJson(apiFull);
-      delete apiPublic.apiKey;
-      delete apiPublic.model;
+    if (window.天青_api && typeof window.天青_api.loadStore === 'function') {
+      var apiStore = cloneJson(window.天青_api.loadStore());
+      if (apiStore && Array.isArray(apiStore.profiles)) {
+        apiStore.profiles = apiStore.profiles.map(function (p) {
+          var q = cloneJson(p) || {};
+          delete q.apiKey;
+          delete q.model;
+          return q;
+        });
+      }
+      apiPublic = apiStore;
+    } else {
+      var apiFull = readJsonStorage('tq_plus_api', null);
+      if (apiFull && typeof apiFull === 'object') {
+        apiPublic = cloneJson(apiFull);
+        delete apiPublic.apiKey;
+        delete apiPublic.model;
+        if (Array.isArray(apiPublic.profiles)) {
+          apiPublic.profiles = apiPublic.profiles.map(function (p) {
+            var q = cloneJson(p) || {};
+            delete q.apiKey;
+            delete q.model;
+            return q;
+          });
+        }
+      }
     }
 
     var payload = {

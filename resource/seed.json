@@ -501,20 +501,36 @@
     }
   },
   "api": {
-    "mode": "direct",
-    "baseUrl": "",
-    "temperature": 1,
-    "maxTokens": 4096,
-    "contextLength": 1999872,
-    "frequencyPenalty": 0,
-    "presencePenalty": 0,
-    "topP": 0.99,
-    "reasoningEffort": "xhigh",
-    "chatPath": "",
-    "modelsPath": "",
-    "resolvedMode": "direct",
-    "stream": false,
-    "streamDisplay": false,
-    "autoConnect": true
+    "profiles": [
+      {
+        "id": "p_default",
+        "name": "默认",
+        "enabled": true,
+        "mode": "direct",
+        "protocol": "openai",
+        "baseUrl": "",
+        "temperature": 1,
+        "maxTokens": 4096,
+        "contextLength": 1999872,
+        "frequencyPenalty": 0,
+        "presencePenalty": 0,
+        "topP": 0.99,
+        "reasoningEffort": "xhigh",
+        "chatPath": "",
+        "modelsPath": "",
+        "resolvedMode": "direct",
+        "stream": false,
+        "streamDisplay": false,
+        "autoConnect": true
+      }
+    ],
+    "activeProfileId": "p_default",
+    "defaultProfileId": "p_default",
+    "routes": {
+      "main": "",
+      "line": "",
+      "twitter": "",
+      "twitch": ""
+    }
   }
 }

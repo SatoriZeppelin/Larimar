@@ -106,9 +106,26 @@
     return out;
   }
 
-  /** 系统设置 · 提示词（世界书形） */
+  /** 系统设置 · 提示词（按世界书分组；仅启用的书） */
   function getSystemPromptEntries() {
-    var store = readJson('tq_plus_system_prompts', { entries: [] });
+    var store = readJson('tq_plus_system_prompts', { books: [], entries: [] });
+    var out = [];
+    if (Array.isArray(store.books) && store.books.length) {
+      store.books.forEach(function (book) {
+        if (!book || book.enabled === false) return;
+        (book.entries || []).forEach(function (e) {
+          if (!e) return;
+          out.push(
+            Object.assign({}, e, {
+              _source: 'system_prompt',
+              _book: book.name || book.id || '',
+            }),
+          );
+        });
+      });
+      return out;
+    }
+    /* 兼容旧扁平 entries */
     var list = Array.isArray(store.entries) ? store.entries : [];
     return list.map(function (e) {
       return Object.assign({}, e, { _source: 'system_prompt' });
@@ -261,8 +278,11 @@
 
   function getContextLength() {
     try {
-      if (window.天青_api && window.天青_api.loadConfig) {
-        var cfg = window.天青_api.loadConfig();
+      if (window.天青_api) {
+        var cfg =
+          typeof window.天青_api.resolveConfig === 'function'
+            ? window.天青_api.resolveConfig('main')
+            : window.天青_api.loadConfig && window.天青_api.loadConfig();
         var n = Number(cfg && cfg.contextLength);
         if (isFinite(n) && n > 0) return Math.round(n);
       }
